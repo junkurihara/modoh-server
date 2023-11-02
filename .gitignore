@@ -1,0 +1,6 @@
+/target
+/obsolete
+Cargo.lock
+
+.vscode
+.private
