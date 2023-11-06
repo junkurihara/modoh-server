@@ -1,8 +1,12 @@
-[package]
-name = "doh-auth-relay"
-version = "0.1.0"
-edition = "2021"
+[workspace]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+members = ["dar-bin", "dar-lib"]
+resolver = "2"
 
-[dependencies]
+[profile.release]
+codegen-units = 1
+incremental = false
+lto = "fat"
+opt-level = 3
+panic = "abort"
+strip = true

@@ -2,10 +2,13 @@
 ## We should note that this proxy is always used with TLS termination reverse proxy in front of it.
 ## This proxy is not designed to be exposed to the internet directly.
 
-## Listen address [default: "0.0.0.0:8080"]
-listen_address = "0.0.0.0:8080"
+## Listen address [default: "0.0.0.0"]
+listen_address = "0.0.0.0"
 
-## Serving hostname
+## Listen port [default: 8080]
+listen_port = 8080
+
+## Serving hostname [default: "localhost"]
 ## This will be used to check host header of incoming requests.
 hostname = "modoh.example.com"
 
@@ -16,35 +19,24 @@ path = "/proxy"
 ## Authentication of source, typically user clients, using Id token
 [auth]
 
-## Token varidation method, multiple methods can be configured
+## Token validation method, multiple methods can be configured
 [[auth.token]]
 ## Token issuer
 token_issuer_url = "https://example.com/auth"
 
 ## Allowed client Ids
-client_ids = [
-  "client_id_1",
-  "client_id_2",
-]
+client_ids = ["client_id_1", "client_id_2"]
 
-## Varidation key path
-varidation_key_path = "/path/to/varidation_key"
+## Validation key path
+validation_key_path = "/path/to/validation_key"
 
-## Varidation algorithm (TODO: needed? maybe able to infer from the key file itself)
-varidation_algorithm = "ES256"
 
 [auth.ip_and_domain]
 ## Allowed source ip addrs
 ## (TODO: from dns, should we fetch addrs associated with a given list of authorized relay domains? but such addresses may be compromised)
-## This is evaluated when no authorization header is given in the request or no token varidation is configured.
+## This is evaluated when no authorization header is given in the request or no token validation is configured.
 ## This happens typcially for forwarded requests from a relay, not a client.
-allowed_source_ip_addresses = [
-  "192.168.1.1",
-  "192.168.1.2",
-]
+allowed_source_ip_addresses = ["192.168.1.1", "192.168.1.2"]
 
 ## Allowed destination target and relay domains
-allowed_destination_domains = [
-  "example.com",
-  "example.net",
-]
+allowed_destination_domains = ["example.com", "example.net"]
