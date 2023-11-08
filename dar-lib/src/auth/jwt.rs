@@ -17,6 +17,7 @@ mod params_oids {
   pub const Prime256v1: &str = "1.2.840.10045.3.1.7";
 }
 
+#[derive(Clone)]
 /// Validation key for JWT
 pub enum ValidationKey {
   EdDSA(Ed25519PublicKey),

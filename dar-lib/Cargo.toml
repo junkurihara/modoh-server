@@ -47,6 +47,13 @@ thiserror = "1.0.50"
 url = "2.4.1"
 
 # authentication of id token
+hyper = { version = "0.14.27", default-features = false, features = [
+  "client",
+  "server",
+  "http1",
+  "http2",
+  "stream",
+] }
 jwt-simple = "0.11.9"
 spki = { version = "0.7.2", default-features = false, features = [
   "pem",
