@@ -1,7 +1,7 @@
-use super::{toml::ConfigToml};
+use super::toml::ConfigToml;
 use crate::{constants::*, error::*, log::*};
 use async_trait::async_trait;
-use doh_auth_relay_lib::{RelayConfig, AuthConfig, TokenConfig, IpAndDomainConfig};
+use doh_auth_relay_lib::{AuthConfig, IpAndDomainConfig, RelayConfig, TokenConfig};
 use hot_reload::{Reload, ReloaderError};
 use std::{env, sync::Arc};
 use tokio::time::Duration;
@@ -32,9 +32,7 @@ impl Reload<TargetConfig> for ConfigReloader {
     let config_toml = ConfigToml::new(&self.config_path)
       .map_err(|_e| ReloaderError::<TargetConfig>::Reload("Failed to reload config toml"))?;
 
-    Ok(Some(TargetConfig {
-      config_toml,
-    }))
+    Ok(Some(TargetConfig { config_toml }))
   }
 }
 
@@ -42,9 +40,7 @@ impl TargetConfig {
   /// build new target config by loading query manipulation plugin configs
   pub async fn new(config_file: &str) -> anyhow::Result<Self> {
     let config_toml = ConfigToml::new(config_file)?;
-    Ok(Self {
-      config_toml,
-    })
+    Ok(Self { config_toml })
   }
 }
 
@@ -72,13 +68,16 @@ impl TryInto<RelayConfig> for &TargetConfig {
       relay_conf.path = path.clone();
     }
     info!("Path: {}", relay_conf.path);
+    if let Some(max_subseq_nodes) = &self.config_toml.max_subseq_nodes {
+      relay_conf.max_subseq_nodes = *max_subseq_nodes;
+    }
+    info!("Max subsequence nodes: {}", relay_conf.max_subseq_nodes);
 
     if self.config_toml.auth.is_none() {
       return Ok(relay_conf);
     }
 
     let auth = self.config_toml.auth.as_ref().unwrap();
-
 
     Ok(relay_conf)
   }

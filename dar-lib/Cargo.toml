@@ -45,15 +45,16 @@ thiserror = "1.0.50"
 
 # http handling
 url = "2.4.1"
-
-# authentication of id token
+rustc-hash = "1.1.0"
+reqwest = { version = "0.11.22", features = ["trust-dns"] }
 hyper = { version = "0.14.27", default-features = false, features = [
-  "client",
   "server",
   "http1",
   "http2",
   "stream",
 ] }
+
+# authentication of id token
 jwt-simple = "0.11.9"
 spki = { version = "0.7.2", default-features = false, features = [
   "pem",

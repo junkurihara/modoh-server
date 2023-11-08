@@ -27,7 +27,7 @@ pub async fn entrypoint(
   });
 
   // build relay
-  let relay = Relay { globals };
+  let relay = Relay::try_new(&globals)?;
 
   // start relay
   if let Some(term_notify) = term_notify {

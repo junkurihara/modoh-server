@@ -13,6 +13,8 @@ pub struct ConfigToml {
   pub hostname: Option<String>,
   /// Serving path [default: "/proxy"]
   pub path: Option<String>,
+  /// Maximum number of subsequence nodes [default: 3]
+  pub max_subseq_nodes: Option<usize>,
   /// Authentication information. if None, no authentication.
   pub auth: Option<Auth>,
 }

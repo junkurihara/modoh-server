@@ -15,6 +15,9 @@ hostname = "modoh.example.com"
 ## Serving path [default: "/proxy"]
 path = "/proxy"
 
+## Maximum number of subsequent nodes (relays and target resolver) [default: 3]
+max_subsequent_nodes = 3
+
 ## (Optional, but highly reccomended to set)
 ## Authentication of source, typically user clients, using Id token
 [auth]

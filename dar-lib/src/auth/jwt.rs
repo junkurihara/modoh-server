@@ -53,14 +53,13 @@ impl ValidationKey {
 
   /// Verify JWT
   pub fn verify(&self, token: &str, opt: Option<&VerificationOptions>) -> Result<JWTClaims<NoCustomClaims>> {
-    let opt = None;
     match self {
       Self::EdDSA(key) => {
-        let c = key.verify_token(token, opt)?;
+        let c = key.verify_token(token, opt.cloned())?;
         Ok(c)
       }
       Self::ES256(key) => {
-        let c = key.verify_token(token, opt)?;
+        let c = key.verify_token(token, opt.cloned())?;
         Ok(c)
       }
     }

@@ -2,6 +2,7 @@ use crate::{auth::ValidationKey, constants::*};
 use std::{
   net::{IpAddr, SocketAddr},
   sync::Arc,
+  time::Duration,
 };
 use url::Url;
 
@@ -30,13 +31,18 @@ pub struct RelayConfig {
   pub max_clients: usize,
   /// Maximum number of concurrent streams
   pub max_concurrent_streams: u32,
-  /// Keepalive timeout
+  /// http keepalive
   pub keepalive: bool,
+  /// timeout for relaying operation
+  pub timeout: Duration,
 
   /// hostname of the relay
   pub hostname: String,
   /// url path that the relay listening on
   pub path: String,
+  /// maximum number of subsequence nodes
+  pub max_subseq_nodes: usize,
+
   /// Authentication information. if None, no authentication.
   pub auth: Option<AuthConfig>,
 }
@@ -78,8 +84,10 @@ impl Default for RelayConfig {
       max_clients: MAX_CLIENTS,
       max_concurrent_streams: MAX_CONCURRENT_STREAMS,
       keepalive: KEEPALIVE,
+      timeout: Duration::from_secs(TIMEOUT),
       hostname: HOSTNAME.to_string(),
       path: PATH.to_string(),
+      max_subseq_nodes: MODOH_MAX_SUBSEQ_NODES,
       auth: None,
     }
   }
