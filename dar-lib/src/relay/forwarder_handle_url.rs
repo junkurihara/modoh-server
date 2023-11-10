@@ -1,4 +1,5 @@
 use crate::{constants::HOSTNAME, error::*, log::*};
+use hyper::client::connect::Connect;
 use rustc_hash::FxHashMap as HashMap;
 use url::Url;
 
@@ -30,34 +31,37 @@ fn is_looped(current_url: &Url) -> bool {
   false
 }
 
-impl InnerForwarder {
+impl<C, B> InnerForwarder<C, B>
+where
+  C: Send + Sync + Connect + Clone + 'static,
+{
   /// build next-hop url with loop detection and max subsequent nodes check
-  pub fn build_nexthop_url(&self, current_url: &Url) -> Result<Url> {
+  pub fn build_nexthop_url(&self, current_url: &Url) -> HttpResult<Url> {
     // check loop
     if is_looped(current_url) {
-      return Err(RelayError::LoopDetected);
+      return Err(HttpError::LoopDetected);
     }
 
     let query_pairs = current_url.query_pairs().collect::<HashMap<_, _>>();
     if query_pairs.len() < 2 || query_pairs.len() % 2 != 0 {
-      return Err(RelayError::InvalidQueryParameter);
+      return Err(HttpError::InvalidQueryParameter);
     }
     let subseq_node_num = query_pairs.len() / 2;
     if subseq_node_num > self.max_subseq_nodes {
-      return Err(RelayError::TooManySubsequentNodes);
+      return Err(HttpError::TooManySubsequentNodes);
     }
 
     // assert that query pair contains targethost and targetpath
     let (Some(targethost), Some(targetpath)) = (query_pairs.get(ODOH_TARGETHOST), query_pairs.get(ODOH_TARGETPATH))
     else {
-      return Err(RelayError::InvalidQueryParameter);
+      return Err(HttpError::InvalidQueryParameter);
     };
 
     // in case of ODoH
     if query_pairs.len() == 2 {
       let mut next_hop_url = Url::parse(format!("https://{targethost}").as_str()).map_err(|e| {
         error!("{e}");
-        RelayError::InvalidQueryParameter
+        HttpError::InvalidQueryParameter
       })?;
       next_hop_url.set_path(targetpath);
       return Ok(next_hop_url);
@@ -71,7 +75,7 @@ impl InnerForwarder {
       query_pairs.contains_key(host_key.as_str()) && query_pairs.contains_key(path_key.as_str())
     });
     if !query_check {
-      return Err(RelayError::InvalidQueryParameter);
+      return Err(HttpError::InvalidQueryParameter);
     }
 
     // nexthop host and path
@@ -84,7 +88,7 @@ impl InnerForwarder {
     )
     .map_err(|e| {
       error!("{e}");
-      RelayError::InvalidQueryParameter
+      HttpError::InvalidQueryParameter
     })?;
     next_hop_url.set_path(query_pairs.get(format!("{MODOH_RELAYPATH}[1]").as_str()).unwrap());
 
@@ -109,6 +113,7 @@ impl InnerForwarder {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use hyper::HeaderMap;
 
   #[test]
   fn is_looped_test() {
@@ -140,7 +145,12 @@ mod tests {
   #[test]
   fn test_build_next_hop_url() {
     let inner = InnerForwarder {
-      inner: reqwest::Client::new(),
+      inner: {
+        let builder = hyper_rustls::HttpsConnectorBuilder::new().with_webpki_roots();
+        let connector = builder.https_or_http().enable_http1().enable_http2().build();
+        hyper::Client::builder().build::<_, hyper::Body>(connector)
+      },
+      request_headers: HeaderMap::new(),
       relay_host: "example.com".to_string(),
       relay_path: "/proxy".to_string(),
       max_subseq_nodes: 3,

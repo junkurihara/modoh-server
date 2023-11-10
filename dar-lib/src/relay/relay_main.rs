@@ -1,6 +1,12 @@
 use super::{count::RequestCount, forwarder::InnerForwarder, socket::bind_tcp_socket};
 use crate::{error::*, globals::Globals, log::*};
-use hyper::{server::conn::Http, service::service_fn, Body, Request};
+use hyper::{
+  client::{connect::Connect, HttpConnector},
+  server::conn::Http,
+  service::service_fn,
+  Body, Request,
+};
+use hyper_rustls::HttpsConnector;
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{
   io::{AsyncRead, AsyncWrite},
@@ -30,24 +36,35 @@ where
 }
 
 /// (M)ODoH Relay main object
-pub struct Relay {
+pub struct Relay<C>
+where
+  C: Send + Sync + Connect + Clone + 'static,
+{
   pub globals: Arc<Globals>,
   pub http_server: Arc<Http<LocalExecutor>>,
-  pub inner_forwarder: Arc<InnerForwarder>,
+  pub inner_forwarder: Arc<InnerForwarder<C>>,
   pub request_count: RequestCount,
 }
 
 /// Service wrapper with authentication
-pub async fn forward_request_with_auth(
+pub async fn forward_request_with_auth<C>(
   req: Request<Body>,
   peer_addr: SocketAddr,
-  forwarder: Arc<InnerForwarder>,
-) -> Result<hyper::Response<Body>> {
+  forwarder: Arc<InnerForwarder<C>>,
+) -> Result<hyper::Response<Body>>
+where
+  C: Send + Sync + Connect + Clone + 'static,
+{
   // TODO: authentication with header or source ip address
-  forwarder.serve(req, peer_addr).await
+  let res = forwarder.serve(req, peer_addr).await;
+  info!("finish");
+  res
 }
 
-impl Relay {
+impl<C> Relay<C>
+where
+  C: Send + Sync + Connect + Clone + 'static,
+{
   /// Serve tcp stream
   fn serve_connection<I>(&self, stream: I, peer_addr: SocketAddr)
   where
@@ -66,12 +83,10 @@ impl Relay {
     self.globals.runtime_handle.clone().spawn(async move {
       timeout(
         timeout_sec + Duration::from_secs(1),
-        server_clone
-          .serve_connection(
-            stream,
-            service_fn(move |req: Request<Body>| forward_request_with_auth(req, peer_addr, forwarder_clone.clone())),
-          )
-          .with_upgrades(),
+        server_clone.serve_connection(
+          stream,
+          service_fn(move |req: Request<Body>| forward_request_with_auth(req, peer_addr, forwarder_clone.clone())),
+        ),
       )
       .await
       .ok();
@@ -118,7 +133,9 @@ impl Relay {
     }
     Ok(())
   }
+}
 
+impl Relay<HttpsConnector<HttpConnector>> {
   /// build relay
   pub fn try_new(globals: &Arc<Globals>) -> Result<Self> {
     let mut server = Http::new();
