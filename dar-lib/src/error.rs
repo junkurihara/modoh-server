@@ -69,6 +69,13 @@ pub enum HttpError {
   #[error("Invalid response body")]
   InvalidResponseBody,
 
+  #[error("No authorization header")]
+  NoAuthorizationHeader,
+  #[error("Invalid authorization header")]
+  InvalidAuthorizationHeader,
+  #[error("Invalid token")]
+  InvalidToken,
+
   #[error(transparent)]
   Other(#[from] anyhow::Error),
 }
@@ -92,6 +99,10 @@ impl From<HttpError> for StatusCode {
       HttpError::SendRequestError(_) => StatusCode::BAD_GATEWAY,
       HttpError::InvalidResponseContentType => StatusCode::BAD_GATEWAY,
       HttpError::InvalidResponseBody => StatusCode::BAD_GATEWAY,
+
+      HttpError::NoAuthorizationHeader => StatusCode::FORBIDDEN,
+      HttpError::InvalidAuthorizationHeader => StatusCode::FORBIDDEN,
+      HttpError::InvalidToken => StatusCode::UNAUTHORIZED,
 
       HttpError::TooLargeRequestBody => StatusCode::PAYLOAD_TOO_LARGE,
       _ => StatusCode::INTERNAL_SERVER_ERROR,

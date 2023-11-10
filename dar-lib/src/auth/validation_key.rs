@@ -4,7 +4,7 @@ use jwt_simple::prelude::*;
 use p256::elliptic_curve::sec1::ToEncodedPoint;
 use spki::{der::Decode, Document, SubjectPublicKeyInfoRef};
 
-#[allow(non_upper_case_globals)]
+#[allow(non_upper_case_globals, dead_code)]
 /// Algorithm OIDs
 mod algorithm_oids {
   /// OID for `id-ecPublicKey`, if you're curious
@@ -12,7 +12,7 @@ mod algorithm_oids {
   /// OID for `id-Ed25519`, if you're curious
   pub const Ed25519: &str = "1.3.101.112";
 }
-#[allow(non_upper_case_globals)]
+#[allow(non_upper_case_globals, dead_code)]
 /// Params OIDs
 mod params_oids {
   // Example parameters value: OID for the NIST P-256 elliptic curve.
@@ -42,6 +42,7 @@ pub enum ValidationKey {
 }
 
 impl ValidationKey {
+  #[allow(dead_code)]
   /// Convert from pem string
   pub fn from_pem(pem: &str) -> Result<Self> {
     let (_s, doc) = Document::from_pem(pem)?;

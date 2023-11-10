@@ -4,17 +4,11 @@ use hyper::{
   client::{connect::Connect, HttpConnector},
   header,
   http::{request::Parts, HeaderMap, HeaderValue, Method},
-  Body, Client, Request, Response, StatusCode,
+  Body, Client, Request, Response,
 };
 use hyper_rustls::HttpsConnector;
 use std::{net::SocketAddr, sync::Arc};
 use url::Url;
-
-/// build http response with status code of 4xx and 5xx
-fn http_error(status_code: StatusCode) -> Result<Response<Body>> {
-  let response = Response::builder().status(status_code).body(Body::empty()).unwrap();
-  Ok(response)
-}
 
 /// parse and check content type and accept headers if both or either of them are "application/oblivious-dns-message".
 fn check_content_type<T>(req: &Request<T>) -> HttpResult<()> {
@@ -116,45 +110,44 @@ where
   /// 4. forward request to next hop
   /// 5. return response after appending "Proxy-Status" header with a received-status param as described in [RFC9230, Section 4.3](https://datatracker.ietf.org/doc/rfc9230/).
   /// c.f., "Proxy-Status" [RFC9209](https://datatracker.ietf.org/doc/rfc9209).
-  pub async fn serve(&self, req: Request<Body>, peer_addr: SocketAddr) -> Result<hyper::Response<Body>> {
+  pub async fn serve(
+    &self,
+    req: Request<Body>,
+    peer_addr: SocketAddr,
+    already_passed_auth: bool,
+  ) -> HttpResult<Response<Body>> {
     // TODO: source ip authenticate here?
     // for authorized ip addresses, maintain blacklist (error metrics) at each relay for given requests
 
     // check host
-    let host = match inspect_get_host(&req) {
-      Ok(host) => host,
-      Err(e) => {
-        return http_error(StatusCode::from(e));
-      }
-    };
+    let host = inspect_get_host(&req)?;
     if host != self.relay_host {
-      return http_error(StatusCode::from(HttpError::InvalidHost));
+      return Err(HttpError::InvalidHost);
     }
     // check path
     if req.uri().path() != self.relay_path {
-      return http_error(StatusCode::from(HttpError::InvalidPath));
+      return Err(HttpError::InvalidPath);
     };
     // check method
     if req.method() != Method::POST {
-      return http_error(StatusCode::from(HttpError::InvalidMethod));
+      return Err(HttpError::InvalidMethod);
     };
     // check content type
-    if let Err(error_res) = check_content_type(&req) {
-      return http_error(StatusCode::from(error_res));
-    };
+    check_content_type(&req)?;
+
     // build next hop url
     let Ok(current_url) = &url::Url::parse(&format!(
       "https://{}{}",
       host,
       &req.uri().path_and_query().map(|v| v.as_str()).unwrap_or("")
     )) else {
-      return http_error(StatusCode::from(HttpError::InvalidUrl));
+      return Err(HttpError::InvalidUrl);
     };
     let nexthop_url = match self.build_nexthop_url(current_url) {
       Ok(url) => url,
       Err(e) => {
         error!("(M)ODoH next hop url build error: {}", e);
-        return http_error(StatusCode::from(e));
+        return Err(e);
       }
     };
     debug!("(M)ODoH next hop url: {}", nexthop_url.as_str());
@@ -165,32 +158,23 @@ where
     // split request into parts and body to manipulate them later
     let (mut parts, mut body) = req.into_parts();
     // check if body is a valid odoh query and serve it
-    let encrypted_query = match read_body(&mut body).await {
-      Ok(query) => query,
-      Err(e) => {
-        return http_error(StatusCode::from(e));
-      }
-    };
+    let encrypted_query = read_body(&mut body).await?;
     if encrypted_query.is_empty() {
-      return http_error(StatusCode::from(HttpError::NoBodyInRequest));
+      return Err(HttpError::NoBodyInRequest);
     }
 
     // Forward request to next hop: Only post method is allowed in ODoH
-    if let Err(e) = self.update_request_parts(&nexthop_url, &mut parts) {
-      return http_error(StatusCode::from(e));
-    }
+    self.update_request_parts(&nexthop_url, &mut parts)?;
     let updated_request = Request::from_parts(parts, Body::from(encrypted_query.to_owned()));
     let mut response = match self.inner.request(updated_request).await {
       Ok(res) => res,
       Err(e) => {
         warn!("Upstream query error: {}", e);
-        return http_error(StatusCode::from(HttpError::SendRequestError(e)));
+        return Err(HttpError::SendRequestError(e));
       }
     };
     // Inspect and update response
-    if let Err(e) = self.inspect_update_response(&mut response) {
-      return http_error(StatusCode::from(e));
-    }
+    self.inspect_update_response(&mut response)?;
 
     Ok(response)
   }

@@ -1,4 +1,4 @@
-use crate::{auth::ValidationKey, constants::*};
+use crate::constants::*;
 use std::{
   net::{IpAddr, SocketAddr},
   sync::Arc,

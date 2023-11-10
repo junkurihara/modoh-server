@@ -1,10 +1,14 @@
-use super::{count::RequestCount, forwarder::InnerForwarder, socket::bind_tcp_socket};
+use super::{
+  authenticator::InnerAuthenticator, count::RequestCount, forwarder::InnerForwarder, http_error,
+  socket::bind_tcp_socket,
+};
 use crate::{auth::TokenAuthenticator, error::*, globals::Globals, log::*};
 use hyper::{
   client::{connect::Connect, HttpConnector},
+  header,
   server::conn::Http,
   service::service_fn,
-  Body, Request,
+  Body, Request, StatusCode,
 };
 use hyper_rustls::HttpsConnector;
 use std::{net::SocketAddr, sync::Arc, time::Duration};
@@ -43,7 +47,7 @@ where
   pub globals: Arc<Globals>,
   pub http_server: Arc<Http<LocalExecutor>>,
   pub inner_forwarder: Arc<InnerForwarder<C>>,
-  pub inner_authenticator: Option<Arc<TokenAuthenticator>>,
+  pub inner_authenticator: Option<Arc<InnerAuthenticator>>,
   pub request_count: RequestCount,
 }
 
@@ -52,12 +56,37 @@ pub async fn forward_request_with_auth<C>(
   req: Request<Body>,
   peer_addr: SocketAddr,
   forwarder: Arc<InnerForwarder<C>>,
+  authenticator: Option<Arc<InnerAuthenticator>>,
 ) -> Result<hyper::Response<Body>>
 where
   C: Send + Sync + Connect + Clone + 'static,
 {
-  // TODO: authentication with header or source ip address
-  let res = forwarder.serve(req, peer_addr).await;
+  // authentication with header
+  let mut already_passed_auth = false;
+  if let (Some(auth), true) = (authenticator, req.headers().contains_key(header::AUTHORIZATION)) {
+    debug!("execute token authentication");
+    let claims = match auth.validate(&req).await {
+      Ok(claims) => {
+        already_passed_auth = true;
+        claims
+      }
+      Err(e) => {
+        warn!("token authentication failed: {}", e);
+        return http_error(StatusCode::from(e));
+      }
+    };
+    debug!(
+      "token authentication passed: subject {}",
+      claims.subject.as_deref().unwrap_or("")
+    );
+  }
+  // TODO: IP addr check here? domain check should be done in forwarder
+
+  // serve query as relay
+  let res = match forwarder.serve(req, peer_addr, already_passed_auth).await {
+    Ok(res) => Ok(res),
+    Err(e) => http_error(StatusCode::from(e)),
+  };
   debug!("serve query finish");
   res
 }
@@ -80,13 +109,16 @@ where
 
     let server_clone = self.http_server.clone();
     let forwarder_clone = self.inner_forwarder.clone();
+    let authenticator_clone = self.inner_authenticator.clone();
     let timeout_sec = self.globals.relay_config.timeout;
     self.globals.runtime_handle.clone().spawn(async move {
       timeout(
         timeout_sec + Duration::from_secs(1),
         server_clone.serve_connection(
           stream,
-          service_fn(move |req: Request<Body>| forward_request_with_auth(req, peer_addr, forwarder_clone.clone())),
+          service_fn(move |req: Request<Body>| {
+            forward_request_with_auth(req, peer_addr, forwarder_clone.clone(), authenticator_clone.clone())
+          }),
         ),
       )
       .await
@@ -151,7 +183,7 @@ impl Relay<HttpsConnector<HttpConnector>> {
       globals: globals.clone(),
       http_server,
       inner_forwarder,
-      inner_authenticator: auth.clone(),
+      inner_authenticator: auth.clone().map(|v| Arc::new(InnerAuthenticator::new(v))),
       request_count: RequestCount::default(),
     })
   }
