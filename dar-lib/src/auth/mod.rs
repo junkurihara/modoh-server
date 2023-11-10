@@ -1,8 +1,6 @@
-mod jwt;
+mod auth_main;
+mod jwks_service;
+mod validation_key;
 
-pub use jwt::ValidationKey;
-
-pub struct Authenticator {
-  token_authenticator: Option<ValidationKey>,
-  location_authenticator: Option<()>,
-}
+pub use auth_main::TokenAuthenticator;
+pub use validation_key::ValidationKey;

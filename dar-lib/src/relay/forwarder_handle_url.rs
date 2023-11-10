@@ -10,7 +10,7 @@ const ODOH_TARGETPATH: &str = "targetpath";
 const MODOH_RELAYHOST: &str = "relayhost";
 const MODOH_RELAYPATH: &str = "relaypath";
 
-// Loop detection
+/// Loop detection
 fn is_looped(current_url: &Url) -> bool {
   let mut seen = vec![current_url.host_str().unwrap_or(HOSTNAME).to_ascii_lowercase()];
   let hostnames = current_url.query_pairs().filter_map(|(k, v)| {

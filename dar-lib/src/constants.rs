@@ -18,3 +18,9 @@ pub const MODOH_MAX_SUBSEQ_NODES: usize = 3;
 
 /// Maximum length of a DNS query in bytes, an encrypted query as well
 pub const MAX_DNS_QUESTION_LEN: usize = 512;
+
+// Auth
+
+/// JWKS refetch delay in seconds for authentication
+pub const JWKS_REFETCH_DELAY_SEC: u64 = 300;
+pub const JWKS_ENDPOINT_PATH: &str = "jwks";

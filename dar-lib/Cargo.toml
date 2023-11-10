@@ -32,6 +32,10 @@ publish = false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+futures = { version = "0.3.29", default-features = false, features = [
+  "std",
+  "async-await",
+] }
 tokio = { version = "1.33.0", features = [
   "net",
   "rt-multi-thread",
@@ -66,4 +70,8 @@ spki = { version = "0.7.2", default-features = false, features = [
   "pem",
   "alloc",
 ] }
-futures-util = "0.3.29"
+reqwest = { version = "0.11.22", features = ["json", "default"] }
+serde = { version = "1.0.192", default-features = false, features = ["derive"] }
+serde_json = "1.0.108"
+p256 = { version = "0.13.2", features = ["jwk"] }
+base64 = "0.21.5"

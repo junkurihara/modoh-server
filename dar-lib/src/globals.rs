@@ -45,35 +45,35 @@ pub struct RelayConfig {
 
   /// Authentication information. if None, no authentication.
   pub auth: Option<AuthConfig>,
+
+  /// Access control information. if None, no access control.
+  pub access: Option<AccessConfig>,
 }
 
 #[derive(Clone)]
 /// Authentication of source, typically user clients, using Id token
 pub struct AuthConfig {
   /// Allowed token information
-  token: Option<Vec<TokenConfig>>,
-  /// Allowed source ip addresses and destination domains
-  ip_and_domain: Option<IpAndDomainConfig>,
+  pub inner: Vec<TokenConfigInner>,
 }
 
 #[derive(Clone)]
 /// Allowed token information
-pub struct TokenConfig {
-  /// Token issuer url
-  token_issuer_url: Url,
+pub struct TokenConfigInner {
+  /// Token issuer url, validation_key is automatically retrieved from the url
+  pub token_issuer_url: Url,
   /// Allowed client ids
-  client_ids: Vec<String>,
-  /// Validation key
-  validation_key: ValidationKey,
+  pub client_ids: Vec<String>,
 }
 
 #[derive(Clone)]
+/// Access control of source ips and target domains
 /// Allowed source ip addresses and destination domains
-pub struct IpAndDomainConfig {
+pub struct AccessConfig {
   /// Allowed source ip addresses
-  allowed_source_ip_addresses: Vec<IpAddr>,
+  pub allowed_source_ip_addresses: Vec<IpAddr>,
   /// Allowed destination domains
-  allowed_destination_domains: Vec<String>,
+  pub allowed_destination_domains: Vec<String>,
 }
 
 impl Default for RelayConfig {
@@ -89,6 +89,7 @@ impl Default for RelayConfig {
       path: PATH.to_string(),
       max_subseq_nodes: MODOH_MAX_SUBSEQ_NODES,
       auth: None,
+      access: None,
     }
   }
 }

@@ -1,5 +1,5 @@
 use super::{count::RequestCount, forwarder::InnerForwarder, socket::bind_tcp_socket};
-use crate::{error::*, globals::Globals, log::*};
+use crate::{auth::TokenAuthenticator, error::*, globals::Globals, log::*};
 use hyper::{
   client::{connect::Connect, HttpConnector},
   server::conn::Http,
@@ -43,6 +43,7 @@ where
   pub globals: Arc<Globals>,
   pub http_server: Arc<Http<LocalExecutor>>,
   pub inner_forwarder: Arc<InnerForwarder<C>>,
+  pub inner_authenticator: Option<Arc<TokenAuthenticator>>,
   pub request_count: RequestCount,
 }
 
@@ -57,7 +58,7 @@ where
 {
   // TODO: authentication with header or source ip address
   let res = forwarder.serve(req, peer_addr).await;
-  info!("finish");
+  debug!("serve query finish");
   res
 }
 
@@ -137,7 +138,7 @@ where
 
 impl Relay<HttpsConnector<HttpConnector>> {
   /// build relay
-  pub fn try_new(globals: &Arc<Globals>) -> Result<Self> {
+  pub fn try_new(globals: &Arc<Globals>, auth: &Option<Arc<TokenAuthenticator>>) -> Result<Self> {
     let mut server = Http::new();
     server.http1_keep_alive(globals.relay_config.keepalive);
     server.http2_max_concurrent_streams(globals.relay_config.max_concurrent_streams);
@@ -150,6 +151,7 @@ impl Relay<HttpsConnector<HttpConnector>> {
       globals: globals.clone(),
       http_server,
       inner_forwarder,
+      inner_authenticator: auth.clone(),
       request_count: RequestCount::default(),
     })
   }

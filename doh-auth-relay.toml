@@ -30,11 +30,9 @@ token_issuer_url = "https://example.com/auth"
 ## Allowed client Ids
 client_ids = ["client_id_1", "client_id_2"]
 
-## Validation key path
-validation_key_path = "/path/to/validation_key"
-
-
-[auth.ip_and_domain]
+## (Optional, but highly reccomended to set)
+## Access control of source, typically relays, using source ip address and nexthop destination domain
+[access]
 ## Allowed source ip addrs
 ## (TODO: from dns, should we fetch addrs associated with a given list of authorized relay domains? but such addresses may be compromised)
 ## This is evaluated when no authorization header is given in the request or no token validation is configured.

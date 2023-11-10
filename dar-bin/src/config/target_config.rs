@@ -1,9 +1,9 @@
 use super::toml::ConfigToml;
 use crate::{constants::*, error::*, log::*};
 use async_trait::async_trait;
-use doh_auth_relay_lib::{AuthConfig, IpAndDomainConfig, RelayConfig, TokenConfig};
+use doh_auth_relay_lib::{AccessConfig, AuthConfig, RelayConfig, TokenConfigInner};
 use hot_reload::{Reload, ReloaderError};
-use std::{env, sync::Arc};
+use std::{env, net::IpAddr, sync::Arc};
 use tokio::time::Duration;
 
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -77,7 +77,38 @@ impl TryInto<RelayConfig> for &TargetConfig {
       return Ok(relay_conf);
     }
 
-    let auth = self.config_toml.auth.as_ref().unwrap();
+    if let Some(auth) = self.config_toml.auth.as_ref() {
+      let mut inner = vec![];
+      for token in auth.token.iter() {
+        let t = TokenConfigInner {
+          token_issuer_url: token.token_issuer_url.parse()?,
+          client_ids: token.client_ids.clone(),
+        };
+        info!("Set ID token auth: {} ({:?})", t.token_issuer_url, t.client_ids);
+        inner.push(t);
+      }
+      relay_conf.auth = Some(AuthConfig { inner });
+    };
+    if let Some(access) = self.config_toml.access.as_ref() {
+      let mut inner_ip = vec![];
+      for ip in access.allowed_source_ip_addresses.iter() {
+        let ip = ip.parse::<IpAddr>()?;
+        info!("Set allowed source ip address: {}", ip);
+        inner_ip.push(ip);
+      }
+      let mut inner_domain = vec![];
+      for domain in access.allowed_destination_domains.iter() {
+        let domain = url::Url::parse(&format!("https://{domain}"))?
+          .authority()
+          .to_ascii_lowercase();
+        info!("Set allowed destination domain: {}", domain);
+        inner_domain.push(domain);
+      }
+      relay_conf.access = Some(AccessConfig {
+        allowed_source_ip_addresses: inner_ip,
+        allowed_destination_domains: inner_domain,
+      });
+    };
 
     Ok(relay_conf)
   }

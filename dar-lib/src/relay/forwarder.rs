@@ -1,5 +1,5 @@
 use crate::{constants::*, error::*, globals::Globals, log::*};
-use futures_util::StreamExt;
+use futures::stream::StreamExt;
 use hyper::{
   client::{connect::Connect, HttpConnector},
   header,
@@ -118,6 +118,7 @@ where
   /// c.f., "Proxy-Status" [RFC9209](https://datatracker.ietf.org/doc/rfc9209).
   pub async fn serve(&self, req: Request<Body>, peer_addr: SocketAddr) -> Result<hyper::Response<Body>> {
     // TODO: source ip authenticate here?
+    // for authorized ip addresses, maintain blacklist (error metrics) at each relay for given requests
 
     // check host
     let host = match inspect_get_host(&req) {
@@ -159,6 +160,7 @@ where
     debug!("(M)ODoH next hop url: {}", nexthop_url.as_str());
 
     // TODO: next hop domain name check here?
+    // for authorized domains, maintain blacklist (error metrics) at each relay for given responses
 
     // split request into parts and body to manipulate them later
     let (mut parts, mut body) = req.into_parts();

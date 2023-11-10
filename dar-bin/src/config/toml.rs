@@ -17,30 +17,29 @@ pub struct ConfigToml {
   pub max_subseq_nodes: Option<usize>,
   /// Authentication information. if None, no authentication.
   pub auth: Option<Auth>,
+  /// Access control information. if None, no access control.
+  pub access: Option<Access>,
 }
 
 #[derive(Deserialize, Debug, Default, PartialEq, Eq, Clone)]
 /// Authentication of source, typically user clients, using Id token
 pub struct Auth {
   /// Allowed token information
-  pub token: Option<Vec<Token>>,
-  /// Allowed source ip addresses and destination domains
-  pub ip_and_domain: Option<IpAndDomain>,
+  pub token: Vec<Token>,
 }
 
 #[derive(Deserialize, Debug, Default, PartialEq, Eq, Clone)]
 /// Allowed token information
 pub struct Token {
-  /// Token issuer url
+  /// Token issuer url, jwks is automatically retrieved from the url
   pub token_issuer_url: String,
   /// Allowed client ids
   pub client_ids: Vec<String>,
-  /// Validation key path
-  pub validation_key_path: String,
 }
 
 #[derive(Deserialize, Debug, Default, PartialEq, Eq, Clone)]
-pub struct IpAndDomain {
+/// Allowed source ip addresses and destination domains
+pub struct Access {
   /// Allowed source ip addresses
   pub allowed_source_ip_addresses: Vec<String>,
   /// Allowed destination domains

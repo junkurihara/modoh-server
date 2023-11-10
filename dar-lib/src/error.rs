@@ -12,6 +12,11 @@ pub enum RelayError {
   BindTcpSocketError(#[from] std::io::Error),
   #[error("Failed to build forwarder")]
   BuildForwarderError,
+
+  #[error("Failed to parse url")]
+  JwksUrlError,
+  #[error("Failed to retrieve jwks")]
+  JwksRetrievalError,
   #[error("Failed to parse validation key")]
   ValidationKeyParseError(#[from] spki::der::Error),
   #[error("Validation key is malformed")]
