@@ -1,10 +1,9 @@
 use super::toml::ConfigToml;
-use crate::{constants::*, error::*, log::*};
+use crate::log::*;
 use async_trait::async_trait;
 use doh_auth_relay_lib::{AccessConfig, AuthConfig, RelayConfig, TokenConfigInner};
 use hot_reload::{Reload, ReloaderError};
-use std::{env, net::IpAddr, sync::Arc};
-use tokio::time::Duration;
+use std::net::IpAddr;
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 /// Wrapper of config toml and manipulation plugin settings
@@ -89,6 +88,7 @@ impl TryInto<RelayConfig> for &TargetConfig {
       }
       relay_conf.auth = Some(AuthConfig { inner });
     };
+
     if let Some(access) = self.config_toml.access.as_ref() {
       let mut inner_ip = vec![];
       for ip in access.allowed_source_ip_addresses.iter() {
@@ -96,6 +96,7 @@ impl TryInto<RelayConfig> for &TargetConfig {
         info!("Set allowed source ip address: {}", ip);
         inner_ip.push(ip);
       }
+
       let mut inner_domain = vec![];
       for domain in access.allowed_destination_domains.iter() {
         let domain = url::Url::parse(&format!("https://{domain}"))?
@@ -104,6 +105,7 @@ impl TryInto<RelayConfig> for &TargetConfig {
         info!("Set allowed destination domain: {}", domain);
         inner_domain.push(domain);
       }
+
       relay_conf.access = Some(AccessConfig {
         allowed_source_ip_addresses: inner_ip,
         allowed_destination_domains: inner_domain,

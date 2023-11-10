@@ -3,10 +3,11 @@ use super::{
   validation_key::ValidationKey,
 };
 use crate::{
-  constants::{JWKS_ENDPOINT_PATH, JWKS_REFETCH_DELAY_SEC},
+  constants::{JWKS_ENDPOINT_PATH, JWKS_REFETCH_DELAY_SEC, JWKS_REFETCH_TIMEOUT_SEC},
   error::*,
   log::*,
 };
+use futures::{future::join_all, select, FutureExt};
 use serde::Deserialize;
 use std::{sync::Arc, time::Duration};
 use tokio::time::sleep;
@@ -24,11 +25,11 @@ impl TokenAuthenticator {
 
     match term_notify {
       Some(term) => {
-        tokio::select! {
-          _ = self.jwks_retrieval_service() => {
+        select! {
+          _ = self.jwks_retrieval_service().fuse() => {
             warn!("Auth service got down. Possibly failed to refresh or login.");
           }
-          _ = term.notified() => {
+          _ = term.notified().fuse() => {
             info!("Auth service receives term signal");
           }
         }
@@ -44,12 +45,13 @@ impl TokenAuthenticator {
   /// periodic refresh checker
   async fn jwks_retrieval_service(&self) -> Result<()> {
     loop {
-      let futs = self.inner.iter().map(|each_endpoint| async {
+      let futures = self.inner.iter().map(|each_endpoint| async {
         if let Err(e) = each_endpoint.refetch_jwks().await {
           error!("Failed to retrieve jwks: {}", e);
         };
       });
-      futures::future::join_all(futs).await;
+
+      join_all(futures).await;
 
       sleep(Duration::from_secs(JWKS_REFETCH_DELAY_SEC)).await;
     }
@@ -59,6 +61,7 @@ impl TokenAuthenticator {
 impl TokenAuthenticatorInner {
   /// refetch jwks from the server
   async fn refetch_jwks(&self) -> Result<()> {
+    debug!("refetch jwks: {}/{}", self.token_api, JWKS_ENDPOINT_PATH);
     let mut jwks_endpoint = self.token_api.clone();
     jwks_endpoint
       .path_segments_mut()
@@ -68,6 +71,7 @@ impl TokenAuthenticatorInner {
     let client = reqwest::Client::new();
     let jwks_res = client
       .get(jwks_endpoint)
+      .timeout(Duration::from_secs(JWKS_REFETCH_TIMEOUT_SEC))
       .send()
       .await
       .map_err(|e| {
