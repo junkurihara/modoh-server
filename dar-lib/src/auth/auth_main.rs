@@ -57,7 +57,7 @@ impl TryFrom<&AuthConfig> for TokenAuthenticator {
 
 impl TokenAuthenticator {
   /// Validate an id token. Return Ok(()) if validation is successful with any one of validation keys.
-  pub async fn validate(&self, id_token: &str) -> HttpResult<Vec<JWTClaims<NoCustomClaims>>> {
+  pub async fn validate(&self, id_token: &str) -> Result<Vec<JWTClaims<NoCustomClaims>>> {
     let futures = self.inner.iter().map(|each| async move {
       let validation_keys = each.validation_keys.read().await;
       if let Some(validation_keys) = validation_keys.as_ref() {
@@ -73,7 +73,7 @@ impl TokenAuthenticator {
           .collect::<Vec<_>>();
         return Ok(res);
       }
-      Err(HttpError::InvalidToken)
+      Err(RelayError::ValidationFailed)
     });
 
     let results = join_all(futures)
@@ -85,7 +85,7 @@ impl TokenAuthenticator {
 
     if results.is_empty() {
       debug!("Empty validation results");
-      return Err(HttpError::InvalidToken);
+      return Err(RelayError::ValidationFailed);
     }
     Ok(results)
   }

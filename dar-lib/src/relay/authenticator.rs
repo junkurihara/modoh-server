@@ -29,7 +29,7 @@ impl InnerAuthenticator {
     let token = auth_header.trim_start_matches("Bearer ");
     let claims = match self.inner.validate(token).await {
       Ok(claims) => claims,
-      Err(e) => return Err(e),
+      Err(_) => return Err(HttpError::InvalidToken),
     };
     if claims.is_empty() {
       return Err(HttpError::InvalidToken);

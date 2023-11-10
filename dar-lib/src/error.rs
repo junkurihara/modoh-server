@@ -23,6 +23,8 @@ pub enum RelayError {
   ValidationKeyMalformed(#[from] spki::Error),
   #[error("Unsupported validation key")]
   UnsupportedValidationKey,
+  #[error("Failed to validate token")]
+  ValidationFailed,
 
   #[error(transparent)]
   Other(#[from] anyhow::Error),
