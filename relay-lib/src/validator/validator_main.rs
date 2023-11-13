@@ -1,8 +1,10 @@
 use crate::{constants::JWKS_REFETCH_TIMEOUT_SEC, error::*};
 use async_trait::async_trait;
-use auth_validator::{JwksHttpClient, TokenValidator, ValidationConfig};
+use auth_validator::{
+  reexports::{JWTClaims, NoCustomClaims},
+  JwksHttpClient, TokenValidator, ValidationConfig,
+};
 use hyper::{header, Body, Request};
-use jwt_simple::prelude::{JWTClaims, NoCustomClaims};
 use serde::de::DeserializeOwned;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::RwLock;
