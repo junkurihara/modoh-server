@@ -1,0 +1,30 @@
+# Basic dependabot.yml file with
+# minimum configuration for two package managers
+
+version: 2
+updates:
+  # Enable version updates for cargo
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "cargo"
+    directory: "/relay-bin"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "cargo"
+    directory: "/relay-lib"
+    schedule:
+      interval: "daily"
+
+  # # Enable version updates for Docker
+  # - package-ecosystem: "docker"
+  #   directory: "/docker"
+  #   schedule:
+  #     interval: "daily"
+
+  # Enable version updates for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
