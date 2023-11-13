@@ -64,7 +64,7 @@ hyper-rustls = { version = "0.24.2", default-features = false, features = [
 ] }
 tokio-rustls = { version = "0.24.1", features = ["early-data"] }
 
-# authentication of id token
+# validation of id token
 jwt-simple = "0.11.9"
 spki = { version = "0.7.2", default-features = false, features = [
   "pem",

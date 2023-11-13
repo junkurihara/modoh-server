@@ -1,9 +1,9 @@
-mod authenticator;
 mod count;
 mod forwarder;
 mod forwarder_handle_url;
 mod relay_main;
 mod socket;
+mod validator;
 
 use crate::error::*;
 use hyper::{Body, Response, StatusCode};

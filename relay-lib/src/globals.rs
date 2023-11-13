@@ -43,16 +43,16 @@ pub struct RelayConfig {
   /// maximum number of subsequence nodes
   pub max_subseq_nodes: usize,
 
-  /// Authentication information. if None, no authentication.
-  pub auth: Option<AuthConfig>,
+  /// Validation information. if None, no validation using id token.
+  pub validation: Option<ValidationConfig>,
 
   /// Access control information. if None, no access control.
   pub access: Option<AccessConfig>,
 }
 
 #[derive(Clone)]
-/// Authentication of source, typically user clients, using Id token
-pub struct AuthConfig {
+/// Validation of source, typically user clients, using Id token
+pub struct ValidationConfig {
   /// Allowed token information
   pub inner: Vec<TokenConfigInner>,
 }
@@ -90,7 +90,7 @@ impl Default for RelayConfig {
       hostname: HOSTNAME.to_string(),
       path: PATH.to_string(),
       max_subseq_nodes: MODOH_MAX_SUBSEQ_NODES,
-      auth: None,
+      validation: None,
       access: None,
     }
   }

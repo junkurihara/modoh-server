@@ -1,18 +1,18 @@
 use super::validation_key::ValidationKey;
-use crate::{error::*, globals::AuthConfig, log::*};
+use crate::{error::*, globals::ValidationConfig, log::*};
 use futures::future::join_all;
 use jwt_simple::prelude::{JWTClaims, NoCustomClaims, VerificationOptions};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-/// Authenticator for ID token
-pub struct TokenAuthenticator {
+/// Validator for ID token
+pub struct TokenValidator {
   /// Keys for each token API
-  pub(crate) inner: Arc<Vec<TokenAuthenticatorInner>>,
+  pub(crate) inner: Arc<Vec<TokenValidatorInner>>,
 }
 
-/// Inner state of the authenticator
-pub struct TokenAuthenticatorInner {
+/// Inner state of the validator
+pub struct TokenValidatorInner {
   /// Token API endpoint
   pub(crate) token_api: url::Url,
   /// Validation key retrieved from the server
@@ -21,10 +21,10 @@ pub struct TokenAuthenticatorInner {
   pub(crate) validation_options: VerificationOptions,
 }
 
-impl TryFrom<&AuthConfig> for TokenAuthenticator {
+impl TryFrom<&ValidationConfig> for TokenValidator {
   type Error = RelayError;
 
-  fn try_from(auth_config: &AuthConfig) -> std::result::Result<Self, Self::Error> {
+  fn try_from(auth_config: &ValidationConfig) -> std::result::Result<Self, Self::Error> {
     let inner = auth_config
       .inner
       .iter()
@@ -43,7 +43,7 @@ impl TryFrom<&AuthConfig> for TokenAuthenticator {
           ..Default::default()
         };
 
-        TokenAuthenticatorInner {
+        TokenValidatorInner {
           token_api,
           validation_keys,
           validation_options,
@@ -55,7 +55,7 @@ impl TryFrom<&AuthConfig> for TokenAuthenticator {
   }
 }
 
-impl TokenAuthenticator {
+impl TokenValidator {
   /// Validate an id token. Return Ok(()) if validation is successful with any one of validation keys.
   pub async fn validate(&self, id_token: &str) -> Result<Vec<JWTClaims<NoCustomClaims>>> {
     let futures = self.inner.iter().map(|each| async move {

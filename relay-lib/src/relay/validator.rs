@@ -1,16 +1,16 @@
-use crate::{auth::TokenAuthenticator, error::*};
+use crate::{error::*, validation::TokenValidator};
 use hyper::{header, Body, Request};
 use jwt_simple::prelude::{JWTClaims, NoCustomClaims};
 use std::sync::Arc;
 
-/// wrapper of TokenAuthenticator
-pub struct InnerAuthenticator {
-  inner: Arc<TokenAuthenticator>,
+/// wrapper of TokenValidator
+pub struct InnerValidator {
+  inner: Arc<TokenValidator>,
 }
 
-impl InnerAuthenticator {
-  /// Create a new authenticator
-  pub fn new(inner: Arc<TokenAuthenticator>) -> Self {
+impl InnerValidator {
+  /// Create a new validator
+  pub fn new(inner: Arc<TokenValidator>) -> Self {
     Self { inner }
   }
 
