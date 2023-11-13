@@ -1,0 +1,30 @@
+version: "3.9"
+services:
+  rpxy-rp:
+    image: jqtype/doh-auth-relay:latest # ghcr.io/junkurihara/doh-auth-relay:latest also works
+    container_name: doh-auth-relay
+    init: true
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:8080:8080/tcp
+    build: # Uncomment if you build yourself
+      context: ../
+      dockerfile: ./docker/Dockerfile # based on ubuntu 22.04 and build x86_64-unknown-linux-gnu
+      platforms: # Choose your platforms
+        # - "linux/amd64"
+        - "linux/arm64"
+    environment:
+      - LOG_LEVEL=debug
+      - LOG_TO_FILE=true
+      - HOST_USER=jun
+      - HOST_UID=501
+      - HOST_GID=501
+      # - WATCH=true
+    tty: false
+    privileged: true
+    volumes:
+      - ./log:/relay/log:rw
+      - ../.private/doh-auth-relay.toml:/etc/doh-auth-relay.toml:ro
+      # NOTE: To correctly enable "watch" in docker,
+      # ** you should mount not a file but a dir mapped to /relay/config including "doh-auth-relay.toml" due to the limitation of docker **
+      # e.g, - ./relay-config:/relay/config
