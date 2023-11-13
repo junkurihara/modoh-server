@@ -52,7 +52,7 @@ where
 }
 
 /// Service wrapper with authentication
-pub async fn forward_request_with_auth<C>(
+pub async fn serve_request_with_auth<C>(
   req: Request<Body>,
   peer_addr: SocketAddr,
   forwarder: Arc<InnerForwarder<C>>,
@@ -117,7 +117,7 @@ where
         server_clone.serve_connection(
           stream,
           service_fn(move |req: Request<Body>| {
-            forward_request_with_auth(req, peer_addr, forwarder_clone.clone(), authenticator_clone.clone())
+            serve_request_with_auth(req, peer_addr, forwarder_clone.clone(), authenticator_clone.clone())
           }),
         ),
       )
