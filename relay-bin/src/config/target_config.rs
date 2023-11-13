@@ -1,7 +1,7 @@
 use super::toml::ConfigToml;
 use crate::log::*;
 use async_trait::async_trait;
-use doh_auth_relay_lib::{AccessConfig, AuthConfig, RelayConfig, TokenConfigInner};
+use doh_auth_relay_lib::{AccessConfig, RelayConfig, TokenConfigInner, ValidationConfig};
 use hot_reload::{Reload, ReloaderError};
 use std::net::IpAddr;
 
@@ -72,13 +72,13 @@ impl TryInto<RelayConfig> for &TargetConfig {
     }
     info!("Max subsequence nodes: {}", relay_conf.max_subseq_nodes);
 
-    if self.config_toml.auth.is_none() {
+    if self.config_toml.validation.is_none() {
       return Ok(relay_conf);
     }
 
-    if let Some(auth) = self.config_toml.auth.as_ref() {
+    if let Some(validation) = self.config_toml.validation.as_ref() {
       let mut inner = vec![];
-      for token in auth.token.iter() {
+      for token in validation.token.iter() {
         let token_api = token.token_api.parse()?;
         let token_issuer = token.token_issuer.clone().unwrap_or(token.token_api.clone()).parse()?;
         let t = TokenConfigInner {
@@ -87,12 +87,12 @@ impl TryInto<RelayConfig> for &TargetConfig {
           client_ids: token.client_ids.clone(),
         };
         info!(
-          "Set ID token auth: endpoing {}, iss {}, aud {:?}",
+          "Set ID token validation: endpoing {}, iss {}, aud {:?}",
           t.token_api, t.token_issuer, t.client_ids
         );
         inner.push(t);
       }
-      relay_conf.auth = Some(AuthConfig { inner });
+      relay_conf.validation = Some(ValidationConfig { inner });
     };
 
     if let Some(access) = self.config_toml.access.as_ref() {

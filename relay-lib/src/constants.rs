@@ -21,7 +21,7 @@ pub const MAX_DNS_QUESTION_LEN: usize = 512;
 
 // Auth
 
-/// JWKS refetch delay in seconds for authentication
+/// JWKS refetch delay in seconds for validation
 pub const JWKS_REFETCH_DELAY_SEC: u64 = 300;
 pub const JWKS_ENDPOINT_PATH: &str = "jwks";
 pub const JWKS_REFETCH_TIMEOUT_SEC: u64 = 3;

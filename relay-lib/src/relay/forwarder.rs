@@ -116,7 +116,7 @@ where
     peer_addr: SocketAddr,
     already_passed_auth: bool,
   ) -> HttpResult<Response<Body>> {
-    // TODO: source ip authenticate here?
+    // TODO: source ip access control here?
     // for authorized ip addresses, maintain blacklist (error metrics) at each relay for given requests
 
     // check host

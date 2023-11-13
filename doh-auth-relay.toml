@@ -19,11 +19,11 @@ path = "/proxy"
 max_subsequent_nodes = 3
 
 ## (Optional, but highly reccomended to set)
-## Authentication of source, typically user clients, using Id token
-[auth]
+## Validation of source, typically user clients, using Id token
+[validation]
 
 ## Token validation method, multiple methods can be configured
-[[auth.token]]
+[[validation.token]]
 ## Token API endpoint
 token_api = "https://example.com/v1.0"
 

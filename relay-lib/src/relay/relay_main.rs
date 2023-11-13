@@ -1,8 +1,7 @@
 use super::{
-  authenticator::InnerAuthenticator, count::RequestCount, forwarder::InnerForwarder, http_error,
-  socket::bind_tcp_socket,
+  count::RequestCount, forwarder::InnerForwarder, http_error, socket::bind_tcp_socket, validator::InnerValidator,
 };
-use crate::{auth::TokenAuthenticator, error::*, globals::Globals, log::*};
+use crate::{error::*, globals::Globals, log::*, validation::TokenValidator};
 use hyper::{
   client::{connect::Connect, HttpConnector},
   header,
@@ -47,43 +46,43 @@ where
   pub globals: Arc<Globals>,
   pub http_server: Arc<Http<LocalExecutor>>,
   pub inner_forwarder: Arc<InnerForwarder<C>>,
-  pub inner_authenticator: Option<Arc<InnerAuthenticator>>,
+  pub inner_validator: Option<Arc<InnerValidator>>,
   pub request_count: RequestCount,
 }
 
-/// Service wrapper with authentication
-pub async fn serve_request_with_auth<C>(
+/// Service wrapper with validation
+pub async fn serve_request_with_validation<C>(
   req: Request<Body>,
   peer_addr: SocketAddr,
   forwarder: Arc<InnerForwarder<C>>,
-  authenticator: Option<Arc<InnerAuthenticator>>,
+  validator: Option<Arc<InnerValidator>>,
 ) -> Result<hyper::Response<Body>>
 where
   C: Send + Sync + Connect + Clone + 'static,
 {
-  // authentication with header
-  let mut already_passed_auth = false;
-  if let (Some(auth), true) = (authenticator, req.headers().contains_key(header::AUTHORIZATION)) {
-    debug!("execute token authentication");
-    let claims = match auth.validate(&req).await {
+  // validation with header
+  let mut already_passed_validation = false;
+  if let (Some(validator), true) = (validator, req.headers().contains_key(header::AUTHORIZATION)) {
+    debug!("execute token validation");
+    let claims = match validator.validate(&req).await {
       Ok(claims) => {
-        already_passed_auth = true;
+        already_passed_validation = true;
         claims
       }
       Err(e) => {
-        warn!("token authentication failed: {}", e);
+        warn!("token validation failed: {}", e);
         return http_error(StatusCode::from(e));
       }
     };
     debug!(
-      "token authentication passed: subject {}",
+      "token validation passed: subject {}",
       claims.subject.as_deref().unwrap_or("")
     );
   }
   // TODO: IP addr check here? domain check should be done in forwarder
 
   // serve query as relay
-  let res = match forwarder.serve(req, peer_addr, already_passed_auth).await {
+  let res = match forwarder.serve(req, peer_addr, already_passed_validation).await {
     Ok(res) => Ok(res),
     Err(e) => http_error(StatusCode::from(e)),
   };
@@ -109,7 +108,7 @@ where
 
     let server_clone = self.http_server.clone();
     let forwarder_clone = self.inner_forwarder.clone();
-    let authenticator_clone = self.inner_authenticator.clone();
+    let validator_clone = self.inner_validator.clone();
     let timeout_sec = self.globals.relay_config.timeout;
     self.globals.runtime_handle.clone().spawn(async move {
       timeout(
@@ -117,7 +116,7 @@ where
         server_clone.serve_connection(
           stream,
           service_fn(move |req: Request<Body>| {
-            serve_request_with_auth(req, peer_addr, forwarder_clone.clone(), authenticator_clone.clone())
+            serve_request_with_validation(req, peer_addr, forwarder_clone.clone(), validator_clone.clone())
           }),
         ),
       )
@@ -170,7 +169,7 @@ where
 
 impl Relay<HttpsConnector<HttpConnector>> {
   /// build relay
-  pub fn try_new(globals: &Arc<Globals>, auth: &Option<Arc<TokenAuthenticator>>) -> Result<Self> {
+  pub fn try_new(globals: &Arc<Globals>, auth: &Option<Arc<TokenValidator>>) -> Result<Self> {
     let mut server = Http::new();
     server.http1_keep_alive(globals.relay_config.keepalive);
     server.http2_max_concurrent_streams(globals.relay_config.max_concurrent_streams);
@@ -183,7 +182,7 @@ impl Relay<HttpsConnector<HttpConnector>> {
       globals: globals.clone(),
       http_server,
       inner_forwarder,
-      inner_authenticator: auth.clone().map(|v| Arc::new(InnerAuthenticator::new(v))),
+      inner_validator: auth.clone().map(|v| Arc::new(InnerValidator::new(v))),
       request_count: RequestCount::default(),
     })
   }

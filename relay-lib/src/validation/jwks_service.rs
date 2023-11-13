@@ -1,6 +1,6 @@
 use super::{
-  auth_main::{TokenAuthenticator, TokenAuthenticatorInner},
   validation_key::ValidationKey,
+  validation_main::{TokenValidator, TokenValidatorInner},
 };
 use crate::{
   constants::{JWKS_ENDPOINT_PATH, JWKS_REFETCH_DELAY_SEC, JWKS_REFETCH_TIMEOUT_SEC},
@@ -18,7 +18,7 @@ pub(super) struct JwksResponse {
   pub keys: Vec<serde_json::Value>,
 }
 
-impl TokenAuthenticator {
+impl TokenValidator {
   /// Check token expiration every 60 secs, and refresh if the token is about to expire.
   pub async fn start_service(&self, term_notify: Option<Arc<tokio::sync::Notify>>) -> Result<()> {
     info!("Start periodic jwks retrieval service");
@@ -58,7 +58,7 @@ impl TokenAuthenticator {
   }
 }
 
-impl TokenAuthenticatorInner {
+impl TokenValidatorInner {
   /// refetch jwks from the server
   async fn refetch_jwks(&self) -> Result<()> {
     debug!("refetch jwks: {}/{}", self.token_api, JWKS_ENDPOINT_PATH);

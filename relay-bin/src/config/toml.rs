@@ -15,15 +15,15 @@ pub struct ConfigToml {
   pub path: Option<String>,
   /// Maximum number of subsequence nodes [default: 3]
   pub max_subseq_nodes: Option<usize>,
-  /// Authentication information. if None, no authentication.
-  pub auth: Option<Auth>,
+  /// Validation information. if None, no validation using id token.
+  pub validation: Option<Validation>,
   /// Access control information. if None, no access control.
   pub access: Option<Access>,
 }
 
 #[derive(Deserialize, Debug, Default, PartialEq, Eq, Clone)]
-/// Authentication of source, typically user clients, using Id token
-pub struct Auth {
+/// Validation of source, typically user clients, using Id token
+pub struct Validation {
   /// Allowed token information
   pub token: Vec<Token>,
 }

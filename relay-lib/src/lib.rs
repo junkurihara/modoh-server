@@ -1,15 +1,15 @@
-mod auth;
 mod constants;
 mod error;
 mod globals;
 mod log;
 mod relay;
+mod validation;
 
-use crate::{auth::TokenAuthenticator, error::*, globals::Globals, log::*, relay::Relay};
+use crate::{error::*, globals::Globals, log::*, relay::Relay, validation::TokenValidator};
 use futures::future::select_all;
 use std::sync::Arc;
 
-pub use globals::{AccessConfig, AuthConfig, RelayConfig, TokenConfigInner};
+pub use globals::{AccessConfig, RelayConfig, TokenConfigInner, ValidationConfig};
 
 /// Entry point of the relay
 pub async fn entrypoint(
@@ -25,23 +25,23 @@ pub async fn entrypoint(
   });
 
   // spawn jwks retrieval service if needed
-  let mut authenticator = None;
+  let mut validator = None;
   let mut auth_service = None;
-  if let Some(auth) = relay_config.auth.as_ref() {
-    let authenticator_inner = Arc::new(TokenAuthenticator::try_from(auth)?);
-    let authenticator_inner_clone = authenticator_inner.clone();
+  if let Some(auth) = relay_config.validation.as_ref() {
+    let validator_inner = Arc::new(TokenValidator::try_from(auth)?);
+    let validator_inner_clone = validator_inner.clone();
     let term_notify = term_notify.clone();
     let service_inner = runtime_handle.spawn(async move {
-      if let Err(e) = authenticator_inner.start_service(term_notify).await {
+      if let Err(e) = validator_inner.start_service(term_notify).await {
         error!("jwks refresh service got down: {}", e);
       }
     });
-    authenticator = Some(authenticator_inner_clone);
+    validator = Some(validator_inner_clone);
     auth_service = Some(service_inner);
   }
 
   // build relay
-  let relay = Relay::try_new(&globals, &authenticator)?;
+  let relay = Relay::try_new(&globals, &validator)?;
 
   // start relay
   let relay_service = runtime_handle.spawn(async move {
