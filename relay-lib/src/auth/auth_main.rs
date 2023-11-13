@@ -29,12 +29,12 @@ impl TryFrom<&AuthConfig> for TokenAuthenticator {
       .inner
       .iter()
       .map(|each| {
-        let token_api = each.token_issuer_url.clone();
+        let token_api = each.token_api.clone();
 
         let validation_keys = Arc::new(RwLock::new(None));
 
         let mut iss = std::collections::HashSet::new();
-        iss.insert(each.token_issuer_url.as_str().to_string());
+        iss.insert(each.token_issuer.as_str().to_string());
         let mut aud = std::collections::HashSet::new();
         aud.extend(each.client_ids.iter().map(|s| s.to_string()));
         let validation_options = VerificationOptions {

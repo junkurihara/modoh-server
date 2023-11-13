@@ -60,9 +60,11 @@ pub struct AuthConfig {
 #[derive(Clone)]
 /// Allowed token information
 pub struct TokenConfigInner {
-  /// Token issuer url, validation_key is automatically retrieved from the url
-  pub token_issuer_url: Url,
-  /// Allowed client ids
+  /// Token api endpoint from which validation_key is automatically retrieved
+  pub token_api: Url,
+  /// Token issuer evaluated from iss claim
+  pub token_issuer: Url,
+  /// Allowed client ids evaluated from aud claim
   pub client_ids: Vec<String>,
 }
 

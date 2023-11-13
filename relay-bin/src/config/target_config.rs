@@ -79,11 +79,17 @@ impl TryInto<RelayConfig> for &TargetConfig {
     if let Some(auth) = self.config_toml.auth.as_ref() {
       let mut inner = vec![];
       for token in auth.token.iter() {
+        let token_api = token.token_api.parse()?;
+        let token_issuer = token.token_issuer.clone().unwrap_or(token.token_api.clone()).parse()?;
         let t = TokenConfigInner {
-          token_issuer_url: token.token_issuer_url.parse()?,
+          token_api,
+          token_issuer,
           client_ids: token.client_ids.clone(),
         };
-        info!("Set ID token auth: {} ({:?})", t.token_issuer_url, t.client_ids);
+        info!(
+          "Set ID token auth: endpoing {}, iss {}, aud {:?}",
+          t.token_api, t.token_issuer, t.client_ids
+        );
         inner.push(t);
       }
       relay_conf.auth = Some(AuthConfig { inner });

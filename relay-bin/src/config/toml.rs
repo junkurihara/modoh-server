@@ -31,9 +31,11 @@ pub struct Auth {
 #[derive(Deserialize, Debug, Default, PartialEq, Eq, Clone)]
 /// Allowed token information
 pub struct Token {
-  /// Token issuer url, jwks is automatically retrieved from the url
-  pub token_issuer_url: String,
-  /// Allowed client ids
+  /// Token api endpoint from which jwks is automatically retrieved
+  pub token_api: String,
+  /// Token issuer evaluated from iss claim
+  pub token_issuer: Option<String>,
+  /// Allowed client ids evaluated from aud claim
   pub client_ids: Vec<String>,
 }
 
