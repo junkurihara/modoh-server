@@ -46,6 +46,7 @@ tokio = { version = "1.34.0", features = [
 anyhow = "1.0.75"
 tracing = "0.1.40"
 thiserror = "1.0.50"
+async-trait = "0.1.74"
 
 # http handling
 url = "2.4.1"
@@ -75,3 +76,5 @@ serde = { version = "1.0.192", default-features = false, features = ["derive"] }
 serde_json = "1.0.108"
 p256 = { version = "0.13.2", features = ["jwk"] }
 base64 = "0.21.5"
+# TODO: migrate to auth validator
+auth-validator = { git = "https://github.com/junkurihara/rust-token-server", package = "rust-token-server-validator", branch = "develop" }

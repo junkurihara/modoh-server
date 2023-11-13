@@ -1,7 +1,7 @@
 use super::toml::ConfigToml;
 use crate::log::*;
 use async_trait::async_trait;
-use doh_auth_relay_lib::{AccessConfig, RelayConfig, TokenConfigInner, ValidationConfig};
+use doh_auth_relay_lib::{AccessConfig, RelayConfig, ValidationConfig, ValidationConfigInner};
 use hot_reload::{Reload, ReloaderError};
 use std::net::IpAddr;
 
@@ -81,7 +81,7 @@ impl TryInto<RelayConfig> for &TargetConfig {
       for token in validation.token.iter() {
         let token_api = token.token_api.parse()?;
         let token_issuer = token.token_issuer.clone().unwrap_or(token.token_api.clone()).parse()?;
-        let t = TokenConfigInner {
+        let t = ValidationConfigInner {
           token_api,
           token_issuer,
           client_ids: token.client_ids.clone(),

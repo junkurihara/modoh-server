@@ -43,5 +43,5 @@ client_ids = ["client_id_1", "client_id_2"]
 ## This happens typcially for forwarded requests from a relay, not a client.
 allowed_source_ip_addresses = ["192.168.1.1", "192.168.1.2"]
 
-## Allowed destination target and relay domains
+## Allowed next destination target and relay domains
 allowed_destination_domains = ["example.com", "example.net"]

@@ -1,7 +1,5 @@
-use super::{
-  count::RequestCount, forwarder::InnerForwarder, http_error, socket::bind_tcp_socket, validator::InnerValidator,
-};
-use crate::{error::*, globals::Globals, log::*, validation::TokenValidator};
+use super::{count::RequestCount, forwarder::InnerForwarder, http_error, socket::bind_tcp_socket};
+use crate::{error::*, globals::Globals, log::*, validator::Validator};
 use hyper::{
   client::{connect::Connect, HttpConnector},
   header,
@@ -46,7 +44,7 @@ where
   pub globals: Arc<Globals>,
   pub http_server: Arc<Http<LocalExecutor>>,
   pub inner_forwarder: Arc<InnerForwarder<C>>,
-  pub inner_validator: Option<Arc<InnerValidator>>,
+  pub inner_validator: Option<Arc<Validator>>,
   pub request_count: RequestCount,
 }
 
@@ -55,7 +53,7 @@ pub async fn serve_request_with_validation<C>(
   req: Request<Body>,
   peer_addr: SocketAddr,
   forwarder: Arc<InnerForwarder<C>>,
-  validator: Option<Arc<InnerValidator>>,
+  validator: Option<Arc<Validator>>,
 ) -> Result<hyper::Response<Body>>
 where
   C: Send + Sync + Connect + Clone + 'static,
@@ -64,7 +62,7 @@ where
   let mut already_passed_validation = false;
   if let (Some(validator), true) = (validator, req.headers().contains_key(header::AUTHORIZATION)) {
     debug!("execute token validation");
-    let claims = match validator.validate(&req).await {
+    let claims = match validator.validate_request(&req).await {
       Ok(claims) => {
         already_passed_validation = true;
         claims
@@ -143,14 +141,38 @@ where
     Ok(())
   }
 
+  async fn jwks_service(&self) -> Result<()> {
+    let Some(validator) = self.inner_validator.as_ref() else {
+      return Err(RelayError::NoValidator);
+    };
+    validator.start_service(self.globals.term_notify.clone()).await
+  }
+
   /// Entrypoint for HTTP/1.1 and HTTP/2 servers
   pub async fn start(&self) -> Result<()> {
     info!("Start (M)ODoH relay");
 
+    // spawn jwks retrieval service if needed
+    let services = async {
+      if self.inner_validator.is_some() {
+        tokio::select! {
+          _ = self.jwks_service() => {
+            warn!("jwks service got down");
+          }
+          _ = self.relay_service() => {
+            warn!("Relay service got down");
+          }
+        }
+      } else {
+        self.relay_service().await.ok();
+        warn!("Relay service got down")
+      }
+    };
+
     match &self.globals.term_notify {
       Some(term) => {
         tokio::select! {
-          _ = self.relay_service() => {
+          _ = services => {
             warn!("Relay service got down");
           }
           _ = term.notified() => {
@@ -159,7 +181,7 @@ where
         }
       }
       None => {
-        self.relay_service().await?;
+        services.await;
         warn!("Relay service got down");
       }
     }
@@ -169,7 +191,7 @@ where
 
 impl Relay<HttpsConnector<HttpConnector>> {
   /// build relay
-  pub fn try_new(globals: &Arc<Globals>, auth: &Option<Arc<TokenValidator>>) -> Result<Self> {
+  pub async fn try_new(globals: &Arc<Globals>) -> Result<Self> {
     let mut server = Http::new();
     server.http1_keep_alive(globals.relay_config.keepalive);
     server.http2_max_concurrent_streams(globals.relay_config.max_concurrent_streams);
@@ -177,12 +199,16 @@ impl Relay<HttpsConnector<HttpConnector>> {
     let executor = LocalExecutor::new(globals.runtime_handle.clone());
     let http_server = Arc::new(server.with_executor(executor));
     let inner_forwarder = Arc::new(InnerForwarder::try_new(globals)?);
+    let inner_validator = match globals.relay_config.validation.as_ref() {
+      Some(v) => Some(Arc::new(Validator::try_new(v).await?)),
+      None => None,
+    };
 
     Ok(Self {
       globals: globals.clone(),
       http_server,
       inner_forwarder,
-      inner_validator: auth.clone().map(|v| Arc::new(InnerValidator::new(v))),
+      inner_validator,
       request_count: RequestCount::default(),
     })
   }

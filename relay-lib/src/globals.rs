@@ -1,10 +1,10 @@
 use crate::constants::*;
+use auth_validator::ValidationConfig;
 use std::{
   net::{IpAddr, SocketAddr},
   sync::Arc,
   time::Duration,
 };
-use url::Url;
 
 /// Global objects
 pub struct Globals {
@@ -48,24 +48,6 @@ pub struct RelayConfig {
 
   /// Access control information. if None, no access control.
   pub access: Option<AccessConfig>,
-}
-
-#[derive(Clone)]
-/// Validation of source, typically user clients, using Id token
-pub struct ValidationConfig {
-  /// Allowed token information
-  pub inner: Vec<TokenConfigInner>,
-}
-
-#[derive(Clone)]
-/// Allowed token information
-pub struct TokenConfigInner {
-  /// Token api endpoint from which validation_key is automatically retrieved
-  pub token_api: Url,
-  /// Token issuer evaluated from iss claim
-  pub token_issuer: Url,
-  /// Allowed client ids evaluated from aud claim
-  pub client_ids: Vec<String>,
 }
 
 #[derive(Clone)]

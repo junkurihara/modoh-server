@@ -10,22 +10,8 @@ pub type HttpResult<T> = std::result::Result<T, HttpError>;
 pub enum RelayError {
   #[error("Failed to bind TCP socket")]
   BindTcpSocketError(#[from] std::io::Error),
-  #[error("Failed to build forwarder")]
-  BuildForwarderError,
-
-  #[error("Failed to parse url")]
-  JwksUrlError,
-  #[error("Failed to retrieve jwks")]
-  JwksRetrievalError,
-  #[error("Failed to parse validation key")]
-  ValidationKeyParseError(#[from] spki::der::Error),
-  #[error("Validation key is malformed")]
-  ValidationKeyMalformed(#[from] spki::Error),
-  #[error("Unsupported validation key")]
-  UnsupportedValidationKey,
-  #[error("Failed to validate token")]
-  ValidationFailed,
-
+  #[error("No Validator")]
+  NoValidator,
   #[error(transparent)]
   Other(#[from] anyhow::Error),
 }
