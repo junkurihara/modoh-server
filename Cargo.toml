@@ -1,6 +1,6 @@
 [workspace]
 
-members = ["dar-bin", "dar-lib"]
+members = ["relay-bin", "relay-lib"]
 resolver = "2"
 
 [profile.release]

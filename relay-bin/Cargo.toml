@@ -32,7 +32,7 @@ publish = false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-doh-auth-relay-lib = { path = "../dar-lib" }
+doh-auth-relay-lib = { path = "../relay-lib" }
 
 anyhow = "1.0.75"
 mimalloc = { version = "*", default-features = false }
