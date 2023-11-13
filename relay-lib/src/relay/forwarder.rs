@@ -114,7 +114,7 @@ where
     &self,
     req: Request<Body>,
     peer_addr: SocketAddr,
-    already_passed_auth: bool,
+    validation_passed: bool,
   ) -> HttpResult<Response<Body>> {
     // TODO: source ip access control here?
     // for authorized ip addresses, maintain blacklist (error metrics) at each relay for given requests

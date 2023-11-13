@@ -59,12 +59,12 @@ where
   C: Send + Sync + Connect + Clone + 'static,
 {
   // validation with header
-  let mut already_passed_validation = false;
+  let mut validation_passed = false;
   if let (Some(validator), true) = (validator, req.headers().contains_key(header::AUTHORIZATION)) {
     debug!("execute token validation");
     let claims = match validator.validate_request(&req).await {
       Ok(claims) => {
-        already_passed_validation = true;
+        validation_passed = true;
         claims
       }
       Err(e) => {
@@ -80,7 +80,7 @@ where
   // TODO: IP addr check here? domain check should be done in forwarder
 
   // serve query as relay
-  let res = match forwarder.serve(req, peer_addr, already_passed_validation).await {
+  let res = match forwarder.serve(req, peer_addr, validation_passed).await {
     Ok(res) => Ok(res),
     Err(e) => http_error(StatusCode::from(e)),
   };

@@ -1,9 +1,8 @@
+use super::forwarder::InnerForwarder;
 use crate::{constants::HOSTNAME, error::*, log::*};
 use hyper::client::connect::Connect;
 use rustc_hash::FxHashMap as HashMap;
 use url::Url;
-
-use super::forwarder::InnerForwarder;
 
 const ODOH_TARGETHOST: &str = "targethost";
 const ODOH_TARGETPATH: &str = "targetpath";
