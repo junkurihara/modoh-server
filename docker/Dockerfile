@@ -22,7 +22,6 @@ RUN apt-get update && apt-get install -qy --no-install-recommends $BUILD_DEPS &&
     export PATH="$HOME/.cargo/bin:$PATH" && \
     echo "Building DoH Auth Relay from source" && \
     cargo build --release --no-default-features --package doh-auth-relay && \
-    mkdir -p /opt/doh-auth-relay/sbin && \
     strip --strip-all /tmp/target/release/doh-auth-relay
 
 ########################################
