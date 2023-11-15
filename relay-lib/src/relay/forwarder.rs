@@ -230,10 +230,14 @@ impl InnerForwarder<HttpsConnector<HttpConnector>, Body> {
   pub fn try_new(globals: &Arc<Globals>) -> Result<Self> {
     // default headers for request
     let mut request_headers = HeaderMap::new();
+    let user_agent = HeaderValue::from_str(globals.relay_config.http_user_agent.as_str()).map_err(|e| {
+      error!("{e}");
+      RelayError::BuildForwarderError
+    })?;
     request_headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(ODOH_CONTENT_TYPE));
     request_headers.insert(header::ACCEPT, HeaderValue::from_static(ODOH_ACCEPT));
     request_headers.insert(header::CACHE_CONTROL, HeaderValue::from_static(ODOH_CACHE_CONTROL));
-    request_headers.insert(header::USER_AGENT, HeaderValue::from_static(FORWARDER_UA));
+    request_headers.insert(header::USER_AGENT, user_agent);
 
     // build hyper client with rustls and webpki, only https is allowed
     let connector = hyper_rustls::HttpsConnectorBuilder::new()

@@ -18,6 +18,9 @@ path = "/proxy"
 ## Maximum number of subsequent nodes (relays and target resolver) [default: 3]
 max_subsequent_nodes = 3
 
+## (Optional) User agent string to be sent to the next relay/resolver [default "doh-auth-relay/<VERSION>"]
+# forwarder_user_agent = "whatever"
+
 ## (Optional, but highly reccomended to set)
 ## Validation of source, typically user clients, using Id token
 [validation]

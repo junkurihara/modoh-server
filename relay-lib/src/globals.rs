@@ -42,6 +42,8 @@ pub struct RelayConfig {
   pub path: String,
   /// maximum number of subsequence nodes
   pub max_subseq_nodes: usize,
+  /// http user agent
+  pub http_user_agent: String,
 
   /// Validation information. if None, no validation using id token.
   pub validation: Option<ValidationConfig>,
@@ -72,6 +74,7 @@ impl Default for RelayConfig {
       hostname: HOSTNAME.to_string(),
       path: PATH.to_string(),
       max_subseq_nodes: MODOH_MAX_SUBSEQ_NODES,
+      http_user_agent: format!("{}/{}", FORWARDER_USER_AGENT, env!("CARGO_PKG_VERSION")),
       validation: None,
       access: None,
     }

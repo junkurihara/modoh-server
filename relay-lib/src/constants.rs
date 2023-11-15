@@ -10,7 +10,8 @@ pub const TIMEOUT: u64 = 3;
 
 // ODoH and MODoH constants
 
-pub const FORWARDER_UA: &str = "doh-auth-relay";
+pub const FORWARDER_USER_AGENT: &str = "doh-auth-relay";
+pub const VALIDATOR_USER_AGENT: &str = "doh-auth-relay";
 pub const ODOH_CONTENT_TYPE: &str = "application/oblivious-dns-message";
 pub const ODOH_ACCEPT: &str = "application/oblivious-dns-message";
 pub const ODOH_CACHE_CONTROL: &str = "no-cache, no-store";

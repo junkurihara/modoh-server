@@ -12,6 +12,10 @@ pub enum RelayError {
   BindTcpSocketError(#[from] std::io::Error),
   #[error("No Validator")]
   NoValidator,
+  #[error("Failed to build forwarder")]
+  BuildForwarderError,
+  #[error("Failed to build validator")]
+  BuildValidatorError,
   #[error(transparent)]
   Other(#[from] anyhow::Error),
 }

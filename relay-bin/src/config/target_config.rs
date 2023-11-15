@@ -71,6 +71,10 @@ impl TryInto<RelayConfig> for &TargetConfig {
       relay_conf.max_subseq_nodes = *max_subseq_nodes;
     }
     info!("Max subsequence nodes: {}", relay_conf.max_subseq_nodes);
+    if let Some(http_user_agent) = &self.config_toml.forwarder_user_agent {
+      relay_conf.http_user_agent = http_user_agent.clone();
+    }
+    info!("Http user agent: {}", relay_conf.http_user_agent);
 
     if self.config_toml.validation.is_none() {
       return Ok(relay_conf);

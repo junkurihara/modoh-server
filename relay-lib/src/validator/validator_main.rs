@@ -1,4 +1,8 @@
-use crate::{constants::JWKS_REFETCH_TIMEOUT_SEC, error::*};
+use crate::{
+  constants::{JWKS_REFETCH_TIMEOUT_SEC, VALIDATOR_USER_AGENT},
+  error::*,
+  log::*,
+};
 use async_trait::async_trait;
 use auth_validator::{
   reexports::{JWTClaims, NoCustomClaims},
@@ -22,12 +26,7 @@ impl JwksHttpClient for HttpClient {
   where
     R: DeserializeOwned + Send + Sync,
   {
-    let jwks_res = self
-      .inner
-      .get(url.clone())
-      .timeout(Duration::from_secs(JWKS_REFETCH_TIMEOUT_SEC))
-      .send()
-      .await?;
+    let jwks_res = self.inner.get(url.clone()).send().await?;
     let jwks = jwks_res.json::<R>().await?;
     Ok(jwks)
   }
@@ -41,9 +40,15 @@ pub struct Validator {
 impl Validator {
   /// Create a new validator
   pub async fn try_new(config: &ValidationConfig) -> Result<Self> {
-    let http_client = HttpClient {
-      inner: reqwest::Client::new(),
-    };
+    let inner = reqwest::Client::builder()
+      .user_agent(format!("{}/{}", VALIDATOR_USER_AGENT, env!("CARGO_PKG_VERSION")))
+      .timeout(Duration::from_secs(JWKS_REFETCH_TIMEOUT_SEC))
+      .build()
+      .map_err(|e| {
+        error!("{e}");
+        RelayError::BuildValidatorError
+      })?;
+    let http_client = HttpClient { inner };
     let inner = TokenValidator::try_new(config, Arc::new(RwLock::new(http_client))).await?;
     Ok(Self { inner: Arc::new(inner) })
   }
