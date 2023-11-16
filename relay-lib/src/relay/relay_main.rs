@@ -1,13 +1,16 @@
 use super::{count::RequestCount, forwarder::InnerForwarder, http_error, socket::bind_tcp_socket};
 use crate::{error::*, globals::Globals, log::*, validator::Validator};
 use hyper::{
+  body::Body,
   client::{connect::Connect, HttpConnector},
   header,
-  server::conn::Http,
+  // server::conn::Http,
   service::service_fn,
-  Body, Request, StatusCode,
+  Request,
+  StatusCode,
 };
 use hyper_rustls::HttpsConnector;
+use hyper_util::server;
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{
   io::{AsyncRead, AsyncWrite},
@@ -192,11 +195,18 @@ where
 impl Relay<HttpsConnector<HttpConnector>> {
   /// build relay
   pub async fn try_new(globals: &Arc<Globals>) -> Result<Self> {
-    let mut server = Http::new();
-    server.http1_keep_alive(globals.relay_config.keepalive);
-    server.http2_max_concurrent_streams(globals.relay_config.max_concurrent_streams);
-    server.pipeline_flush(true);
+    // let mut server = Http::new();
+    // server.http1_keep_alive(globals.relay_config.keepalive);
+    // server.http2_max_concurrent_streams(globals.relay_config.max_concurrent_streams);
+    // server.pipeline_flush(true);
     let executor = LocalExecutor::new(globals.runtime_handle.clone());
+
+    let mut server = server::conn::auto::Builder::new(executor);
+    server
+      .http1()
+      .keep_alive(globals.relay_config.keepalive)
+      .pipeline_flush(true);
+
     let http_server = Arc::new(server.with_executor(executor));
     let inner_forwarder = Arc::new(InnerForwarder::try_new(globals)?);
     let inner_validator = match globals.relay_config.validation.as_ref() {

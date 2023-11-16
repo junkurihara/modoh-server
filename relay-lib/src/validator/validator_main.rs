@@ -8,7 +8,7 @@ use auth_validator::{
   reexports::{JWTClaims, NoCustomClaims},
   JwksHttpClient, TokenValidator, ValidationConfig,
 };
-use hyper::{header, Body, Request};
+use hyper::{body::Body, header, Request};
 use serde::de::DeserializeOwned;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::RwLock;

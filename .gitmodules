@@ -1,0 +1,3 @@
+[submodule "submodules/hyper-util"]
+	path = submodules/hyper-util
+	url = git@github.com:junkurihara/hyper-util.git

@@ -51,12 +51,14 @@ async-trait = "0.1.74"
 # http handling
 url = "2.4.1"
 rustc-hash = "1.1.0"
-hyper = { version = "0.14.27", default-features = false, features = [
-  "server",
-  "http1",
-  "http2",
-  "stream",
-] }
+hyper = { version = "1.0.0", default-features = false }
+# hyper = { version = "0.14.27", default-features = false, features = [
+#   "server",
+#   "http1",
+#   "http2",
+#   "stream",
+# ] }
+hyper-util = { path = "../submodules/hyper-util/", features = ["full"] }
 hyper-rustls = { version = "0.24.2", default-features = false, features = [
   "tokio-runtime",
   "webpki-tokio",
