@@ -26,3 +26,5 @@ pub const MAX_DNS_QUESTION_LEN: usize = 512;
 pub const JWKS_REFETCH_DELAY_SEC: u64 = 300;
 /// HTTP request timeout for refetching JWKS
 pub const JWKS_REFETCH_TIMEOUT_SEC: u64 = 3;
+/// Expected maximum size of JWKS in bytes
+pub const EXPECTED_MAX_JWKS_SIZE: u64 = 1024 * 64;

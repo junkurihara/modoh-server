@@ -1,58 +1,73 @@
 use crate::{
-  constants::{JWKS_REFETCH_TIMEOUT_SEC, VALIDATOR_USER_AGENT},
+  constants::{EXPECTED_MAX_JWKS_SIZE, JWKS_REFETCH_TIMEOUT_SEC, VALIDATOR_USER_AGENT},
   error::*,
-  log::*,
+  http_client::HttpClient,
 };
 use async_trait::async_trait;
 use auth_validator::{
   reexports::{JWTClaims, NoCustomClaims},
   JwksHttpClient, TokenValidator, ValidationConfig,
 };
-use http::{header, Request};
+use http::{header, HeaderValue, Method, Request};
+use http_body_util::{combinators::BoxBody, BodyExt, Empty};
+use hyper::body::{Body, Buf, Bytes};
+use hyper_tls::HttpsConnector;
+use hyper_util::client::connect::{Connect, HttpConnector};
 use serde::de::DeserializeOwned;
 use std::{sync::Arc, time::Duration};
-use tokio::sync::RwLock;
 use url::Url;
-
-/// Wrapper of reqwest::client::Client
-pub(super) struct HttpClient {
-  inner: reqwest::Client,
-}
 
 #[async_trait]
 /// JwksHttpClient trait implementation for HttpClient
-impl JwksHttpClient for HttpClient {
+impl<C> JwksHttpClient for HttpClient<C, BoxBody<Bytes, hyper::Error>>
+where
+  C: Send + Sync + Connect + Clone + 'static,
+{
   async fn fetch_jwks<R>(&self, url: &Url) -> std::result::Result<R, anyhow::Error>
   where
     R: DeserializeOwned + Send + Sync,
   {
-    let jwks_res = self.inner.get(url.clone()).send().await?;
-    let jwks = jwks_res.json::<R>().await?;
+    let mut req = Request::builder()
+      .uri(url.as_str())
+      .method(Method::GET)
+      .body(Empty::<Bytes>::new().map_err(|never| match never {}).boxed())?;
+    let user_agent = format!("{}/{}", VALIDATOR_USER_AGENT, env!("CARGO_PKG_VERSION"));
+    req
+      .headers_mut()
+      .insert(header::USER_AGENT, HeaderValue::from_str(&user_agent)?);
+
+    let jwks_res = tokio::time::timeout(Duration::from_secs(JWKS_REFETCH_TIMEOUT_SEC), self.request(req)).await??;
+    let body = jwks_res.into_body();
+
+    let max = body.size_hint().upper().unwrap_or(u64::MAX);
+    if max > EXPECTED_MAX_JWKS_SIZE {
+      bail!("jwks size is too large: {}", max)
+    }
+    if max == 0 {
+      bail!("jwks size is zero")
+    }
+
+    // asynchronously aggregate the chunks of the body
+    let body = body.collect().await?.aggregate();
+
+    // try to parse as json with serde_json
+    let jwks = serde_json::from_reader::<_, R>(body.reader())?;
     Ok(jwks)
   }
 }
 
 /// Wrapper of TokenValidator
-pub struct Validator {
-  pub(super) inner: Arc<TokenValidator<HttpClient>>,
+pub struct Validator<C>
+where
+  C: Send + Sync + Connect + Clone + 'static,
+{
+  pub(super) inner: TokenValidator<HttpClient<C, BoxBody<Bytes, hyper::Error>>>,
 }
 
-impl Validator {
-  /// Create a new validator
-  pub async fn try_new(config: &ValidationConfig) -> Result<Self> {
-    let inner = reqwest::Client::builder()
-      .user_agent(format!("{}/{}", VALIDATOR_USER_AGENT, env!("CARGO_PKG_VERSION")))
-      .timeout(Duration::from_secs(JWKS_REFETCH_TIMEOUT_SEC))
-      .build()
-      .map_err(|e| {
-        error!("{e}");
-        RelayError::BuildValidatorError
-      })?;
-    let http_client = HttpClient { inner };
-    let inner = TokenValidator::try_new(config, Arc::new(RwLock::new(http_client))).await?;
-    Ok(Self { inner: Arc::new(inner) })
-  }
-
+impl<C> Validator<C>
+where
+  C: Send + Sync + Connect + Clone + 'static,
+{
   /// Validate an id token. Return Ok(()) if validation is successful with any one of validation keys.
   pub async fn validate_request<B>(&self, req: &Request<B>) -> HttpResult<JWTClaims<NoCustomClaims>> {
     let Some(auth_header) = req.headers().get(header::AUTHORIZATION) else {
@@ -75,5 +90,23 @@ impl Validator {
     }
 
     Ok(claims.get(0).unwrap().clone())
+  }
+}
+
+impl Validator<HttpsConnector<HttpConnector>> {
+  /// Create a new validator
+  pub async fn try_new(config: &ValidationConfig, runtime_handle: tokio::runtime::Handle) -> Result<Self> {
+    // let inner = reqwest::Client::builder()
+    //   .user_agent(format!("{}/{}", VALIDATOR_USER_AGENT, env!("CARGO_PKG_VERSION")))
+    //   .timeout(Duration::from_secs(JWKS_REFETCH_TIMEOUT_SEC))
+    //   .build()
+    //   .map_err(|e| {
+    //     error!("{e}");
+    //     RelayError::BuildValidatorError
+    //   })?;
+
+    let http_client = HttpClient::try_new(runtime_handle)?;
+    let inner = TokenValidator::try_new(config, Arc::new(http_client)).await?;
+    Ok(Self { inner })
   }
 }

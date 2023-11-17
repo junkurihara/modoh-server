@@ -1,11 +1,11 @@
 use super::{
   count::RequestCount, forwarder::InnerForwarder, socket::bind_tcp_socket, synthetic_error_response, EitherBody,
-  LocalExecutor,
 };
-use crate::{error::*, globals::Globals, log::*, relay::passthrough_response, validator::Validator};
+use crate::{
+  error::*, globals::Globals, hyper_executor::LocalExecutor, log::*, relay::passthrough_response, validator::Validator,
+};
 use hyper::{body::Incoming, header, service::service_fn, Request, StatusCode};
 use hyper_tls::HttpsConnector;
-// use hyper_rustls::HttpsConnector;
 use hyper_util::{
   client::connect::{Connect, HttpConnector},
   server::{self, conn::auto::Builder as ConnectionBuilder},
@@ -28,7 +28,7 @@ where
   /// hyper client forwarding requests to upstream
   inner_forwarder: Arc<InnerForwarder<C>>,
   /// validator for token validation
-  inner_validator: Option<Arc<Validator>>,
+  inner_validator: Option<Arc<Validator<C>>>,
   /// request count
   request_count: RequestCount,
 }
@@ -39,7 +39,7 @@ pub async fn serve_request_with_validation<C>(
   peer_addr: SocketAddr,
   // forwarder: Arc<InnerForwarder<C, B>>,
   forwarder: Arc<InnerForwarder<C>>,
-  validator: Option<Arc<Validator>>,
+  validator: Option<Arc<Validator<C>>>,
 ) -> Result<hyper::Response<EitherBody>>
 where
   C: Send + Sync + Connect + Clone + 'static,
@@ -192,7 +192,7 @@ impl Relay<HttpsConnector<HttpConnector>> {
     let http_server = Arc::new(server);
     let inner_forwarder = Arc::new(InnerForwarder::try_new(globals)?);
     let inner_validator = match globals.relay_config.validation.as_ref() {
-      Some(v) => Some(Arc::new(Validator::try_new(v).await?)),
+      Some(v) => Some(Arc::new(Validator::try_new(v, globals.runtime_handle.clone()).await?)),
       None => None,
     };
 

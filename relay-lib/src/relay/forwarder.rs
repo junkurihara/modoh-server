@@ -1,5 +1,4 @@
-use super::LocalExecutor;
-use crate::{constants::*, error::*, globals::Globals, log::*};
+use crate::{constants::*, error::*, globals::Globals, http_client::HttpClient, log::*};
 use http::{
   header::{self, HeaderMap, HeaderValue},
   request::Parts,
@@ -7,10 +6,7 @@ use http::{
 };
 use hyper::body::{Body, Incoming};
 use hyper_tls::HttpsConnector;
-use hyper_util::client::{
-  connect::{Connect, HttpConnector},
-  legacy::Client,
-};
+use hyper_util::client::connect::{Connect, HttpConnector};
 use std::{net::SocketAddr, sync::Arc};
 use url::Url;
 
@@ -99,9 +95,12 @@ fn inspect_get_host<B>(req: &Request<B>) -> HttpResult<String> {
 pub struct InnerForwarder<C, B = Incoming>
 where
   C: Send + Sync + Connect + Clone + 'static,
+  B: Body + Send + Unpin + 'static,
+  <B as Body>::Data: Send,
+  <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
 {
   /// hyper client
-  pub(super) inner: Client<C, B>,
+  pub(super) inner: HttpClient<C, B>,
   /// request default headers
   pub(super) request_headers: HeaderMap,
   /// relay host name
@@ -252,20 +251,7 @@ impl InnerForwarder<HttpsConnector<HttpConnector>> {
     request_headers.insert(header::CACHE_CONTROL, HeaderValue::from_static(ODOH_CACHE_CONTROL));
     request_headers.insert(header::USER_AGENT, user_agent);
 
-    // build hyper client with hyper-tls, only https is allowed
-    let mut connector = HttpsConnector::new();
-    connector.https_only(true);
-    let executor = LocalExecutor::new(globals.runtime_handle.clone());
-    let inner = Client::builder(executor).build::<_, _>(connector);
-
-    // build hyper client with rustls and webpki, only https is allowed
-    // let connector = hyper_rustls::HttpsConnectorBuilder::new()
-    //   .with_webpki_roots()
-    //   .https_only()
-    //   .enable_http1()
-    //   .enable_http2()
-    //   .build();
-    // let inner = Client::builder(TokioExecutor::new()).build::<_, B>(connector);
+    let inner = HttpClient::<_, Incoming>::try_new(globals.runtime_handle.clone())?;
 
     let relay_host = globals.relay_config.hostname.clone();
     let relay_path = globals.relay_config.path.clone();

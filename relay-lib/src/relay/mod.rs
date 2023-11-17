@@ -8,33 +8,10 @@ use crate::error::*;
 use http::{Response, StatusCode};
 use http_body_util::{combinators, BodyExt, Either, Empty};
 use hyper::body::{Bytes, Incoming};
-use tokio::runtime::Handle;
 
 pub use relay_main::Relay;
 
-#[derive(Clone)]
-/// Executor for hyper
-struct LocalExecutor {
-  runtime_handle: Handle,
-}
-
-impl LocalExecutor {
-  fn new(runtime_handle: Handle) -> Self {
-    LocalExecutor { runtime_handle }
-  }
-}
-
-impl<F> hyper::rt::Executor<F> for LocalExecutor
-where
-  F: std::future::Future + Send + 'static,
-  F::Output: Send,
-{
-  fn execute(&self, fut: F) {
-    self.runtime_handle.spawn(fut);
-  }
-}
-
-/// Type for synthetic body of http error response
+/// Type for synthetic boxed body
 type BoxBody = combinators::BoxBody<Bytes, hyper::Error>;
 /// Type for either passthrough body or synthetic body
 type EitherBody = Either<Incoming, BoxBody>;

@@ -1,5 +1,6 @@
 use super::forwarder::InnerForwarder;
 use crate::{constants::HOSTNAME, error::*, log::*};
+use hyper::body::Body;
 use hyper_util::client::connect::Connect;
 use rustc_hash::FxHashMap as HashMap;
 use url::Url;
@@ -33,6 +34,9 @@ fn is_looped(current_url: &Url) -> bool {
 impl<C, B> InnerForwarder<C, B>
 where
   C: Send + Sync + Connect + Clone + 'static,
+  B: Body + Send + Unpin + 'static,
+  <B as Body>::Data: Send,
+  <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
 {
   /// build next-hop url with loop detection and max subsequent nodes check
   pub fn build_nexthop_url(&self, current_url: &Url) -> HttpResult<Url> {
@@ -112,6 +116,7 @@ where
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::http_client::HttpClient;
   use hyper::{body::Incoming, HeaderMap};
 
   #[test]
@@ -144,12 +149,7 @@ mod tests {
   #[test]
   fn test_build_next_hop_url() {
     let inner: InnerForwarder<_, Incoming> = InnerForwarder {
-      inner: {
-        let connector = hyper_tls::HttpsConnector::new();
-        //   let builder = hyper_rustls::HttpsConnectorBuilder::new().with_webpki_roots();
-        //   let connector = builder.https_or_http().enable_http1().enable_http2().build();
-        hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new()).build(connector)
-      },
+      inner: HttpClient::try_new(tokio::runtime::Handle::current()).unwrap(),
       request_headers: HeaderMap::new(),
       relay_host: "example.com".to_string(),
       relay_path: "/proxy".to_string(),
