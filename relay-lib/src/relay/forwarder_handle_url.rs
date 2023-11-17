@@ -1,7 +1,7 @@
 use super::forwarder::InnerForwarder;
 use crate::{constants::HOSTNAME, error::*, log::*};
 use hyper::body::Body;
-use hyper_util::client::connect::Connect;
+use hyper_util::client::legacy::connect::Connect;
 use rustc_hash::FxHashMap as HashMap;
 use url::Url;
 

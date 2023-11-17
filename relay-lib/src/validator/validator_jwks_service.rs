@@ -1,7 +1,7 @@
 use super::validator_main::Validator;
 use crate::{constants::JWKS_REFETCH_DELAY_SEC, error::*, log::*};
 use futures::{select, FutureExt};
-use hyper_util::client::connect::Connect;
+use hyper_util::client::legacy::connect::Connect;
 use std::{sync::Arc, time::Duration};
 use tokio::time::sleep;
 

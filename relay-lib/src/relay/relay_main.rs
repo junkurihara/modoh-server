@@ -4,17 +4,21 @@ use super::{
 use crate::{
   error::*, globals::Globals, hyper_executor::LocalExecutor, log::*, relay::passthrough_response, validator::Validator,
 };
-use hyper::{body::Incoming, header, service::service_fn, Request, StatusCode};
+use hyper::{
+  body::Incoming,
+  header,
+  rt::{Read, Write},
+  service::service_fn,
+  Request, StatusCode,
+};
 use hyper_tls::HttpsConnector;
 use hyper_util::{
-  client::connect::{Connect, HttpConnector},
+  client::legacy::connect::{Connect, HttpConnector},
+  rt::TokioIo,
   server::{self, conn::auto::Builder as ConnectionBuilder},
 };
 use std::{net::SocketAddr, sync::Arc, time::Duration};
-use tokio::{
-  io::{AsyncRead, AsyncWrite},
-  time::timeout,
-};
+use tokio::time::timeout;
 
 /// (M)ODoH Relay main object
 pub struct Relay<C>
@@ -81,7 +85,7 @@ where
   /// Serve tcp stream
   fn serve_connection<I>(&self, stream: I, peer_addr: SocketAddr)
   where
-    I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    I: Read + Write + Unpin + Send + 'static,
   {
     let request_count = self.request_count.clone();
     if request_count.increment() > self.globals.relay_config.max_clients {
@@ -119,7 +123,7 @@ where
       let tcp_listener = tcp_socket.listen(self.globals.relay_config.tcp_listen_backlog)?;
       info!("Start TCP listener serving with HTTP request for configured host names");
       while let Ok((stream, peer_addr)) = tcp_listener.accept().await {
-        self.serve_connection(stream, peer_addr);
+        self.serve_connection(TokioIo::new(stream), peer_addr);
       }
       Ok(()) as Result<()>
     };

@@ -6,7 +6,7 @@ use http::{
 };
 use hyper::body::{Body, Incoming};
 use hyper_tls::HttpsConnector;
-use hyper_util::client::connect::{Connect, HttpConnector};
+use hyper_util::client::legacy::connect::{Connect, HttpConnector};
 use std::{net::SocketAddr, sync::Arc};
 use url::Url;
 

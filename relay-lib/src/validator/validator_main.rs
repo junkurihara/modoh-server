@@ -12,7 +12,7 @@ use http::{header, HeaderValue, Method, Request};
 use http_body_util::{combinators::BoxBody, BodyExt, Empty};
 use hyper::body::{Body, Buf, Bytes};
 use hyper_tls::HttpsConnector;
-use hyper_util::client::connect::{Connect, HttpConnector};
+use hyper_util::client::legacy::connect::{Connect, HttpConnector};
 use serde::de::DeserializeOwned;
 use std::{sync::Arc, time::Duration};
 use url::Url;

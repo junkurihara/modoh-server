@@ -1,10 +1,10 @@
 use crate::hyper_executor::LocalExecutor;
-use http::Request;
-use hyper::body::Body;
+use http::{Request, Response};
+use hyper::body::{Body, Incoming};
 use hyper_tls::HttpsConnector;
-use hyper_util::client::{
+use hyper_util::client::legacy::{
   connect::{Connect, HttpConnector},
-  legacy::{Client, ResponseFuture},
+  Client,
 };
 
 #[derive(Clone)]
@@ -27,8 +27,11 @@ where
   <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
 {
   /// wrapper request fn
-  pub fn request(&self, req: Request<B>) -> ResponseFuture {
-    self.inner.request(req)
+  pub async fn request(
+    &self,
+    req: Request<B>,
+  ) -> std::result::Result<Response<Incoming>, hyper_util::client::legacy::Error> {
+    self.inner.request(req).await
   }
 }
 
