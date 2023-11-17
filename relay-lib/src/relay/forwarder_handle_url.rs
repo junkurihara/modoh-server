@@ -149,7 +149,7 @@ mod tests {
   #[test]
   fn test_build_next_hop_url() {
     let inner: InnerForwarder<_, Incoming> = InnerForwarder {
-      inner: HttpClient::try_new(tokio::runtime::Handle::current()).unwrap(),
+      inner: HttpClient::new(tokio::runtime::Handle::current()),
       request_headers: HeaderMap::new(),
       relay_host: "example.com".to_string(),
       relay_path: "/proxy".to_string(),

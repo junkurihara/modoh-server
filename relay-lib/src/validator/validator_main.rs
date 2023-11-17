@@ -57,19 +57,27 @@ where
 }
 
 /// Wrapper of TokenValidator
-pub struct Validator<C>
+pub struct Validator<C, B = BoxBody<Bytes, hyper::Error>>
 where
   C: Send + Sync + Connect + Clone + 'static,
+  B: Body + Send + Unpin + 'static,
+  <B as Body>::Data: Send,
+  <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
+  HttpClient<C, B>: JwksHttpClient,
 {
-  pub(super) inner: TokenValidator<HttpClient<C, BoxBody<Bytes, hyper::Error>>>,
+  pub(super) inner: TokenValidator<HttpClient<C, B>>,
 }
 
-impl<C> Validator<C>
+impl<C, B> Validator<C, B>
 where
   C: Send + Sync + Connect + Clone + 'static,
+  B: Body + Send + Unpin + 'static,
+  <B as Body>::Data: Send,
+  <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
+  HttpClient<C, B>: JwksHttpClient,
 {
   /// Validate an id token. Return Ok(()) if validation is successful with any one of validation keys.
-  pub async fn validate_request<B>(&self, req: &Request<B>) -> HttpResult<JWTClaims<NoCustomClaims>> {
+  pub async fn validate_request<T>(&self, req: &Request<T>) -> HttpResult<JWTClaims<NoCustomClaims>> {
     let Some(auth_header) = req.headers().get(header::AUTHORIZATION) else {
       return Err(HttpError::NoAuthorizationHeader);
     };
@@ -96,16 +104,7 @@ where
 impl Validator<HttpsConnector<HttpConnector>> {
   /// Create a new validator
   pub async fn try_new(config: &ValidationConfig, runtime_handle: tokio::runtime::Handle) -> Result<Self> {
-    // let inner = reqwest::Client::builder()
-    //   .user_agent(format!("{}/{}", VALIDATOR_USER_AGENT, env!("CARGO_PKG_VERSION")))
-    //   .timeout(Duration::from_secs(JWKS_REFETCH_TIMEOUT_SEC))
-    //   .build()
-    //   .map_err(|e| {
-    //     error!("{e}");
-    //     RelayError::BuildValidatorError
-    //   })?;
-
-    let http_client = HttpClient::try_new(runtime_handle)?;
+    let http_client = HttpClient::new(runtime_handle);
     let inner = TokenValidator::try_new(config, Arc::new(http_client)).await?;
     Ok(Self { inner })
   }

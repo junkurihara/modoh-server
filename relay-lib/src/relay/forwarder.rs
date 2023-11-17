@@ -40,7 +40,7 @@ fn check_content_type<B>(req: &Request<B>) -> HttpResult<()> {
 }
 
 /// Read encrypted query from request body
-async fn inspect_request_body(body: &Incoming) -> HttpResult<()> {
+async fn inspect_request_body<B: Body>(body: &B) -> HttpResult<()> {
   let max = body.size_hint().upper().unwrap_or(u64::MAX);
   if max > MAX_DNS_QUESTION_LEN as u64 {
     return Err(HttpError::TooLargeRequestBody);
@@ -111,9 +111,12 @@ where
   pub(super) max_subseq_nodes: usize,
 }
 
-impl<C> InnerForwarder<C>
+impl<C, B> InnerForwarder<C, B>
 where
   C: Send + Sync + Connect + Clone + 'static,
+  B: Body + Send + Unpin + 'static,
+  <B as Body>::Data: Send,
+  <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
 {
   /// Serve request as relay
   /// 1. check host, method and listening path: as described in [RFC9230](https://datatracker.ietf.org/doc/rfc9230/) and Golang implementation [odoh-server-go](https://github.com/cloudflare/odoh-server-go), only post method is allowed.
@@ -125,7 +128,7 @@ where
   /// c.f., "Proxy-Status" [RFC9209](https://datatracker.ietf.org/doc/rfc9209).
   pub async fn serve(
     &self,
-    req: Request<Incoming>,
+    req: Request<B>,
     peer_addr: SocketAddr,
     validation_passed: bool,
   ) -> HttpResult<Response<Incoming>> {
@@ -211,7 +214,7 @@ where
   /// and hence "no-cache, no-store" is set (overwritten) in cache-control header.
   /// Also "Proxy-Status" header with a received-status param is appended (overwritten) as described in [RFC9230, Section 4.3](https://datatracker.ietf.org/doc/rfc9230/).
   /// c.f., "Proxy-Status" [RFC9209](https://datatracker.ietf.org/doc/rfc9209).
-  fn inspect_and_update_response_header<B>(&self, response: &mut Response<B>) -> HttpResult<()> {
+  fn inspect_and_update_response_header<T>(&self, response: &mut Response<T>) -> HttpResult<()> {
     let status = response.status();
     let proxy_status = format!("received-status={}", status);
 
@@ -251,7 +254,7 @@ impl InnerForwarder<HttpsConnector<HttpConnector>> {
     request_headers.insert(header::CACHE_CONTROL, HeaderValue::from_static(ODOH_CACHE_CONTROL));
     request_headers.insert(header::USER_AGENT, user_agent);
 
-    let inner = HttpClient::<_, Incoming>::try_new(globals.runtime_handle.clone())?;
+    let inner = HttpClient::new(globals.runtime_handle.clone());
 
     let relay_host = globals.relay_config.hostname.clone();
     let relay_path = globals.relay_config.path.clone();
