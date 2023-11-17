@@ -148,8 +148,12 @@ mod tests {
 
   #[test]
   fn test_build_next_hop_url() {
+    let mut runtime_builder = tokio::runtime::Builder::new_multi_thread();
+    runtime_builder.enable_all();
+
+    let runtime = runtime_builder.build().unwrap();
     let inner: InnerForwarder<_, Incoming> = InnerForwarder {
-      inner: HttpClient::new(tokio::runtime::Handle::current()),
+      inner: HttpClient::new(runtime.handle().clone()),
       request_headers: HeaderMap::new(),
       relay_host: "example.com".to_string(),
       relay_path: "/proxy".to_string(),
