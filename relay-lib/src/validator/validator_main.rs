@@ -8,7 +8,7 @@ use auth_validator::{
   reexports::{JWTClaims, NoCustomClaims},
   JwksHttpClient, TokenValidator, ValidationConfig,
 };
-use hyper::{body::Body, header, Request};
+use http::{header, Request};
 use serde::de::DeserializeOwned;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::RwLock;
@@ -54,7 +54,7 @@ impl Validator {
   }
 
   /// Validate an id token. Return Ok(()) if validation is successful with any one of validation keys.
-  pub async fn validate_request(&self, req: &Request<Body>) -> HttpResult<JWTClaims<NoCustomClaims>> {
+  pub async fn validate_request<B>(&self, req: &Request<B>) -> HttpResult<JWTClaims<NoCustomClaims>> {
     let Some(auth_header) = req.headers().get(header::AUTHORIZATION) else {
       return Err(HttpError::NoAuthorizationHeader);
     };

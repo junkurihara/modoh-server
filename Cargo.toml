@@ -1,7 +1,7 @@
 [workspace]
 
 members = ["relay-bin", "relay-lib"]
-exclude = ["submodules/hyper-util/"]
+exclude = ["submodules/hyper-util/", "submodule/hyper-tls"]
 resolver = "2"
 
 [profile.release]

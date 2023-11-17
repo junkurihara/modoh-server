@@ -1,6 +1,6 @@
 use super::forwarder::InnerForwarder;
 use crate::{constants::HOSTNAME, error::*, log::*};
-use hyper::client::connect::Connect;
+use hyper_util::client::connect::Connect;
 use rustc_hash::FxHashMap as HashMap;
 use url::Url;
 
@@ -112,7 +112,7 @@ where
 #[cfg(test)]
 mod tests {
   use super::*;
-  use hyper::HeaderMap;
+  use hyper::{body::Incoming, HeaderMap};
 
   #[test]
   fn is_looped_test() {
@@ -143,11 +143,12 @@ mod tests {
 
   #[test]
   fn test_build_next_hop_url() {
-    let inner = InnerForwarder {
+    let inner: InnerForwarder<_, Incoming> = InnerForwarder {
       inner: {
-        let builder = hyper_rustls::HttpsConnectorBuilder::new().with_webpki_roots();
-        let connector = builder.https_or_http().enable_http1().enable_http2().build();
-        hyper::Client::builder().build::<_, hyper::Body>(connector)
+        let connector = hyper_tls::HttpsConnector::new();
+        //   let builder = hyper_rustls::HttpsConnectorBuilder::new().with_webpki_roots();
+        //   let connector = builder.https_or_http().enable_http1().enable_http2().build();
+        hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new()).build(connector)
       },
       request_headers: HeaderMap::new(),
       relay_host: "example.com".to_string(),
