@@ -1,17 +1,17 @@
-use crate::{constants::*, error::*, globals::Globals, log::*};
-use futures::stream::StreamExt;
-use hyper::{
-  client::{connect::Connect, HttpConnector},
-  header,
-  http::{request::Parts, HeaderMap, HeaderValue, Method},
-  Body, Client, Request, Response,
+use crate::{constants::*, error::*, globals::Globals, http_client::HttpClient, log::*};
+use http::{
+  header::{self, HeaderMap, HeaderValue},
+  request::Parts,
+  Method, Request, Response,
 };
-use hyper_rustls::HttpsConnector;
+use hyper::body::{Body, Incoming};
+use hyper_tls::HttpsConnector;
+use hyper_util::client::connect::{Connect, HttpConnector};
 use std::{net::SocketAddr, sync::Arc};
 use url::Url;
 
 /// parse and check content type and accept headers if both or either of them are "application/oblivious-dns-message".
-fn check_content_type<T>(req: &Request<T>) -> HttpResult<()> {
+fn check_content_type<B>(req: &Request<B>) -> HttpResult<()> {
   // check content type
   if let Some(content_type) = req.headers().get(header::CONTENT_TYPE) {
     let Ok(ct) = content_type.to_str() else {
@@ -40,24 +40,34 @@ fn check_content_type<T>(req: &Request<T>) -> HttpResult<()> {
 }
 
 /// Read encrypted query from request body
-async fn read_body(body: &mut Body) -> HttpResult<Vec<u8>> {
-  let mut sum_size = 0;
-  let mut query = vec![];
-  while let Some(chunk) = body.next().await {
-    let chunk = chunk.map_err(|_| HttpError::TooLargeRequestBody)?;
-    sum_size += chunk.len();
-    if sum_size >= MAX_DNS_QUESTION_LEN {
-      return Err(HttpError::TooLargeRequestBody);
-    }
-    query.extend(chunk);
+async fn inspect_request_body<B: Body>(body: &B) -> HttpResult<()> {
+  let max = body.size_hint().upper().unwrap_or(u64::MAX);
+  if max > MAX_DNS_QUESTION_LEN as u64 {
+    return Err(HttpError::TooLargeRequestBody);
   }
-  Ok(query)
+  if max == 0 {
+    return Err(HttpError::NoBodyInRequest);
+  }
+  // Ok(EitherBody::Left(body))
+  Ok(())
+
+  // let mut sum_size = 0;
+  // let mut query = vec![];
+  // while let Some(chunk) = body.next().await {
+  //   let chunk = chunk.map_err(|_| HttpError::TooLargeRequestBody)?;
+  //   sum_size += chunk.len();
+  //   if sum_size >= MAX_DNS_QUESTION_LEN {
+  //     return Err(HttpError::TooLargeRequestBody);
+  //   }
+  //   query.extend(chunk);
+  // }
+  // Ok(query)
 }
 
 /// Get HOST header and/or host name in url line in http request
 /// Returns Err if both are specified and inconsistent, or if none of them is specified.
 /// Note that port is dropped even if specified.
-fn inspect_get_host(req: &Request<Body>) -> HttpResult<String> {
+fn inspect_get_host<B>(req: &Request<B>) -> HttpResult<String> {
   let drop_port = |v: &str| {
     v.split(':')
       .next()
@@ -81,13 +91,16 @@ fn inspect_get_host(req: &Request<Body>) -> HttpResult<String> {
   }
 }
 
-/// wrapper of reqwest client
-pub struct InnerForwarder<C, B = Body>
+/// wrapper of http client
+pub struct InnerForwarder<C, B = Incoming>
 where
   C: Send + Sync + Connect + Clone + 'static,
+  B: Body + Send + Unpin + 'static,
+  <B as Body>::Data: Send,
+  <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
 {
   /// hyper client
-  pub(super) inner: Client<C, B>,
+  pub(super) inner: HttpClient<C, B>,
   /// request default headers
   pub(super) request_headers: HeaderMap,
   /// relay host name
@@ -98,9 +111,12 @@ where
   pub(super) max_subseq_nodes: usize,
 }
 
-impl<C> InnerForwarder<C>
+impl<C, B> InnerForwarder<C, B>
 where
   C: Send + Sync + Connect + Clone + 'static,
+  B: Body + Send + Unpin + 'static,
+  <B as Body>::Data: Send,
+  <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
 {
   /// Serve request as relay
   /// 1. check host, method and listening path: as described in [RFC9230](https://datatracker.ietf.org/doc/rfc9230/) and Golang implementation [odoh-server-go](https://github.com/cloudflare/odoh-server-go), only post method is allowed.
@@ -112,10 +128,10 @@ where
   /// c.f., "Proxy-Status" [RFC9209](https://datatracker.ietf.org/doc/rfc9209).
   pub async fn serve(
     &self,
-    req: Request<Body>,
+    req: Request<B>,
     peer_addr: SocketAddr,
     validation_passed: bool,
-  ) -> HttpResult<Response<Body>> {
+  ) -> HttpResult<Response<Incoming>> {
     // TODO: source ip access control here?
     // for authorized ip addresses, maintain blacklist (error metrics) at each relay for given requests
 
@@ -156,16 +172,15 @@ where
     // for authorized domains, maintain blacklist (error metrics) at each relay for given responses
 
     // split request into parts and body to manipulate them later
-    let (mut parts, mut body) = req.into_parts();
-    // check if body is a valid odoh query and serve it
-    let encrypted_query = read_body(&mut body).await?;
-    if encrypted_query.is_empty() {
-      return Err(HttpError::NoBodyInRequest);
-    }
+    let (mut parts, body) = req.into_parts();
+    // check if body does not exceed max size as a DNS query
+    inspect_request_body(&body).await?;
 
     // Forward request to next hop: Only post method is allowed in ODoH
     self.update_request_parts(&nexthop_url, &mut parts)?;
-    let updated_request = Request::from_parts(parts, Body::from(encrypted_query.to_owned()));
+    let updated_request = Request::from_parts(parts, body);
+
+    // let updated_request = Request::from_parts(parts, Body::from(encrypted_query.to_owned()));
     let mut response = match self.inner.request(updated_request).await {
       Ok(res) => res,
       Err(e) => {
@@ -174,7 +189,7 @@ where
       }
     };
     // Inspect and update response
-    self.inspect_update_response(&mut response)?;
+    self.inspect_and_update_response_header(&mut response)?;
 
     Ok(response)
   }
@@ -194,12 +209,12 @@ where
     Ok(())
   }
 
-  /// inspect and update response
+  /// inspect and update response header
   /// (M)ODoH response MUST NOT be cached as specified in [RFC9230](https://datatracker.ietf.org/doc/rfc9230/),
   /// and hence "no-cache, no-store" is set (overwritten) in cache-control header.
   /// Also "Proxy-Status" header with a received-status param is appended (overwritten) as described in [RFC9230, Section 4.3](https://datatracker.ietf.org/doc/rfc9230/).
   /// c.f., "Proxy-Status" [RFC9209](https://datatracker.ietf.org/doc/rfc9209).
-  fn inspect_update_response(&self, response: &mut Response<Body>) -> HttpResult<()> {
+  fn inspect_and_update_response_header<T>(&self, response: &mut Response<T>) -> HttpResult<()> {
     let status = response.status();
     let proxy_status = format!("received-status={}", status);
 
@@ -225,7 +240,7 @@ where
   }
 }
 
-impl InnerForwarder<HttpsConnector<HttpConnector>, Body> {
+impl InnerForwarder<HttpsConnector<HttpConnector>> {
   /// Build inner forwarder
   pub fn try_new(globals: &Arc<Globals>) -> Result<Self> {
     // default headers for request
@@ -239,14 +254,7 @@ impl InnerForwarder<HttpsConnector<HttpConnector>, Body> {
     request_headers.insert(header::CACHE_CONTROL, HeaderValue::from_static(ODOH_CACHE_CONTROL));
     request_headers.insert(header::USER_AGENT, user_agent);
 
-    // build hyper client with rustls and webpki, only https is allowed
-    let connector = hyper_rustls::HttpsConnectorBuilder::new()
-      .with_webpki_roots()
-      .https_only()
-      .enable_http1()
-      .enable_http2()
-      .build();
-    let inner = Client::builder().build::<_, Body>(connector);
+    let inner = HttpClient::new(globals.runtime_handle.clone());
 
     let relay_host = globals.relay_config.hostname.clone();
     let relay_path = globals.relay_config.path.clone();

@@ -1,5 +1,5 @@
 pub use anyhow::{anyhow, bail, ensure, Context};
-use hyper::StatusCode;
+use http::StatusCode;
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, RelayError>;
@@ -14,8 +14,6 @@ pub enum RelayError {
   NoValidator,
   #[error("Failed to build forwarder")]
   BuildForwarderError,
-  #[error("Failed to build validator")]
-  BuildValidatorError,
   #[error(transparent)]
   Other(#[from] anyhow::Error),
 }
@@ -55,7 +53,7 @@ pub enum HttpError {
   TooLargeRequestBody,
 
   #[error("Failed to send request")]
-  SendRequestError(#[from] hyper::Error),
+  SendRequestError(#[from] hyper_util::client::legacy::Error),
   #[error("Invalid response content type")]
   InvalidResponseContentType,
   #[error("Invalid response body")]

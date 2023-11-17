@@ -1,60 +1,46 @@
-use super::{count::RequestCount, forwarder::InnerForwarder, http_error, socket::bind_tcp_socket};
-use crate::{error::*, globals::Globals, log::*, validator::Validator};
-use hyper::{
-  client::{connect::Connect, HttpConnector},
-  header,
-  server::conn::Http,
-  service::service_fn,
-  Body, Request, StatusCode,
+use super::{
+  count::RequestCount, forwarder::InnerForwarder, socket::bind_tcp_socket, synthetic_error_response, EitherBody,
 };
-use hyper_rustls::HttpsConnector;
+use crate::{
+  error::*, globals::Globals, hyper_executor::LocalExecutor, log::*, relay::passthrough_response, validator::Validator,
+};
+use hyper::{body::Incoming, header, service::service_fn, Request, StatusCode};
+use hyper_tls::HttpsConnector;
+use hyper_util::{
+  client::connect::{Connect, HttpConnector},
+  server::{self, conn::auto::Builder as ConnectionBuilder},
+};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{
   io::{AsyncRead, AsyncWrite},
-  runtime::Handle,
   time::timeout,
 };
-
-#[derive(Clone)]
-pub struct LocalExecutor {
-  runtime_handle: Handle,
-}
-
-impl LocalExecutor {
-  fn new(runtime_handle: Handle) -> Self {
-    LocalExecutor { runtime_handle }
-  }
-}
-
-impl<F> hyper::rt::Executor<F> for LocalExecutor
-where
-  F: std::future::Future + Send + 'static,
-  F::Output: Send,
-{
-  fn execute(&self, fut: F) {
-    self.runtime_handle.spawn(fut);
-  }
-}
 
 /// (M)ODoH Relay main object
 pub struct Relay<C>
 where
   C: Send + Sync + Connect + Clone + 'static,
 {
-  pub globals: Arc<Globals>,
-  pub http_server: Arc<Http<LocalExecutor>>,
-  pub inner_forwarder: Arc<InnerForwarder<C>>,
-  pub inner_validator: Option<Arc<Validator>>,
-  pub request_count: RequestCount,
+  /// global config
+  globals: Arc<Globals>,
+  /// hyper server receiving http request
+  http_server: Arc<ConnectionBuilder<LocalExecutor>>,
+  /// hyper client forwarding requests to upstream
+  inner_forwarder: Arc<InnerForwarder<C>>,
+  /// validator for token validation
+  inner_validator: Option<Arc<Validator<C>>>,
+  /// request count
+  request_count: RequestCount,
 }
 
 /// Service wrapper with validation
 pub async fn serve_request_with_validation<C>(
-  req: Request<Body>,
+  req: Request<Incoming>,
   peer_addr: SocketAddr,
+  // forwarder: Arc<InnerForwarder<C, B>>,
   forwarder: Arc<InnerForwarder<C>>,
-  validator: Option<Arc<Validator>>,
-) -> Result<hyper::Response<Body>>
+  validator: Option<Arc<Validator<C>>>,
+) -> Result<hyper::Response<EitherBody>>
 where
   C: Send + Sync + Connect + Clone + 'static,
 {
@@ -69,7 +55,7 @@ where
       }
       Err(e) => {
         warn!("token validation failed: {}", e);
-        return http_error(StatusCode::from(e));
+        return synthetic_error_response(StatusCode::from(e));
       }
     };
     debug!(
@@ -81,8 +67,8 @@ where
 
   // serve query as relay
   let res = match forwarder.serve(req, peer_addr, validation_passed).await {
-    Ok(res) => Ok(res),
-    Err(e) => http_error(StatusCode::from(e)),
+    Ok(res) => passthrough_response(res),
+    Err(e) => synthetic_error_response(StatusCode::from(e)),
   };
   debug!("serve query finish");
   res
@@ -113,7 +99,7 @@ where
         timeout_sec + Duration::from_secs(1),
         server_clone.serve_connection(
           stream,
-          service_fn(move |req: Request<Body>| {
+          service_fn(move |req: Request<Incoming>| {
             serve_request_with_validation(req, peer_addr, forwarder_clone.clone(), validator_clone.clone())
           }),
         ),
@@ -141,6 +127,7 @@ where
     Ok(())
   }
 
+  /// Start jwks retrieval service
   async fn jwks_service(&self) -> Result<()> {
     let Some(validator) = self.inner_validator.as_ref() else {
       return Err(RelayError::NoValidator);
@@ -192,15 +179,20 @@ where
 impl Relay<HttpsConnector<HttpConnector>> {
   /// build relay
   pub async fn try_new(globals: &Arc<Globals>) -> Result<Self> {
-    let mut server = Http::new();
-    server.http1_keep_alive(globals.relay_config.keepalive);
-    server.http2_max_concurrent_streams(globals.relay_config.max_concurrent_streams);
-    server.pipeline_flush(true);
     let executor = LocalExecutor::new(globals.runtime_handle.clone());
-    let http_server = Arc::new(server.with_executor(executor));
+    let mut server = server::conn::auto::Builder::new(executor);
+    server
+      .http1()
+      .keep_alive(globals.relay_config.keepalive)
+      .pipeline_flush(true);
+    server
+      .http2()
+      .max_concurrent_streams(globals.relay_config.max_concurrent_streams);
+
+    let http_server = Arc::new(server);
     let inner_forwarder = Arc::new(InnerForwarder::try_new(globals)?);
     let inner_validator = match globals.relay_config.validation.as_ref() {
-      Some(v) => Some(Arc::new(Validator::try_new(v).await?)),
+      Some(v) => Some(Arc::new(Validator::try_new(v, globals.runtime_handle.clone()).await?)),
       None => None,
     };
 

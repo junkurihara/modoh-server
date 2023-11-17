@@ -1,10 +1,14 @@
 use super::validator_main::Validator;
 use crate::{constants::JWKS_REFETCH_DELAY_SEC, error::*, log::*};
 use futures::{select, FutureExt};
+use hyper_util::client::connect::Connect;
 use std::{sync::Arc, time::Duration};
 use tokio::time::sleep;
 
-impl Validator {
+impl<C> Validator<C>
+where
+  C: Send + Sync + Connect + Clone + 'static,
+{
   /// Check token expiration every 60 secs, and refresh if the token is about to expire.
   pub async fn start_service(&self, term_notify: Option<Arc<tokio::sync::Notify>>) -> Result<()> {
     info!("Start periodic jwks retrieval service");
@@ -13,16 +17,16 @@ impl Validator {
       Some(term) => {
         select! {
           _ = self.jwks_retrieval_service().fuse() => {
-            warn!("Auth service got down. Possibly failed to refresh or login.");
+            warn!("Jwks service got down. Possibly failed to refresh or login.");
           }
           _ = term.notified().fuse() => {
-            info!("Auth service receives term signal");
+            info!("Jwks service receives term signal");
           }
         }
       }
       None => {
         self.jwks_retrieval_service().await?;
-        warn!("Auth service got down. Possibly failed to refresh or login.");
+        warn!("Jwks service got down. Possibly failed to refresh or login.");
       }
     }
     Ok(())
