@@ -25,8 +25,13 @@ pub const FORWARDER_USER_AGENT: &str = "doh-auth-relay";
 pub const VALIDATOR_USER_AGENT: &str = "doh-auth-relay";
 pub const ODOH_CONTENT_TYPE: &str = "application/oblivious-dns-message";
 pub const ODOH_ACCEPT: &str = "application/oblivious-dns-message";
+pub const DOH_CONTENT_TYPE: &str = "application/dns-message";
+pub const DOH_ACCEPT: &str = "application/dns-message";
 pub const ODOH_CACHE_CONTROL: &str = "no-cache, no-store";
 pub const MODOH_MAX_SUBSEQ_NODES: usize = 3;
+
+/// DNS query parameter name in GET request for DoH (/dns-query?dns=...)
+pub const DNS_QUERY_PARAM: &str = "dns";
 
 pub const ODOH_KEY_ROTATION_SECS: u64 = 86400;
 

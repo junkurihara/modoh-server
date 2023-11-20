@@ -5,6 +5,7 @@ use crate::{
   globals::Globals,
   hyper_body::{full, BoxBody},
   log::*,
+  message_util::inspect_host,
 };
 use futures::{select, FutureExt};
 use http::{header, Method, Request, Response};
@@ -58,11 +59,13 @@ pub struct InnerTarget {
 impl InnerTarget {
   /// Serve odoh config via GET method
   pub async fn serve_odoh_configs<B>(&self, req: Request<B>) -> HttpResult<Response<BoxBody>> {
+    // check host
+    inspect_host(&req, &self.target_host)?;
     // check path
     if req.uri().path() != self.odoh_configs_path {
       return Err(HttpError::InvalidPath);
     };
-    // check method
+    // check method, only get method is allowed for odoh config
     if req.method() != Method::GET {
       return Err(HttpError::InvalidMethod);
     };

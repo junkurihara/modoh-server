@@ -5,6 +5,7 @@ mod hyper_body;
 mod hyper_client;
 mod hyper_executor;
 mod log;
+mod message_util;
 mod relay;
 mod router;
 mod target;

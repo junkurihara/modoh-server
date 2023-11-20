@@ -1,4 +1,11 @@
-use crate::{constants::*, error::*, globals::Globals, hyper_client::HttpClient, log::*};
+use crate::{
+  constants::*,
+  error::*,
+  globals::Globals,
+  hyper_client::HttpClient,
+  log::*,
+  message_util::{check_content_type, inspect_host, inspect_request_body, RequestType},
+};
 use http::{
   header::{self, HeaderMap, HeaderValue},
   request::Parts,
@@ -9,60 +16,6 @@ use hyper_tls::HttpsConnector;
 use hyper_util::client::legacy::connect::{Connect, HttpConnector};
 use std::sync::Arc;
 use url::Url;
-
-/// parse and check content type and accept headers if both or either of them are "application/oblivious-dns-message".
-fn check_content_type<B>(req: &Request<B>) -> HttpResult<()> {
-  // check content type
-  if let Some(content_type) = req.headers().get(header::CONTENT_TYPE) {
-    let Ok(ct) = content_type.to_str() else {
-      return Err(HttpError::InvalidContentTypeString);
-    };
-    if ct.to_ascii_lowercase() != ODOH_CONTENT_TYPE {
-      return Err(HttpError::NotObliviousDnsMessageContentType);
-    }
-    return Ok(());
-  }
-
-  // check accept
-  if let Some(accept) = req.headers().get(header::ACCEPT) {
-    let Ok(ac) = accept.to_str() else {
-      return Err(HttpError::InvalidAcceptString);
-    };
-    let mut ac_split = ac.split(',').map(|s| s.trim().to_ascii_lowercase());
-    if !ac_split.any(|s| s == ODOH_ACCEPT) {
-      return Err(HttpError::NotObliviousDnsMessageAccept);
-    }
-    return Ok(());
-  };
-
-  // neither content type nor accept is "application/oblivious-dns-message"
-  Err(HttpError::NoContentTypeAndAccept)
-}
-
-/// Read encrypted query from request body
-async fn inspect_request_body<B: Body>(body: &B) -> HttpResult<()> {
-  let max = body.size_hint().upper().unwrap_or(u64::MAX);
-  if max > MAX_DNS_QUESTION_LEN as u64 {
-    return Err(HttpError::TooLargeRequestBody);
-  }
-  if max == 0 {
-    return Err(HttpError::NoBodyInRequest);
-  }
-  // Ok(EitherBody::Left(body))
-  Ok(())
-
-  // let mut sum_size = 0;
-  // let mut query = vec![];
-  // while let Some(chunk) = body.next().await {
-  //   let chunk = chunk.map_err(|_| HttpError::TooLargeRequestBody)?;
-  //   sum_size += chunk.len();
-  //   if sum_size >= MAX_DNS_QUESTION_LEN {
-  //     return Err(HttpError::TooLargeRequestBody);
-  //   }
-  //   query.extend(chunk);
-  // }
-  // Ok(query)
-}
 
 /// wrapper of http client
 pub struct InnerRelay<C, B = Incoming>
@@ -92,7 +45,7 @@ where
   <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
 {
   /// Serve request as relay
-  /// 1. check host (inspected in router), method and listening path: as described in [RFC9230](https://datatracker.ietf.org/doc/rfc9230/) and Golang implementation [odoh-server-go](https://github.com/cloudflare/odoh-server-go), only post method is allowed.
+  /// 1. check host, method and listening path: as described in [RFC9230](https://datatracker.ietf.org/doc/rfc9230/) and Golang implementation [odoh-server-go](https://github.com/cloudflare/odoh-server-go), only post method is allowed.
   /// 2. check content type: only "application/oblivious-dns-message" is allowed.
   /// 3-a. retrieve query and build new target url
   /// 3-b. retrieve query and check if it is a valid odoh query
@@ -100,6 +53,9 @@ where
   /// 5. return response after appending "Proxy-Status" header with a received-status param as described in [RFC9230, Section 4.3](https://datatracker.ietf.org/doc/rfc9230/).
   /// c.f., "Proxy-Status" [RFC9209](https://datatracker.ietf.org/doc/rfc9209).
   pub async fn serve(&self, req: Request<B>) -> HttpResult<Response<Incoming>> {
+    // check host
+    inspect_host(&req, &self.relay_host)?;
+
     // check path
     if req.uri().path() != self.relay_path {
       return Err(HttpError::InvalidPath);
@@ -109,7 +65,9 @@ where
       return Err(HttpError::InvalidMethod);
     };
     // check content type
-    check_content_type(&req)?;
+    if check_content_type(&req)? != RequestType::ODoH {
+      return Err(HttpError::UnsupportedRequestType);
+    };
 
     // build next hop url
     let Ok(current_url) = &url::Url::parse(&format!(
@@ -187,7 +145,7 @@ where
       return Err(HttpError::InvalidResponseContentType);
     };
     if ct.to_ascii_lowercase() != ODOH_CONTENT_TYPE {
-      return Err(HttpError::NotObliviousDnsMessageContentType);
+      return Err(HttpError::UnsupportedRequestType);
     };
 
     // update header

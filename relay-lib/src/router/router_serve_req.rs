@@ -10,37 +10,6 @@ use hyper::{body::Incoming, header, Request, StatusCode};
 use hyper_util::client::legacy::connect::Connect;
 use std::{net::SocketAddr, sync::Arc};
 
-/// Get HOST header and/or host name in url line in http request
-/// Returns Err if both are specified and inconsistent, if none of them is specified, or if the host name is different from the given hostname in args.
-/// Note that port is dropped even if specified.
-fn inspect_host<B>(req: &Request<B>, hostname: &str) -> HttpResult<()> {
-  let drop_port = |v: &str| {
-    v.split(':')
-      .next()
-      .ok_or_else(|| HttpError::InvalidHost)
-      .map(|s| s.to_string())
-  };
-
-  let host_header = req.headers().get(header::HOST).map(|v| v.to_str().map(drop_port));
-  let host_url = req.uri().host().map(drop_port);
-
-  let h = match (host_header, host_url) {
-    (Some(Ok(Ok(hh))), Some(Ok(hu))) => {
-      if hh != hu {
-        return Err(HttpError::InvalidHost);
-      }
-      hh
-    }
-    (Some(Ok(Ok(hh))), None) => hh,
-    (None, Some(Ok(hu))) => hu,
-    _ => return Err(HttpError::InvalidHost),
-  };
-  if h != hostname {
-    return Err(HttpError::InvalidHost);
-  }
-  Ok(())
-}
-
 /// Service wrapper with validation
 pub async fn serve_request_with_validation<C>(
   req: Request<Incoming>,
@@ -68,13 +37,7 @@ where
       claims.subject.as_deref().unwrap_or("")
     );
   }
-
-  // 1. check host common for relay and target
-  if let Err(e) = inspect_host(&req, &hostname) {
-    return synthetic_error_response(StatusCode::from(e));
-  }
-
-  // 2. check path and route request
+  // check path and route request
   let path = req.uri().path();
   // match odoh config, without checking allowed ip address
   // odoh config should be served without access control
@@ -99,7 +62,10 @@ where
   }
   // match modoh target
   if target.as_ref().map(|t| t.target_path == path).unwrap_or(false) {
-    todo!();
+    return match target.unwrap().serve(req).await {
+      Ok(res) => synthetic_response(res),
+      Err(e) => synthetic_error_response(StatusCode::from(e)),
+    };
   }
 
   synthetic_error_response(StatusCode::NOT_FOUND)

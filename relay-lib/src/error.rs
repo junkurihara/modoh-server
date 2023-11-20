@@ -42,14 +42,12 @@ pub enum HttpError {
   #[error("Too many subsequent nodes")]
   TooManySubsequentNodes,
 
+  #[error("Unsupported request type")]
+  UnsupportedRequestType,
   #[error("Invalid content type")]
   InvalidContentTypeString,
-  #[error("Not odoh content type")]
-  NotObliviousDnsMessageContentType,
   #[error("Invalid accept string")]
   InvalidAcceptString,
-  #[error("Not odoh accept")]
-  NotObliviousDnsMessageAccept,
   #[error("No content type and accept")]
   NoContentTypeAndAccept,
 
@@ -67,6 +65,9 @@ pub enum HttpError {
 
   #[error("Invalid ODoH config")]
   InvalidODoHConfig,
+
+  #[error("Invalid query")]
+  InvalidQuery,
 
   #[error("No authorization header")]
   NoAuthorizationHeader,
@@ -89,21 +90,27 @@ impl From<HttpError> for StatusCode {
       HttpError::InvalidQueryParameter => StatusCode::BAD_REQUEST,
       HttpError::LoopDetected => StatusCode::LOOP_DETECTED,
       HttpError::TooManySubsequentNodes => StatusCode::BAD_REQUEST,
+
       HttpError::InvalidContentTypeString => StatusCode::BAD_REQUEST,
-      HttpError::NotObliviousDnsMessageContentType => StatusCode::UNSUPPORTED_MEDIA_TYPE,
+      HttpError::UnsupportedRequestType => StatusCode::UNSUPPORTED_MEDIA_TYPE,
       HttpError::InvalidAcceptString => StatusCode::BAD_REQUEST,
-      HttpError::NotObliviousDnsMessageAccept => StatusCode::NOT_ACCEPTABLE,
       HttpError::NoContentTypeAndAccept => StatusCode::UNSUPPORTED_MEDIA_TYPE,
+
       HttpError::NoBodyInRequest => StatusCode::BAD_REQUEST,
+      HttpError::TooLargeRequestBody => StatusCode::PAYLOAD_TOO_LARGE,
+
       HttpError::SendRequestError(_) => StatusCode::BAD_GATEWAY,
       HttpError::InvalidResponseContentType => StatusCode::BAD_GATEWAY,
       HttpError::InvalidResponseBody => StatusCode::BAD_GATEWAY,
+
+      HttpError::InvalidODoHConfig => StatusCode::BAD_GATEWAY,
+
+      HttpError::InvalidQuery => StatusCode::BAD_REQUEST,
 
       HttpError::NoAuthorizationHeader => StatusCode::FORBIDDEN,
       HttpError::InvalidAuthorizationHeader => StatusCode::FORBIDDEN,
       HttpError::InvalidToken => StatusCode::UNAUTHORIZED,
 
-      HttpError::TooLargeRequestBody => StatusCode::PAYLOAD_TOO_LARGE,
       _ => StatusCode::INTERNAL_SERVER_ERROR,
     }
   }
