@@ -1,4 +1,4 @@
-use super::forwarder::InnerForwarder;
+use super::relay_main::InnerRelay;
 use crate::{constants::HOSTNAME, error::*, log::*};
 use hyper::body::Body;
 use hyper_util::client::legacy::connect::Connect;
@@ -31,7 +31,7 @@ fn is_looped(current_url: &Url) -> bool {
   false
 }
 
-impl<C, B> InnerForwarder<C, B>
+impl<C, B> InnerRelay<C, B>
 where
   C: Send + Sync + Connect + Clone + 'static,
   B: Body + Send + Unpin + 'static,
@@ -153,7 +153,7 @@ mod tests {
       .unwrap()
       .handle()
       .clone();
-    let inner: InnerForwarder<_, Incoming> = InnerForwarder {
+    let inner: InnerRelay<_, Incoming> = InnerRelay {
       inner: HttpClient::new(runtime_handle),
       request_headers: HeaderMap::new(),
       relay_host: "example.com".to_string(),

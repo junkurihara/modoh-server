@@ -38,7 +38,7 @@ where
       sleep(Duration::from_secs(JWKS_REFETCH_DELAY_SEC)).await;
 
       if let Err(e) = self.inner.refetch_all_jwks().await {
-        error!("Failed to retrieve jwks: {}", e);
+        error!("Failed to retrieve jwks, Keep validation key unchanged: {}", e);
       } else {
         info!("Successfully retrieved jwks");
       };

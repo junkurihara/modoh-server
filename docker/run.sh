@@ -1,11 +1,11 @@
 #!/usr/bin/env sh
-CONFIG_FILE=/etc/doh-auth-relay.toml
+CONFIG_FILE=/etc/modoh-server.toml
 
 # debug level logging
 if [ -z $LOG_LEVEL ]; then
   LOG_LEVEL=info
 fi
-echo "doh-auth-relay: Logging with level ${LOG_LEVEL}"
+echo "modoh-server: Logging with level ${LOG_LEVEL}"
 
 # continuously watch and reload the config file
 if [ -z $WATCH ]; then
@@ -19,7 +19,7 @@ else
 fi
 
 if  $WATCH ; then
-  RUST_LOG=${LOG_LEVEL} /relay/bin/doh-auth-relay --config ${CONFIG_FILE} -w
+  RUST_LOG=${LOG_LEVEL} /modoh/bin/modoh-server --config ${CONFIG_FILE} -w
 else
-  RUST_LOG=${LOG_LEVEL} /relay/bin/doh-auth-relay --config ${CONFIG_FILE}
+  RUST_LOG=${LOG_LEVEL} /modoh/bin/modoh-server --config ${CONFIG_FILE}
 fi

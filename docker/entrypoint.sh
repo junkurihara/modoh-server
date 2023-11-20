@@ -1,17 +1,17 @@
 #!/usr/bin/env sh
-LOG_DIR=/relay/log
-LOG_FILE=${LOG_DIR}/doh-auth-relay.log
+LOG_DIR=/modoh/log
+LOG_FILE=${LOG_DIR}/modoh-server.log
 LOG_SIZE=10M
 LOG_NUM=10
 
 LOGGING=${LOG_TO_FILE:-false}
-USER=${HOST_USER:-relay}
+USER=${HOST_USER:-modoh}
 USER_ID=${HOST_UID:-900}
 GROUP_ID=${HOST_GID:-900}
 
-CONFIG_FILE=/etc/doh-auth-relay.toml
-CONFIG_DIR=/relay/config
-CONFIG_FILE_IN_DIR=${CONFIG_FILENAME:-doh-auth-relay.toml}
+CONFIG_FILE=/etc/modoh-server.toml
+CONFIG_DIR=/modoh/config
+CONFIG_FILE_IN_DIR=${CONFIG_FILENAME:-modoh-server.toml}
 
 #######################################
 # Setup logrotate
@@ -43,7 +43,7 @@ include /etc/logrotate.d
 # system-specific logs may be also be configured here.
 EOF
 
-  cat > /etc/logrotate.d/doh-auth-relay.conf << EOF
+  cat > /etc/logrotate.d/modoh-server.conf << EOF
 ${LOG_FILE} {
     dateext
     daily
@@ -65,7 +65,7 @@ function setup_ubuntu () {
   id ${USER} > /dev/null
   # Check the existence of the user, if not exist, create it.
   if [ $? -eq 1 ]; then
-    echo "doh-auth-relay: Create user ${USER} with ${USER_ID}:${GROUP_ID}"
+    echo "modoh-server: Create user ${USER} with ${USER_ID}:${GROUP_ID}"
     groupadd -g ${GROUP_ID} ${USER}
     useradd -u ${USER_ID} -g ${GROUP_ID} ${USER}
   fi
@@ -89,7 +89,7 @@ function setup_alpine () {
   id ${USER} > /dev/null
   # Check the existence of the user, if not exist, create it.
   if [ $? -eq 1 ]; then
-    echo "doh-auth-relay: Create user ${USER} with ${USER_ID}:${GROUP_ID}"
+    echo "modoh-server: Create user ${USER} with ${USER_ID}:${GROUP_ID}"
     addgroup -g ${GROUP_ID} ${USER}
     adduser -H -D -u ${USER_ID} -G ${USER} ${USER}
   fi
@@ -109,7 +109,7 @@ function setup_alpine () {
 
 if [ $(whoami) != "root" -o $(id -u) -ne 0 -a $(id -g) -ne 0 ]; then
   echo "Do not execute 'docker run' or 'docker-compose up' with a specific user through '-u'."
-  echo "If you want to run 'doh-auth-relay' with a specific user, use HOST_USER, HOST_UID and HOST_GID environment variables."
+  echo "If you want to run 'modoh-server' with a specific user, use HOST_USER, HOST_UID and HOST_GID environment variables."
   exit 1
 fi
 
@@ -137,7 +137,7 @@ fi
 
 # Change permission according to the given user
 # except for the config dir that possibly get mounted with read-only
-find /relay -path ${CONFIG_DIR} -prune -o -exec chown ${USER_ID}:${USER_ID} {} +
+find /modoh -path ${CONFIG_DIR} -prune -o -exec chown ${USER_ID}:${USER_ID} {} +
 
 # Check the config file existence
 if [[ ! -f ${CONFIG_FILE} ]]; then
@@ -145,19 +145,19 @@ if [[ ! -f ${CONFIG_FILE} ]]; then
     echo "No config file is given. Mount a config dir or file."
     exit 1
   fi
-  echo "doh-auth-relay: config file: ${CONFIG_DIR}/${CONFIG_FILE_IN_DIR}"
+  echo "modoh-server: config file: ${CONFIG_DIR}/${CONFIG_FILE_IN_DIR}"
   ln -s ${CONFIG_DIR}/${CONFIG_FILE_IN_DIR} ${CONFIG_FILE}
 else
-  echo "doh-auth-relay: config file: ${CONFIG_FILE}"
+  echo "modoh-server: config file: ${CONFIG_FILE}"
 fi
 
-# Run doh-auth-relay
-cd /relay
-echo "doh-auth-relay: Start with user: ${USER} (${USER_ID}:${GROUP_ID})"
+# Run modoh-server
+cd /modoh
+echo "modoh-server: Start with user: ${USER} (${USER_ID}:${GROUP_ID})"
 if "${LOGGING}"; then
-  echo "doh-auth-relay: Start with writing log file"
-  gosu ${USER} sh -c "/relay/run.sh 2>&1 | tee ${LOG_FILE}"
+  echo "modoh-server: Start with writing log file"
+  gosu ${USER} sh -c "/modoh/run.sh 2>&1 | tee ${LOG_FILE}"
 else
-  echo "doh-auth-relay: Start without writing log file"
-  gosu ${USER} sh -c "/relay/run.sh 2>&1"
+  echo "modoh-server: Start without writing log file"
+  gosu ${USER} sh -c "/modoh/run.sh 2>&1"
 fi

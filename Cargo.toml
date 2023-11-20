@@ -1,6 +1,6 @@
 [workspace]
 
-members = ["relay-bin", "relay-lib"]
+members = ["modoh-bin", "modoh-lib"]
 exclude = ["submodules/hyper-tls"]
 resolver = "2"
 

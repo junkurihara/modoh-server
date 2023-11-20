@@ -1,10 +1,10 @@
 [package]
-name = "doh-auth-relay"
+name = "modoh-server"
 version = "0.1.0"
-description = "Relay for (Mutualized) Oblivious DNS over HTTPS with Authorization"
+description = "Relay and target for (Mutualized) Oblivious DNS over HTTPS with Authorization"
 authors = ["Jun Kurihara"]
-homepage = "https://github.com/junkurihara/doh-auth-relay"
-repository = "https://github.com/junkurihara/doh-auth-relay"
+homepage = "https://github.com/junkurihara/modoh-server"
+repository = "https://github.com/junkurihara/modoh-server"
 license = "MIT"
 readme = "../README.md"
 categories = [
@@ -32,7 +32,7 @@ publish = false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-doh-auth-relay-lib = { path = "../relay-lib" }
+modoh-server-lib = { path = "../modoh-lib" }
 
 anyhow = "1.0.75"
 mimalloc = { version = "*", default-features = false }
