@@ -44,7 +44,10 @@ where
   if target.as_ref().map(|t| t.odoh_configs_path == path).unwrap_or(false) {
     return match target.unwrap().serve_odoh_configs(req).await {
       Ok(res) => synthetic_response(res),
-      Err(e) => synthetic_error_response(StatusCode::from(e)),
+      Err(e) => {
+        debug!("ODoH config service failed to serve: {}", e);
+        synthetic_error_response(StatusCode::from(e))
+      }
     };
   }
 
@@ -57,14 +60,20 @@ where
     // serve query as relay
     return match relay.unwrap().serve(req).await {
       Ok(res) => passthrough_response(res),
-      Err(e) => synthetic_error_response(StatusCode::from(e)),
+      Err(e) => {
+        debug!("Relay failed to serve: {}", e);
+        synthetic_error_response(StatusCode::from(e))
+      }
     };
   }
   // match modoh target
   if target.as_ref().map(|t| t.target_path == path).unwrap_or(false) {
     return match target.unwrap().serve(req).await {
       Ok(res) => synthetic_response(res),
-      Err(e) => synthetic_error_response(StatusCode::from(e)),
+      Err(e) => {
+        debug!("Target failed to serve: {}", e);
+        synthetic_error_response(StatusCode::from(e))
+      }
     };
   }
 
