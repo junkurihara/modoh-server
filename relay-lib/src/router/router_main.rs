@@ -94,7 +94,7 @@ where
     I: Read + Write + Unpin + Send + 'static,
   {
     let request_count = self.request_count.clone();
-    if request_count.increment() > self.globals.relay_config.max_clients {
+    if request_count.increment() > self.globals.service_config.max_clients {
       request_count.decrement();
       return;
     }
@@ -103,7 +103,7 @@ where
     let server_clone = self.http_server.clone();
     let forwarder_clone = self.inner_relay.clone();
     let validator_clone = self.inner_validator.clone();
-    let timeout_sec = self.globals.relay_config.timeout;
+    let timeout_sec = self.globals.service_config.timeout;
     self.globals.runtime_handle.clone().spawn(async move {
       timeout(
         timeout_sec + Duration::from_secs(1),
@@ -125,8 +125,8 @@ where
   /// Start http routing service
   async fn router_service(&self) -> Result<()> {
     let listener_service = async {
-      let tcp_socket = bind_tcp_socket(&self.globals.relay_config.listener_socket)?;
-      let tcp_listener = tcp_socket.listen(self.globals.relay_config.tcp_listen_backlog)?;
+      let tcp_socket = bind_tcp_socket(&self.globals.service_config.listener_socket)?;
+      let tcp_listener = tcp_socket.listen(self.globals.service_config.tcp_listen_backlog)?;
       info!("Start TCP listener serving with HTTP request for configured host names");
       while let Ok((stream, peer_addr)) = tcp_listener.accept().await {
         self.serve_connection(TokioIo::new(stream), peer_addr);
@@ -193,15 +193,15 @@ impl Router<HttpsConnector<HttpConnector>> {
     let mut server = server::conn::auto::Builder::new(executor);
     server
       .http1()
-      .keep_alive(globals.relay_config.keepalive)
+      .keep_alive(globals.service_config.keepalive)
       .pipeline_flush(true);
     server
       .http2()
-      .max_concurrent_streams(globals.relay_config.max_concurrent_streams);
+      .max_concurrent_streams(globals.service_config.max_concurrent_streams);
 
     let http_server = Arc::new(server);
     let inner_relay = Arc::new(InnerRelay::try_new(globals)?);
-    let inner_validator = match globals.relay_config.validation.as_ref() {
+    let inner_validator = match globals.service_config.validation.as_ref() {
       Some(v) => Some(Arc::new(Validator::try_new(v, globals.runtime_handle.clone()).await?)),
       None => None,
     };

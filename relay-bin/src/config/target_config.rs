@@ -1,7 +1,7 @@
 use super::toml::ConfigToml;
 use crate::log::*;
 use async_trait::async_trait;
-use doh_auth_relay_lib::{AccessConfig, RelayConfig, ValidationConfig, ValidationConfigInner};
+use doh_auth_relay_lib::{AccessConfig, ServiceConfig, ValidationConfig, ValidationConfigInner};
 use hot_reload::{Reload, ReloaderError};
 use std::net::IpAddr;
 
@@ -43,11 +43,11 @@ impl TargetConfig {
   }
 }
 
-impl TryInto<RelayConfig> for &TargetConfig {
+impl TryInto<ServiceConfig> for &TargetConfig {
   type Error = anyhow::Error;
 
-  fn try_into(self) -> Result<RelayConfig, Self::Error> {
-    let mut relay_conf = RelayConfig::default();
+  fn try_into(self) -> Result<ServiceConfig, Self::Error> {
+    let mut relay_conf = ServiceConfig::default();
 
     if let Some(addr) = &self.config_toml.listen_address {
       let addr = addr.parse::<std::net::IpAddr>()?;
@@ -66,7 +66,7 @@ impl TryInto<RelayConfig> for &TargetConfig {
     if let Some(path) = &self.config_toml.path {
       relay_conf.path = path.clone();
     }
-    info!("Path: {}", relay_conf.path);
+    info!("Relay path: {}", relay_conf.path);
     if let Some(max_subseq_nodes) = &self.config_toml.max_subseq_nodes {
       relay_conf.max_subseq_nodes = *max_subseq_nodes;
     }
@@ -112,7 +112,7 @@ impl TryInto<RelayConfig> for &TargetConfig {
         let domain = url::Url::parse(&format!("https://{domain}"))?
           .authority()
           .to_ascii_lowercase();
-        info!("Set allowed destination domain: {}", domain);
+        info!("Set allowed destination domain for relaying: {}", domain);
         inner_domain.push(domain);
       }
 

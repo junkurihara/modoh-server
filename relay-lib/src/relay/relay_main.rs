@@ -245,7 +245,7 @@ impl InnerRelay<HttpsConnector<HttpConnector>> {
   pub fn try_new(globals: &Arc<Globals>) -> Result<Self> {
     // default headers for request
     let mut request_headers = HeaderMap::new();
-    let user_agent = HeaderValue::from_str(globals.relay_config.http_user_agent.as_str()).map_err(|e| {
+    let user_agent = HeaderValue::from_str(globals.service_config.http_user_agent.as_str()).map_err(|e| {
       error!("{e}");
       MODoHError::BuildRelayError
     })?;
@@ -256,9 +256,9 @@ impl InnerRelay<HttpsConnector<HttpConnector>> {
 
     let inner = HttpClient::new(globals.runtime_handle.clone());
 
-    let relay_host = globals.relay_config.hostname.clone();
-    let relay_path = globals.relay_config.path.clone();
-    let max_subseq_nodes = globals.relay_config.max_subseq_nodes;
+    let relay_host = globals.service_config.hostname.clone();
+    let relay_path = globals.service_config.path.clone();
+    let max_subseq_nodes = globals.service_config.max_subseq_nodes;
 
     Ok(Self {
       inner,

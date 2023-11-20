@@ -14,17 +14,17 @@ use router::Router;
 use std::sync::Arc;
 
 pub use auth_validator::{ValidationConfig, ValidationConfigInner};
-pub use globals::{AccessConfig, RelayConfig};
+pub use globals::{AccessConfig, ServiceConfig};
 
 /// Entry point of the relay
 pub async fn entrypoint(
-  relay_config: &RelayConfig,
+  relay_config: &ServiceConfig,
   runtime_handle: &tokio::runtime::Handle,
   term_notify: Option<Arc<tokio::sync::Notify>>,
 ) -> Result<()> {
   // build globals
   let globals = Arc::new(Globals {
-    relay_config: relay_config.clone(),
+    service_config: relay_config.clone(),
     runtime_handle: runtime_handle.clone(),
     term_notify: term_notify.clone(),
   });

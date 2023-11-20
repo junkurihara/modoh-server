@@ -8,8 +8,8 @@ use std::{
 
 /// Global objects
 pub struct Globals {
-  /// Configuration of the relay
-  pub relay_config: RelayConfig,
+  /// Configuration of the MODoH service
+  pub service_config: ServiceConfig,
 
   /// Tokio runtime handler
   pub runtime_handle: tokio::runtime::Handle,
@@ -19,8 +19,8 @@ pub struct Globals {
 }
 
 #[derive(Clone)]
-/// Relay configuration passed from outside
-pub struct RelayConfig {
+/// Service configuration passed from outside
+pub struct ServiceConfig {
   /// Address to listen on
   pub listener_socket: SocketAddr,
 
@@ -62,7 +62,7 @@ pub struct AccessConfig {
   pub allowed_destination_domains: Vec<String>,
 }
 
-impl Default for RelayConfig {
+impl Default for ServiceConfig {
   fn default() -> Self {
     Self {
       listener_socket: LISTEN_SOCKET.parse().unwrap(),
