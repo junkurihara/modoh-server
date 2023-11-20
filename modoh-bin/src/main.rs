@@ -11,8 +11,8 @@ use crate::{
   constants::CONFIG_WATCH_DELAY_SECS,
   log::*,
 };
-use doh_auth_relay_lib::{entrypoint, ServiceConfig};
 use hot_reload::{ReloaderReceiver, ReloaderService};
+use modoh_server_lib::{entrypoint, ServiceConfig};
 
 fn main() {
   init_logger();

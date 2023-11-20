@@ -9,11 +9,11 @@ updates:
     schedule:
       interval: "daily"
   - package-ecosystem: "cargo"
-    directory: "/relay-bin"
+    directory: "/modoh-bin"
     schedule:
       interval: "daily"
   - package-ecosystem: "cargo"
-    directory: "/relay-lib"
+    directory: "/modoh-lib"
     schedule:
       interval: "daily"
 

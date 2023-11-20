@@ -20,9 +20,9 @@ RUN update-ca-certificates 2> /dev/null || true
 RUN apt-get update && apt-get install -qy --no-install-recommends $BUILD_DEPS && \
     curl -sSf https://sh.rustup.rs | bash -s -- -y --default-toolchain stable && \
     export PATH="$HOME/.cargo/bin:$PATH" && \
-    echo "Building DoH Auth Relay from source" && \
-    cargo build --release --no-default-features --package doh-auth-relay && \
-    strip --strip-all /tmp/target/release/doh-auth-relay
+    echo "Building Mutualized Oblivious DNS relay and target from source" && \
+    cargo build --release --no-default-features --package modoh-server && \
+    strip --strip-all /tmp/target/release/modoh-server
 
 ########################################
 FROM base AS runner
@@ -36,18 +36,18 @@ RUN apt-get update && \
     rm -fr /tmp/* /var/tmp/* /var/cache/apt/* /var/lib/apt/lists/* /var/log/apt/* /var/log/*.log &&\
     find / -type d -path /proc -prune -o -type f -perm /u+s -ignore_readdir_race -exec chmod u-s {} \; && \
     find / -type d -path /proc -prune -o -type f -perm /g+s -ignore_readdir_race -exec chmod g-s {} \; && \
-    mkdir -p /relay/bin &&\
-    mkdir -p /relay/log
+    mkdir -p /modoh/bin &&\
+    mkdir -p /modoh/log
 
-COPY --from=builder /tmp/target/release/doh-auth-relay /relay/bin/doh-auth-relay
-COPY ./docker/run.sh /relay
-COPY ./docker/entrypoint.sh /relay
+COPY --from=builder /tmp/target/release/modoh-server /modoh/bin/modoh-server
+COPY ./docker/run.sh /modoh
+COPY ./docker/entrypoint.sh /modoh
 
-RUN chmod +x /relay/run.sh && \
-    chmod +x /relay/entrypoint.sh
+RUN chmod +x /modoh/run.sh && \
+    chmod +x /modoh/entrypoint.sh
 
 EXPOSE 53/udp 53/tcp
 
-CMD ["/usr/bin/bash", "/relay/entrypoint.sh"]
+CMD ["/usr/bin/bash", "/modoh/entrypoint.sh"]
 
-ENTRYPOINT ["/usr/bin/bash", "/relay/entrypoint.sh"]
+ENTRYPOINT ["/usr/bin/bash", "/modoh/entrypoint.sh"]

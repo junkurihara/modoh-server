@@ -1,8 +1,8 @@
 version: "3.9"
 services:
-  rpxy-rp:
-    image: jqtype/doh-auth-relay:latest # ghcr.io/junkurihara/doh-auth-relay:latest also works
-    container_name: doh-auth-relay
+  modoh-server:
+    image: jqtype/modoh-server:latest # ghcr.io/junkurihara/modoh-server:latest also works
+    container_name: modoh-server
     init: true
     restart: unless-stopped
     ports:
@@ -23,8 +23,8 @@ services:
     tty: false
     privileged: true
     volumes:
-      - ./log:/relay/log:rw
-      - ../.private/doh-auth-relay.toml:/etc/doh-auth-relay.toml:ro
+      - ./log:/modoh/log:rw
+      - ../.private/modoh-server.toml:/etc/modoh-server.toml:ro
       # NOTE: To correctly enable "watch" in docker,
-      # ** you should mount not a file but a dir mapped to /relay/config including "doh-auth-relay.toml" due to the limitation of docker **
-      # e.g, - ./relay-config:/relay/config
+      # ** you should mount not a file but a dir mapped to /modoh/config including "modoh-server.toml" due to the limitation of docker **
+      # e.g, - ./modoh-config:/modoh/config

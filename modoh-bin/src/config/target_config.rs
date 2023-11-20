@@ -1,8 +1,8 @@
 use super::toml::ConfigToml;
 use crate::{error::*, log::*};
 use async_trait::async_trait;
-use doh_auth_relay_lib::{AccessConfig, ServiceConfig, ValidationConfig, ValidationConfigInner};
 use hot_reload::{Reload, ReloaderError};
+use modoh_server_lib::{AccessConfig, ServiceConfig, ValidationConfig, ValidationConfigInner};
 use std::net::{IpAddr, SocketAddr};
 
 #[derive(PartialEq, Eq, Clone, Debug)]
