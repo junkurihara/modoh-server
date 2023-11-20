@@ -104,6 +104,15 @@ impl TryInto<ServiceConfig> for &TargetConfig {
       }
       info!("Target upstream: {}", service_conf.target.as_ref().unwrap().upstream);
 
+      if let Some(local_bind_address) = &target.local_bind_address {
+        let local_bind_address = local_bind_address.parse::<SocketAddr>()?;
+        service_conf.target.as_mut().unwrap().local_bind_address = local_bind_address;
+      }
+      info!(
+        "Target local bind address: {}",
+        service_conf.target.as_ref().unwrap().local_bind_address
+      );
+
       if let Some(error_ttl) = &target.error_ttl {
         service_conf.target.as_mut().unwrap().error_ttl = *error_ttl;
       }

@@ -1,7 +1,7 @@
-use crate::constants::*;
+use crate::{constants::*, count::RequestCount};
 use auth_validator::ValidationConfig;
 use std::{
-  net::{IpAddr, SocketAddr},
+  net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6},
   sync::Arc,
   time::Duration,
 };
@@ -16,6 +16,9 @@ pub struct Globals {
 
   /// Tokio termination notifier
   pub term_notify: Option<Arc<tokio::sync::Notify>>,
+
+  /// Request count, i.e., TCP sessions
+  pub request_count: RequestCount,
 }
 
 #[derive(Clone)]
@@ -69,6 +72,8 @@ pub struct TargetConfig {
   pub path: String,
   /// upstream dns server address
   pub upstream: SocketAddr,
+  /// local bind address to listen udp packet
+  pub local_bind_address: SocketAddr,
   // TTL for errors, in seconds
   pub error_ttl: u32,
   // Maximum TTL, in seconds
@@ -94,9 +99,15 @@ impl Default for ServiceConfig {
       max_subseq_nodes: MODOH_MAX_SUBSEQ_NODES,
       http_user_agent: format!("{}/{}", FORWARDER_USER_AGENT, env!("CARGO_PKG_VERSION")),
     });
+    let upstream = UPSTREAM.parse().unwrap();
+    let local_bind_address = match &upstream {
+      SocketAddr::V4(_) => SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 0)),
+      SocketAddr::V6(s) => SocketAddr::V6(SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, 0, s.flowinfo(), s.scope_id())),
+    };
     let target = Some(TargetConfig {
       path: TARGET_PATH.to_string(),
-      upstream: UPSTREAM.parse().unwrap(),
+      upstream,
+      local_bind_address,
       error_ttl: ERROR_TTL,
       max_ttl: MAX_TTL,
       min_ttl: MIN_TTL,

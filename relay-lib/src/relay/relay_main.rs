@@ -173,7 +173,7 @@ impl InnerRelay<HttpsConnector<HttpConnector>> {
       MODoHError::BuildRelayError
     })?;
     request_headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(ODOH_CONTENT_TYPE));
-    request_headers.insert(header::ACCEPT, HeaderValue::from_static(ODOH_ACCEPT));
+    request_headers.insert(header::ACCEPT, HeaderValue::from_static(ODOH_CONTENT_TYPE));
     request_headers.insert(header::CACHE_CONTROL, HeaderValue::from_static(ODOH_CACHE_CONTROL));
     request_headers.insert(header::USER_AGENT, user_agent);
 

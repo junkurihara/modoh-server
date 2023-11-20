@@ -65,9 +65,29 @@ pub enum HttpError {
 
   #[error("Invalid ODoH config")]
   InvalidODoHConfig,
+  #[error("Invalid ODoH query")]
+  InvalidODoHQuery,
+  #[error("Stale ODoH key")]
+  ODoHStaleKey,
+  #[error("Invalid ODoH response")]
+  InvalidODoHResponse,
 
-  #[error("Invalid query")]
-  InvalidQuery,
+  #[error("Invalid DNS query")]
+  InvalidDnsQuery,
+  #[error("Incomplete query")]
+  IncompleteQuery,
+  #[error("Target Udp socket error")]
+  UdpSocketError,
+  #[error("Target Tcp socket error")]
+  TcpSocketError,
+  #[error("Target upstream issue")]
+  UpstreamIssue,
+  #[error("Too many TCP sessions")]
+  TooManyTcpSessions,
+  #[error("Too large DNS response")]
+  TooLargeDnsResponse,
+  #[error("Upstream timeout")]
+  UpstreamTimeout,
 
   #[error("No authorization header")]
   NoAuthorizationHeader,
@@ -104,8 +124,18 @@ impl From<HttpError> for StatusCode {
       HttpError::InvalidResponseBody => StatusCode::BAD_GATEWAY,
 
       HttpError::InvalidODoHConfig => StatusCode::BAD_GATEWAY,
+      HttpError::InvalidODoHQuery => StatusCode::BAD_REQUEST,
+      HttpError::ODoHStaleKey => StatusCode::UNAUTHORIZED,
+      HttpError::InvalidODoHResponse => StatusCode::BAD_REQUEST,
 
-      HttpError::InvalidQuery => StatusCode::BAD_REQUEST,
+      HttpError::InvalidDnsQuery => StatusCode::BAD_REQUEST,
+      HttpError::IncompleteQuery => StatusCode::UNPROCESSABLE_ENTITY,
+      HttpError::UdpSocketError => StatusCode::INTERNAL_SERVER_ERROR,
+      HttpError::TcpSocketError => StatusCode::INTERNAL_SERVER_ERROR,
+      HttpError::UpstreamIssue => StatusCode::BAD_GATEWAY,
+      HttpError::TooManyTcpSessions => StatusCode::SERVICE_UNAVAILABLE,
+      HttpError::TooLargeDnsResponse => StatusCode::PAYLOAD_TOO_LARGE,
+      HttpError::UpstreamTimeout => StatusCode::GATEWAY_TIMEOUT,
 
       HttpError::NoAuthorizationHeader => StatusCode::FORBIDDEN,
       HttpError::InvalidAuthorizationHeader => StatusCode::FORBIDDEN,

@@ -28,6 +28,8 @@ pub struct Target {
   pub path: Option<String>,
   /// Upstream dns server address [default: "8.8.8.8:53"]
   pub upstream: Option<String>,
+  /// Local bind address to listen udp packet
+  pub local_bind_address: Option<String>,
   // TTL for errors, in seconds
   pub error_ttl: Option<u32>,
   // Maximum TTL, in seconds

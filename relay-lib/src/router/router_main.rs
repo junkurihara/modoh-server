@@ -1,7 +1,7 @@
-use super::{count::RequestCount, router_serve_req::serve_request_with_validation, socket::bind_tcp_socket};
+use super::{router_serve_req::serve_request_with_validation, socket::bind_tcp_socket};
 use crate::{
-  error::*, globals::Globals, hyper_executor::LocalExecutor, log::*, relay::InnerRelay, target::InnerTarget,
-  validator::Validator,
+  count::RequestCount, error::*, globals::Globals, hyper_executor::LocalExecutor, log::*, relay::InnerRelay,
+  target::InnerTarget, validator::Validator,
 };
 use hyper::{
   body::Incoming,
@@ -135,6 +135,7 @@ impl Router<HttpsConnector<HttpConnector>> {
     server
       .http2()
       .max_concurrent_streams(globals.service_config.max_concurrent_streams);
+    let request_count = globals.request_count.clone();
 
     let http_server = Arc::new(server);
     let inner_relay = match &globals.service_config.relay {
@@ -156,7 +157,7 @@ impl Router<HttpsConnector<HttpConnector>> {
       inner_relay,
       inner_target,
       inner_validator,
-      request_count: RequestCount::default(),
+      request_count,
     })
     // todo!()
   }

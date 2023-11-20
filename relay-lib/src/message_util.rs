@@ -1,5 +1,5 @@
 use crate::{
-  constants::{DOH_ACCEPT, DOH_CONTENT_TYPE, MAX_DNS_QUESTION_LEN, ODOH_ACCEPT, ODOH_CONTENT_TYPE},
+  constants::{DOH_CONTENT_TYPE, MAX_DNS_QUESTION_LEN, ODOH_CONTENT_TYPE},
   error::*,
 };
 use futures::StreamExt;

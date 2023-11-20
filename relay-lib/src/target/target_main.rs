@@ -1,6 +1,7 @@
 use super::odoh::ODoHPublicKey;
 use crate::{
   constants::{ODOH_CONFIGS_PATH, ODOH_KEY_ROTATION_SECS, STALE_IF_ERROR_SECS, STALE_WHILE_REVALIDATE_SECS},
+  count::RequestCount,
   error::*,
   globals::Globals,
   hyper_body::{full, BoxBody},
@@ -17,7 +18,12 @@ use tokio::{
 };
 
 /// build http response from given packet
-fn build_http_response(packet: &[u8], ttl: u64, content_type: &str, cors: bool) -> HttpResult<Response<BoxBody>> {
+pub(super) fn build_http_response(
+  packet: &[u8],
+  ttl: u64,
+  content_type: &str,
+  cors: bool,
+) -> HttpResult<Response<BoxBody>> {
   let packet_len = packet.len();
   let mut response_builder = Response::builder()
     .header(header::CONTENT_LENGTH, packet_len)
@@ -42,18 +48,26 @@ pub struct InnerTarget {
   pub(super) target_host: String,
   /// url path listening for odoh query
   pub(crate) target_path: String,
+  /// local bind address to listen udp packet
+  pub(super) local_bind_address: SocketAddr,
   /// upstream dns server address
   pub(super) upstream: SocketAddr,
-  // TTL for errors, in seconds
-  pub(super) error_ttl: u32,
-  // Maximum TTL, in seconds
+  /// TTL for errors, in seconds
+  pub(super) err_ttl: u32,
+  /// Maximum TTL, in seconds
   pub(super) max_ttl: u32,
-  // Minimum TTL, in seconds
+  /// Minimum TTL, in seconds
   pub(super) min_ttl: u32,
   /// ODOh config path
   pub(crate) odoh_configs_path: String,
   /// ODoH configs periodically rotated
   pub(super) odoh_configs: Arc<RwLock<ODoHPublicKey>>,
+  /// timeout for dns query
+  pub(super) timeout: Duration,
+  /// Maximum number of TCP session including HTTP request from clients
+  pub(super) max_tcp_sessions: usize,
+  /// HTTP request count under the service to count tcp sessions
+  pub(super) request_count: RequestCount,
 }
 
 impl InnerTarget {
@@ -124,21 +138,29 @@ impl InnerTarget {
     let target_host = globals.service_config.hostname.clone();
     let target_path = target_config.path.clone();
     let upstream = target_config.upstream;
+    let local_bind_address = target_config.local_bind_address;
     let error_ttl = target_config.error_ttl;
     let max_ttl = target_config.max_ttl;
     let min_ttl = target_config.min_ttl;
     let odoh_configs_path = ODOH_CONFIGS_PATH.to_string();
     let odoh_configs = Arc::new(RwLock::new(ODoHPublicKey::new()?));
+    let timeout = globals.service_config.timeout;
+    let max_tcp_sessions = globals.service_config.max_clients;
+    let request_count = globals.request_count.clone();
 
     let target = Arc::new(Self {
       target_host,
       target_path,
       upstream,
-      error_ttl,
+      local_bind_address,
+      err_ttl: error_ttl,
       max_ttl,
       min_ttl,
       odoh_configs_path,
       odoh_configs,
+      timeout,
+      max_tcp_sessions,
+      request_count,
     });
 
     let target_clone = target.clone();
