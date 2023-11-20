@@ -2,7 +2,7 @@ use super::{count::RequestCount, forwarder::InnerForwarder, socket::bind_tcp_soc
 use crate::{
   error::*,
   globals::Globals,
-  hyper_body::{passthrough_response, synthetic_error_response, EitherBody},
+  hyper_body::{passthrough_response, synthetic_response, BoxBody, IncomingOr},
   hyper_executor::LocalExecutor,
   log::*,
   validator::Validator,
@@ -47,7 +47,7 @@ pub async fn serve_request_with_validation<C>(
   // forwarder: Arc<InnerForwarder<C, B>>,
   forwarder: Arc<InnerForwarder<C>>,
   validator: Option<Arc<Validator<C>>>,
-) -> Result<hyper::Response<EitherBody>>
+) -> Result<hyper::Response<IncomingOr<BoxBody>>>
 where
   C: Send + Sync + Connect + Clone + 'static,
 {
@@ -62,7 +62,7 @@ where
       }
       Err(e) => {
         warn!("token validation failed: {}", e);
-        return synthetic_error_response(StatusCode::from(e));
+        return synthetic_response(StatusCode::from(e));
       }
     };
     debug!(
@@ -75,7 +75,7 @@ where
   // serve query as relay
   let res = match forwarder.serve(req, peer_addr, validation_passed).await {
     Ok(res) => passthrough_response(res),
-    Err(e) => synthetic_error_response(StatusCode::from(e)),
+    Err(e) => synthetic_response(StatusCode::from(e)),
   };
   debug!("serve query finish");
   res
