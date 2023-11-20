@@ -100,6 +100,7 @@ pub async fn inspect_request_body<B: Body>(body: &B) -> HttpResult<()> {
   Ok(())
 }
 
+/// read request body into a vector
 pub async fn read_request_body<B>(body: &mut B) -> HttpResult<Vec<u8>>
 where
   B: Body + Unpin,
