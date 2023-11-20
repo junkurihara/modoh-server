@@ -14,7 +14,7 @@ pub(super) fn bind_tcp_socket(listening_on: &SocketAddr) -> Result<TcpSocket> {
   tcp_socket.set_reuseport(true)?;
   if let Err(e) = tcp_socket.bind(*listening_on) {
     error!("Failed to bind TCP socket: {}", e);
-    return Err(RelayError::BindTcpSocketError(e));
+    return Err(MODoHError::BindTcpSocketError(e));
   };
   Ok(tcp_socket)
 }

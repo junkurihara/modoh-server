@@ -6,9 +6,11 @@ mod hyper_client;
 mod hyper_executor;
 mod log;
 mod relay;
+mod router;
 mod validator;
 
-use crate::{error::*, globals::Globals, log::*, relay::Relay};
+use crate::{error::*, globals::Globals, log::*};
+use router::Router;
 use std::sync::Arc;
 
 pub use auth_validator::{ValidationConfig, ValidationConfigInner};
@@ -27,12 +29,12 @@ pub async fn entrypoint(
     term_notify: term_notify.clone(),
   });
 
-  // build relay
-  let relay = Relay::try_new(&globals).await?;
+  // build router
+  let router = Router::try_new(&globals).await?;
 
-  // start relay
-  if let Err(e) = relay.start().await {
-    warn!("(M)ODoH relay stopped: {e}");
+  // start router
+  if let Err(e) = router.start().await {
+    warn!("(M)ODoH service stopped: {e}");
   }
 
   Ok(())

@@ -1,214 +1,271 @@
-use super::{count::RequestCount, forwarder::InnerForwarder, socket::bind_tcp_socket};
-use crate::{
-  error::*,
-  globals::Globals,
-  hyper_body::{passthrough_response, synthetic_response, BoxBody, IncomingOr},
-  hyper_executor::LocalExecutor,
-  log::*,
-  validator::Validator,
+use crate::{constants::*, error::*, globals::Globals, hyper_client::HttpClient, log::*};
+use http::{
+  header::{self, HeaderMap, HeaderValue},
+  request::Parts,
+  Method, Request, Response,
 };
-use hyper::{
-  body::Incoming,
-  header,
-  rt::{Read, Write},
-  service::service_fn,
-  Request, StatusCode,
-};
+use hyper::body::{Body, Incoming};
 use hyper_tls::HttpsConnector;
-use hyper_util::{
-  client::legacy::connect::{Connect, HttpConnector},
-  rt::TokioIo,
-  server::{self, conn::auto::Builder as ConnectionBuilder},
-};
-use std::{net::SocketAddr, sync::Arc, time::Duration};
-use tokio::time::timeout;
+use hyper_util::client::legacy::connect::{Connect, HttpConnector};
+use std::{net::SocketAddr, sync::Arc};
+use url::Url;
 
-/// (M)ODoH Relay main object
-pub struct Relay<C>
-where
-  C: Send + Sync + Connect + Clone + 'static,
-{
-  /// global config
-  globals: Arc<Globals>,
-  /// hyper server receiving http request
-  http_server: Arc<ConnectionBuilder<LocalExecutor>>,
-  /// hyper client forwarding requests to upstream
-  inner_forwarder: Arc<InnerForwarder<C>>,
-  /// validator for token validation
-  inner_validator: Option<Arc<Validator<C>>>,
-  /// request count
-  request_count: RequestCount,
-}
-
-/// Service wrapper with validation
-pub async fn serve_request_with_validation<C>(
-  req: Request<Incoming>,
-  peer_addr: SocketAddr,
-  // forwarder: Arc<InnerForwarder<C, B>>,
-  forwarder: Arc<InnerForwarder<C>>,
-  validator: Option<Arc<Validator<C>>>,
-) -> Result<hyper::Response<IncomingOr<BoxBody>>>
-where
-  C: Send + Sync + Connect + Clone + 'static,
-{
-  // validation with header
-  let mut validation_passed = false;
-  if let (Some(validator), true) = (validator, req.headers().contains_key(header::AUTHORIZATION)) {
-    debug!("execute token validation");
-    let claims = match validator.validate_request(&req).await {
-      Ok(claims) => {
-        validation_passed = true;
-        claims
-      }
-      Err(e) => {
-        warn!("token validation failed: {}", e);
-        return synthetic_response(StatusCode::from(e));
-      }
+/// parse and check content type and accept headers if both or either of them are "application/oblivious-dns-message".
+fn check_content_type<B>(req: &Request<B>) -> HttpResult<()> {
+  // check content type
+  if let Some(content_type) = req.headers().get(header::CONTENT_TYPE) {
+    let Ok(ct) = content_type.to_str() else {
+      return Err(HttpError::InvalidContentTypeString);
     };
-    debug!(
-      "token validation passed: subject {}",
-      claims.subject.as_deref().unwrap_or("")
-    );
+    if ct.to_ascii_lowercase() != ODOH_CONTENT_TYPE {
+      return Err(HttpError::NotObliviousDnsMessageContentType);
+    }
+    return Ok(());
   }
-  // TODO: IP addr check here? domain check should be done in forwarder
 
-  // serve query as relay
-  let res = match forwarder.serve(req, peer_addr, validation_passed).await {
-    Ok(res) => passthrough_response(res),
-    Err(e) => synthetic_response(StatusCode::from(e)),
+  // check accept
+  if let Some(accept) = req.headers().get(header::ACCEPT) {
+    let Ok(ac) = accept.to_str() else {
+      return Err(HttpError::InvalidAcceptString);
+    };
+    let mut ac_split = ac.split(',').map(|s| s.trim().to_ascii_lowercase());
+    if !ac_split.any(|s| s == ODOH_ACCEPT) {
+      return Err(HttpError::NotObliviousDnsMessageAccept);
+    }
+    return Ok(());
   };
-  debug!("serve query finish");
-  res
+
+  // neither content type nor accept is "application/oblivious-dns-message"
+  Err(HttpError::NoContentTypeAndAccept)
 }
 
-impl<C> Relay<C>
+/// Read encrypted query from request body
+async fn inspect_request_body<B: Body>(body: &B) -> HttpResult<()> {
+  let max = body.size_hint().upper().unwrap_or(u64::MAX);
+  if max > MAX_DNS_QUESTION_LEN as u64 {
+    return Err(HttpError::TooLargeRequestBody);
+  }
+  if max == 0 {
+    return Err(HttpError::NoBodyInRequest);
+  }
+  // Ok(EitherBody::Left(body))
+  Ok(())
+
+  // let mut sum_size = 0;
+  // let mut query = vec![];
+  // while let Some(chunk) = body.next().await {
+  //   let chunk = chunk.map_err(|_| HttpError::TooLargeRequestBody)?;
+  //   sum_size += chunk.len();
+  //   if sum_size >= MAX_DNS_QUESTION_LEN {
+  //     return Err(HttpError::TooLargeRequestBody);
+  //   }
+  //   query.extend(chunk);
+  // }
+  // Ok(query)
+}
+
+/// Get HOST header and/or host name in url line in http request
+/// Returns Err if both are specified and inconsistent, or if none of them is specified.
+/// Note that port is dropped even if specified.
+fn inspect_get_host<B>(req: &Request<B>) -> HttpResult<String> {
+  let drop_port = |v: &str| {
+    v.split(':')
+      .next()
+      .ok_or_else(|| HttpError::InvalidHost)
+      .map(|s| s.to_string())
+  };
+
+  let host_header = req.headers().get(header::HOST).map(|v| v.to_str().map(drop_port));
+  let host_url = req.uri().host().map(drop_port);
+
+  match (host_header, host_url) {
+    (Some(Ok(Ok(hh))), Some(Ok(hu))) => {
+      if hh != hu {
+        return Err(HttpError::InvalidHost);
+      }
+      Ok(hh)
+    }
+    (Some(Ok(Ok(hh))), None) => Ok(hh),
+    (None, Some(Ok(hu))) => Ok(hu),
+    _ => Err(HttpError::InvalidHost),
+  }
+}
+
+/// wrapper of http client
+pub struct InnerRelay<C, B = Incoming>
 where
   C: Send + Sync + Connect + Clone + 'static,
+  B: Body + Send + Unpin + 'static,
+  <B as Body>::Data: Send,
+  <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
 {
-  /// Serve tcp stream
-  fn serve_connection<I>(&self, stream: I, peer_addr: SocketAddr)
-  where
-    I: Read + Write + Unpin + Send + 'static,
-  {
-    let request_count = self.request_count.clone();
-    if request_count.increment() > self.globals.relay_config.max_clients {
-      request_count.decrement();
-      return;
+  /// hyper client
+  pub(super) inner: HttpClient<C, B>,
+  /// request default headers
+  pub(super) request_headers: HeaderMap,
+  /// relay host name
+  pub(super) relay_host: String,
+  /// url path listening for odoh query
+  pub(super) relay_path: String,
+  /// max number of subsequent nodes
+  pub(super) max_subseq_nodes: usize,
+}
+
+impl<C, B> InnerRelay<C, B>
+where
+  C: Send + Sync + Connect + Clone + 'static,
+  B: Body + Send + Unpin + 'static,
+  <B as Body>::Data: Send,
+  <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
+{
+  /// Serve request as relay
+  /// 1. check host, method and listening path: as described in [RFC9230](https://datatracker.ietf.org/doc/rfc9230/) and Golang implementation [odoh-server-go](https://github.com/cloudflare/odoh-server-go), only post method is allowed.
+  /// 2. check content type: only "application/oblivious-dns-message" is allowed.
+  /// 3-a. retrieve query and build new target url
+  /// 3-b. retrieve query and check if it is a valid odoh query
+  /// 4. forward request to next hop
+  /// 5. return response after appending "Proxy-Status" header with a received-status param as described in [RFC9230, Section 4.3](https://datatracker.ietf.org/doc/rfc9230/).
+  /// c.f., "Proxy-Status" [RFC9209](https://datatracker.ietf.org/doc/rfc9209).
+  pub async fn serve(
+    &self,
+    req: Request<B>,
+    peer_addr: SocketAddr,
+    validation_passed: bool,
+  ) -> HttpResult<Response<Incoming>> {
+    // TODO: source ip access control here?
+    // for authorized ip addresses, maintain blacklist (error metrics) at each relay for given requests
+
+    // check host
+    let host = inspect_get_host(&req)?;
+    if host != self.relay_host {
+      return Err(HttpError::InvalidHost);
     }
-    debug!("Request incoming: current # {}", request_count.current());
+    // check path
+    if req.uri().path() != self.relay_path {
+      return Err(HttpError::InvalidPath);
+    };
+    // check method
+    if req.method() != Method::POST {
+      return Err(HttpError::InvalidMethod);
+    };
+    // check content type
+    check_content_type(&req)?;
 
-    let server_clone = self.http_server.clone();
-    let forwarder_clone = self.inner_forwarder.clone();
-    let validator_clone = self.inner_validator.clone();
-    let timeout_sec = self.globals.relay_config.timeout;
-    self.globals.runtime_handle.clone().spawn(async move {
-      timeout(
-        timeout_sec + Duration::from_secs(1),
-        server_clone.serve_connection(
-          stream,
-          service_fn(move |req: Request<Incoming>| {
-            serve_request_with_validation(req, peer_addr, forwarder_clone.clone(), validator_clone.clone())
-          }),
-        ),
-      )
-      .await
-      .ok();
+    // build next hop url
+    let Ok(current_url) = &url::Url::parse(&format!(
+      "https://{}{}",
+      host,
+      &req.uri().path_and_query().map(|v| v.as_str()).unwrap_or("")
+    )) else {
+      return Err(HttpError::InvalidUrl);
+    };
+    let nexthop_url = match self.build_nexthop_url(current_url) {
+      Ok(url) => url,
+      Err(e) => {
+        error!("(M)ODoH next hop url build error: {}", e);
+        return Err(e);
+      }
+    };
+    debug!("(M)ODoH next hop url: {}", nexthop_url.as_str());
 
-      request_count.decrement();
-      debug!("Request processed: current # {}", request_count.current());
-    });
+    // TODO: next hop domain name check here?
+    // for authorized domains, maintain blacklist (error metrics) at each relay for given responses
+
+    // split request into parts and body to manipulate them later
+    let (mut parts, body) = req.into_parts();
+    // check if body does not exceed max size as a DNS query
+    inspect_request_body(&body).await?;
+
+    // Forward request to next hop: Only post method is allowed in ODoH
+    self.update_request_parts(&nexthop_url, &mut parts)?;
+    let updated_request = Request::from_parts(parts, body);
+
+    // let updated_request = Request::from_parts(parts, Body::from(encrypted_query.to_owned()));
+    let mut response = match self.inner.request(updated_request).await {
+      Ok(res) => res,
+      Err(e) => {
+        warn!("Upstream query error: {}", e);
+        return Err(HttpError::SendRequestError(e));
+      }
+    };
+    // Inspect and update response
+    self.inspect_and_update_response_header(&mut response)?;
+
+    Ok(response)
   }
 
-  /// Start relay service
-  async fn relay_service(&self) -> Result<()> {
-    let listener_service = async {
-      let tcp_socket = bind_tcp_socket(&self.globals.relay_config.listener_socket)?;
-      let tcp_listener = tcp_socket.listen(self.globals.relay_config.tcp_listen_backlog)?;
-      info!("Start TCP listener serving with HTTP request for configured host names");
-      while let Ok((stream, peer_addr)) = tcp_listener.accept().await {
-        self.serve_connection(TokioIo::new(stream), peer_addr);
-      }
-      Ok(()) as Result<()>
-    };
-    listener_service.await?;
+  /// Update request headers and clear information as much as possible
+  fn update_request_parts(&self, nexthop_url: &Url, parts: &mut Parts) -> HttpResult<()> {
+    parts.method = Method::POST;
+    parts.uri = hyper::Uri::try_from(nexthop_url.as_str()).map_err(|e| {
+      error!("Uri parse error in request update: {e}");
+      HttpError::InvalidUrl
+    })?;
+    parts.headers.clear();
+    parts.headers = self.request_headers.clone();
+    parts.extensions.clear();
+    parts.version = hyper::Version::default();
+
     Ok(())
   }
 
-  /// Start jwks retrieval service
-  async fn jwks_service(&self) -> Result<()> {
-    let Some(validator) = self.inner_validator.as_ref() else {
-      return Err(RelayError::NoValidator);
+  /// inspect and update response header
+  /// (M)ODoH response MUST NOT be cached as specified in [RFC9230](https://datatracker.ietf.org/doc/rfc9230/),
+  /// and hence "no-cache, no-store" is set (overwritten) in cache-control header.
+  /// Also "Proxy-Status" header with a received-status param is appended (overwritten) as described in [RFC9230, Section 4.3](https://datatracker.ietf.org/doc/rfc9230/).
+  /// c.f., "Proxy-Status" [RFC9209](https://datatracker.ietf.org/doc/rfc9209).
+  fn inspect_and_update_response_header<T>(&self, response: &mut Response<T>) -> HttpResult<()> {
+    let status = response.status();
+    let proxy_status = format!("received-status={}", status);
+
+    // inspect headers (content-type)
+    let headers = response.headers();
+    let Some(content_type) = headers.get(&header::CONTENT_TYPE) else {
+      return Err(HttpError::InvalidResponseContentType);
     };
-    validator.start_service(self.globals.term_notify.clone()).await
-  }
-
-  /// Entrypoint for HTTP/1.1 and HTTP/2 servers
-  pub async fn start(&self) -> Result<()> {
-    info!("Start (M)ODoH relay");
-
-    // spawn jwks retrieval service if needed
-    let services = async {
-      if self.inner_validator.is_some() {
-        tokio::select! {
-          _ = self.jwks_service() => {
-            warn!("jwks service got down");
-          }
-          _ = self.relay_service() => {
-            warn!("Relay service got down");
-          }
-        }
-      } else {
-        self.relay_service().await.ok();
-        warn!("Relay service got down")
-      }
+    let Ok(ct) = content_type.to_str() else {
+      return Err(HttpError::InvalidResponseContentType);
+    };
+    if ct.to_ascii_lowercase() != ODOH_CONTENT_TYPE {
+      return Err(HttpError::NotObliviousDnsMessageContentType);
     };
 
-    match &self.globals.term_notify {
-      Some(term) => {
-        tokio::select! {
-          _ = services => {
-            warn!("Relay service got down");
-          }
-          _ = term.notified() => {
-            info!("Relay service receives term signal");
-          }
-        }
-      }
-      None => {
-        services.await;
-        warn!("Relay service got down");
-      }
-    }
+    // update header
+    let headers = response.headers_mut();
+    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static(ODOH_CACHE_CONTROL));
+    headers.insert("proxy-status", HeaderValue::from_str(proxy_status.as_str()).unwrap());
+    headers.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, HeaderValue::from_static("*"));
+
     Ok(())
   }
 }
 
-impl Relay<HttpsConnector<HttpConnector>> {
-  /// build relay
-  pub async fn try_new(globals: &Arc<Globals>) -> Result<Self> {
-    let executor = LocalExecutor::new(globals.runtime_handle.clone());
-    let mut server = server::conn::auto::Builder::new(executor);
-    server
-      .http1()
-      .keep_alive(globals.relay_config.keepalive)
-      .pipeline_flush(true);
-    server
-      .http2()
-      .max_concurrent_streams(globals.relay_config.max_concurrent_streams);
+impl InnerRelay<HttpsConnector<HttpConnector>> {
+  /// Build inner relay
+  pub fn try_new(globals: &Arc<Globals>) -> Result<Self> {
+    // default headers for request
+    let mut request_headers = HeaderMap::new();
+    let user_agent = HeaderValue::from_str(globals.relay_config.http_user_agent.as_str()).map_err(|e| {
+      error!("{e}");
+      MODoHError::BuildRelayError
+    })?;
+    request_headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(ODOH_CONTENT_TYPE));
+    request_headers.insert(header::ACCEPT, HeaderValue::from_static(ODOH_ACCEPT));
+    request_headers.insert(header::CACHE_CONTROL, HeaderValue::from_static(ODOH_CACHE_CONTROL));
+    request_headers.insert(header::USER_AGENT, user_agent);
 
-    let http_server = Arc::new(server);
-    let inner_forwarder = Arc::new(InnerForwarder::try_new(globals)?);
-    let inner_validator = match globals.relay_config.validation.as_ref() {
-      Some(v) => Some(Arc::new(Validator::try_new(v, globals.runtime_handle.clone()).await?)),
-      None => None,
-    };
+    let inner = HttpClient::new(globals.runtime_handle.clone());
+
+    let relay_host = globals.relay_config.hostname.clone();
+    let relay_path = globals.relay_config.path.clone();
+    let max_subseq_nodes = globals.relay_config.max_subseq_nodes;
 
     Ok(Self {
-      globals: globals.clone(),
-      http_server,
-      inner_forwarder,
-      inner_validator,
-      request_count: RequestCount::default(),
+      inner,
+      request_headers,
+      relay_host,
+      relay_path,
+      max_subseq_nodes,
     })
   }
 }

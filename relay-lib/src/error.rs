@@ -2,18 +2,18 @@ pub use anyhow::{anyhow, bail, ensure, Context};
 use http::StatusCode;
 use thiserror::Error;
 
-pub type Result<T> = std::result::Result<T, RelayError>;
+pub type Result<T> = std::result::Result<T, MODoHError>;
 pub type HttpResult<T> = std::result::Result<T, HttpError>;
 
 /// Describes things that can go wrong in the relay
 #[derive(Debug, Error)]
-pub enum RelayError {
+pub enum MODoHError {
   #[error("Failed to bind TCP socket")]
   BindTcpSocketError(#[from] std::io::Error),
-  #[error("No Validator")]
+  #[error("No validator")]
   NoValidator,
-  #[error("Failed to build forwarder")]
-  BuildForwarderError,
+  #[error("Failed to build relay")]
+  BuildRelayError,
   #[error(transparent)]
   Other(#[from] anyhow::Error),
 }
