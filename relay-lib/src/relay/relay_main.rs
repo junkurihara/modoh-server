@@ -7,7 +7,7 @@ use http::{
 use hyper::body::{Body, Incoming};
 use hyper_tls::HttpsConnector;
 use hyper_util::client::legacy::connect::{Connect, HttpConnector};
-use std::{net::SocketAddr, sync::Arc};
+use std::sync::Arc;
 use url::Url;
 
 /// parse and check content type and accept headers if both or either of them are "application/oblivious-dns-message".
@@ -64,33 +64,6 @@ async fn inspect_request_body<B: Body>(body: &B) -> HttpResult<()> {
   // Ok(query)
 }
 
-/// Get HOST header and/or host name in url line in http request
-/// Returns Err if both are specified and inconsistent, or if none of them is specified.
-/// Note that port is dropped even if specified.
-fn inspect_get_host<B>(req: &Request<B>) -> HttpResult<String> {
-  let drop_port = |v: &str| {
-    v.split(':')
-      .next()
-      .ok_or_else(|| HttpError::InvalidHost)
-      .map(|s| s.to_string())
-  };
-
-  let host_header = req.headers().get(header::HOST).map(|v| v.to_str().map(drop_port));
-  let host_url = req.uri().host().map(drop_port);
-
-  match (host_header, host_url) {
-    (Some(Ok(Ok(hh))), Some(Ok(hu))) => {
-      if hh != hu {
-        return Err(HttpError::InvalidHost);
-      }
-      Ok(hh)
-    }
-    (Some(Ok(Ok(hh))), None) => Ok(hh),
-    (None, Some(Ok(hu))) => Ok(hu),
-    _ => Err(HttpError::InvalidHost),
-  }
-}
-
 /// wrapper of http client
 pub struct InnerRelay<C, B = Incoming>
 where
@@ -106,7 +79,7 @@ where
   /// relay host name
   pub(super) relay_host: String,
   /// url path listening for odoh query
-  pub(super) relay_path: String,
+  pub(crate) relay_path: String,
   /// max number of subsequent nodes
   pub(super) max_subseq_nodes: usize,
 }
@@ -119,27 +92,14 @@ where
   <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
 {
   /// Serve request as relay
-  /// 1. check host, method and listening path: as described in [RFC9230](https://datatracker.ietf.org/doc/rfc9230/) and Golang implementation [odoh-server-go](https://github.com/cloudflare/odoh-server-go), only post method is allowed.
+  /// 1. check host (inspected in router), method and listening path: as described in [RFC9230](https://datatracker.ietf.org/doc/rfc9230/) and Golang implementation [odoh-server-go](https://github.com/cloudflare/odoh-server-go), only post method is allowed.
   /// 2. check content type: only "application/oblivious-dns-message" is allowed.
   /// 3-a. retrieve query and build new target url
   /// 3-b. retrieve query and check if it is a valid odoh query
   /// 4. forward request to next hop
   /// 5. return response after appending "Proxy-Status" header with a received-status param as described in [RFC9230, Section 4.3](https://datatracker.ietf.org/doc/rfc9230/).
   /// c.f., "Proxy-Status" [RFC9209](https://datatracker.ietf.org/doc/rfc9209).
-  pub async fn serve(
-    &self,
-    req: Request<B>,
-    peer_addr: SocketAddr,
-    validation_passed: bool,
-  ) -> HttpResult<Response<Incoming>> {
-    // TODO: source ip access control here?
-    // for authorized ip addresses, maintain blacklist (error metrics) at each relay for given requests
-
-    // check host
-    let host = inspect_get_host(&req)?;
-    if host != self.relay_host {
-      return Err(HttpError::InvalidHost);
-    }
+  pub async fn serve(&self, req: Request<B>) -> HttpResult<Response<Incoming>> {
     // check path
     if req.uri().path() != self.relay_path {
       return Err(HttpError::InvalidPath);
@@ -154,7 +114,7 @@ where
     // build next hop url
     let Ok(current_url) = &url::Url::parse(&format!(
       "https://{}{}",
-      host,
+      self.relay_host,
       &req.uri().path_and_query().map(|v| v.as_str()).unwrap_or("")
     )) else {
       return Err(HttpError::InvalidUrl);
@@ -242,10 +202,15 @@ where
 
 impl InnerRelay<HttpsConnector<HttpConnector>> {
   /// Build inner relay
-  pub fn try_new(globals: &Arc<Globals>) -> Result<Self> {
+  pub fn try_new(globals: &Arc<Globals>) -> Result<Arc<Self>> {
+    let relay_config = globals
+      .service_config
+      .relay
+      .as_ref()
+      .ok_or(MODoHError::BuildRelayError)?;
     // default headers for request
     let mut request_headers = HeaderMap::new();
-    let user_agent = HeaderValue::from_str(globals.service_config.http_user_agent.as_str()).map_err(|e| {
+    let user_agent = HeaderValue::from_str(relay_config.http_user_agent.as_str()).map_err(|e| {
       error!("{e}");
       MODoHError::BuildRelayError
     })?;
@@ -257,15 +222,15 @@ impl InnerRelay<HttpsConnector<HttpConnector>> {
     let inner = HttpClient::new(globals.runtime_handle.clone());
 
     let relay_host = globals.service_config.hostname.clone();
-    let relay_path = globals.service_config.path.clone();
-    let max_subseq_nodes = globals.service_config.max_subseq_nodes;
+    let relay_path = relay_config.path.clone();
+    let max_subseq_nodes = relay_config.max_subseq_nodes;
 
-    Ok(Self {
+    Ok(Arc::new(Self {
       inner,
       request_headers,
       relay_host,
       relay_path,
       max_subseq_nodes,
-    })
+    }))
   }
 }

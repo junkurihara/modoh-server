@@ -33,23 +33,48 @@ pub struct ServiceConfig {
   pub max_concurrent_streams: u32,
   /// http keepalive
   pub keepalive: bool,
-  /// timeout for relaying operation
+  /// timeout for serving request
   pub timeout: Duration,
 
-  /// hostname of the relay
+  /// hostname of the relay and target
   pub hostname: String,
-  /// url path that the relay listening on
-  pub path: String,
-  /// maximum number of subsequence nodes
-  pub max_subseq_nodes: usize,
-  /// http user agent
-  pub http_user_agent: String,
+
+  /// relay config
+  pub relay: Option<RelayConfig>,
+
+  /// target config
+  pub target: Option<TargetConfig>,
 
   /// Validation information. if None, no validation using id token.
   pub validation: Option<ValidationConfig>,
 
   /// Access control information. if None, no access control.
   pub access: Option<AccessConfig>,
+}
+
+#[derive(Clone)]
+/// Relay configuration
+pub struct RelayConfig {
+  /// url path that the relay listening on
+  pub path: String,
+  /// maximum number of subsequence nodes
+  pub max_subseq_nodes: usize,
+  /// http user agent
+  pub http_user_agent: String,
+}
+#[derive(Clone)]
+/// Target configuration
+pub struct TargetConfig {
+  /// url path that the target listening on
+  pub path: String,
+  /// upstream dns server address
+  pub upstream: SocketAddr,
+  // TTL for errors, in seconds
+  pub error_ttl: u32,
+  // Maximum TTL, in seconds
+  pub max_ttl: u32,
+  // Minimum TTL, in seconds
+  pub min_ttl: u32,
 }
 
 #[derive(Clone)]
@@ -64,6 +89,18 @@ pub struct AccessConfig {
 
 impl Default for ServiceConfig {
   fn default() -> Self {
+    let relay = Some(RelayConfig {
+      path: RELAY_PATH.to_string(),
+      max_subseq_nodes: MODOH_MAX_SUBSEQ_NODES,
+      http_user_agent: format!("{}/{}", FORWARDER_USER_AGENT, env!("CARGO_PKG_VERSION")),
+    });
+    let target = Some(TargetConfig {
+      path: TARGET_PATH.to_string(),
+      upstream: UPSTREAM.parse().unwrap(),
+      error_ttl: ERROR_TTL,
+      max_ttl: MAX_TTL,
+      min_ttl: MIN_TTL,
+    });
     Self {
       listener_socket: LISTEN_SOCKET.parse().unwrap(),
       tcp_listen_backlog: TCP_LISTEN_BACKLOG,
@@ -72,9 +109,8 @@ impl Default for ServiceConfig {
       keepalive: KEEPALIVE,
       timeout: Duration::from_secs(TIMEOUT),
       hostname: HOSTNAME.to_string(),
-      path: PATH.to_string(),
-      max_subseq_nodes: MODOH_MAX_SUBSEQ_NODES,
-      http_user_agent: format!("{}/{}", FORWARDER_USER_AGENT, env!("CARGO_PKG_VERSION")),
+      relay,
+      target,
       validation: None,
       access: None,
     }

@@ -11,16 +11,40 @@ pub struct ConfigToml {
   pub listen_port: Option<u16>,
   /// Serving hostname
   pub hostname: Option<String>,
+  /// Target settings
+  pub target: Option<Target>,
+  /// Relay settings
+  pub relay: Option<Relay>,
+  /// Validation information. if None, no validation using id token.
+  pub validation: Option<Validation>,
+  /// Access control information. if None, no access control.
+  pub access: Option<Access>,
+}
+
+#[derive(Deserialize, Debug, Default, PartialEq, Eq, Clone)]
+/// Target settings
+pub struct Target {
+  /// Serving path [default: "/dns-query"]
+  pub path: Option<String>,
+  /// Upstream dns server address [default: "8.8.8.8:53"]
+  pub upstream: Option<String>,
+  // TTL for errors, in seconds
+  pub error_ttl: Option<u32>,
+  // Maximum TTL, in seconds
+  pub max_ttl: Option<u32>,
+  // Minimum TTL, in seconds
+  pub min_ttl: Option<u32>,
+}
+
+#[derive(Deserialize, Debug, Default, PartialEq, Eq, Clone)]
+/// Relay settings
+pub struct Relay {
   /// Serving path [default: "/proxy"]
   pub path: Option<String>,
   /// Maximum number of subsequence nodes [default: 3]
   pub max_subseq_nodes: Option<usize>,
   /// Forwarder http user agent [default: "doh-auth-relay/<VERSION>"]
   pub forwarder_user_agent: Option<String>,
-  /// Validation information. if None, no validation using id token.
-  pub validation: Option<Validation>,
-  /// Access control information. if None, no access control.
-  pub access: Option<Access>,
 }
 
 #[derive(Deserialize, Debug, Default, PartialEq, Eq, Clone)]

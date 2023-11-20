@@ -1,20 +1,13 @@
-// use super::{count::RequestCount, forwarder::InnerForwarder, socket::bind_tcp_socket};
-use super::{count::RequestCount, socket::bind_tcp_socket};
+use super::{count::RequestCount, router_serve_req::serve_request_with_validation, socket::bind_tcp_socket};
 use crate::{
-  error::*,
-  globals::Globals,
-  hyper_body::{passthrough_response, synthetic_response, BoxBody, IncomingOr},
-  hyper_executor::LocalExecutor,
-  log::*,
-  relay::InnerRelay,
+  error::*, globals::Globals, hyper_executor::LocalExecutor, log::*, relay::InnerRelay, target::InnerTarget,
   validator::Validator,
 };
 use hyper::{
   body::Incoming,
-  header,
   rt::{Read, Write},
   service::service_fn,
-  Request, StatusCode,
+  Request,
 };
 use hyper_tls::HttpsConnector;
 use hyper_util::{
@@ -35,53 +28,13 @@ where
   /// hyper server receiving http request
   http_server: Arc<ConnectionBuilder<LocalExecutor>>,
   /// hyper client forwarding requests to upstream
-  inner_relay: Arc<InnerRelay<C>>,
+  inner_relay: Option<Arc<InnerRelay<C>>>,
+  /// dns client forwarding dns query to upstream
+  inner_target: Option<Arc<InnerTarget>>,
   /// validator for token validation
   inner_validator: Option<Arc<Validator<C>>>,
   /// request count
   request_count: RequestCount,
-}
-
-/// Service wrapper with validation
-pub async fn serve_request_with_validation<C>(
-  req: Request<Incoming>,
-  peer_addr: SocketAddr,
-  forwarder: Arc<InnerRelay<C>>,
-  validator: Option<Arc<Validator<C>>>,
-) -> Result<hyper::Response<IncomingOr<BoxBody>>>
-where
-  C: Send + Sync + Connect + Clone + 'static,
-{
-  // validation with header
-  let mut validation_passed = false;
-  if let (Some(validator), true) = (validator, req.headers().contains_key(header::AUTHORIZATION)) {
-    debug!("execute token validation");
-    let claims = match validator.validate_request(&req).await {
-      Ok(claims) => {
-        validation_passed = true;
-        claims
-      }
-      Err(e) => {
-        warn!("token validation failed: {}", e);
-        return synthetic_response(StatusCode::from(e));
-      }
-    };
-    debug!(
-      "token validation passed: subject {}",
-      claims.subject.as_deref().unwrap_or("")
-    );
-  }
-  // TODO: IP addr check here? domain check should be done in forwarder
-
-  // TODO: common operation for relay and target
-
-  // serve query as relay
-  let res = match forwarder.serve(req, peer_addr, validation_passed).await {
-    Ok(res) => passthrough_response(res),
-    Err(e) => synthetic_response(StatusCode::from(e)),
-  };
-  debug!("serve query finish");
-  res
 }
 
 impl<C> Router<C>
@@ -101,7 +54,9 @@ where
     debug!("Request incoming: current # {}", request_count.current());
 
     let server_clone = self.http_server.clone();
-    let forwarder_clone = self.inner_relay.clone();
+    let hostname = self.globals.service_config.hostname.clone();
+    let relay_clone = self.inner_relay.clone();
+    let target_clone = self.inner_target.clone();
     let validator_clone = self.inner_validator.clone();
     let timeout_sec = self.globals.service_config.timeout;
     self.globals.runtime_handle.clone().spawn(async move {
@@ -110,7 +65,14 @@ where
         server_clone.serve_connection(
           stream,
           service_fn(move |req: Request<Incoming>| {
-            serve_request_with_validation(req, peer_addr, forwarder_clone.clone(), validator_clone.clone())
+            serve_request_with_validation(
+              req,
+              peer_addr,
+              hostname.clone(),
+              relay_clone.clone(),
+              target_clone.clone(),
+              validator_clone.clone(),
+            )
           }),
         ),
       )
@@ -137,39 +99,14 @@ where
     Ok(())
   }
 
-  /// Start jwks retrieval service
-  async fn jwks_service(&self) -> Result<()> {
-    let Some(validator) = self.inner_validator.as_ref() else {
-      return Err(MODoHError::NoValidator);
-    };
-    validator.start_service(self.globals.term_notify.clone()).await
-  }
-
   /// Entrypoint for HTTP/1.1 and HTTP/2 servers
   pub async fn start(&self) -> Result<()> {
     info!("Start (M)ODoH services");
 
-    // spawn jwks retrieval service if needed
-    let services = async {
-      if self.inner_validator.is_some() {
-        tokio::select! {
-          _ = self.jwks_service() => {
-            warn!("jwks service got down");
-          }
-          _ = self.router_service() => {
-            warn!("Http routing service got down");
-          }
-        }
-      } else {
-        self.router_service().await.ok();
-        warn!("Http routing service got down")
-      }
-    };
-
     match &self.globals.term_notify {
       Some(term) => {
         tokio::select! {
-          _ = services => {
+          _ = self.router_service() => {
             warn!("Http routing service got down");
           }
           _ = term.notified() => {
@@ -178,7 +115,7 @@ where
         }
       }
       None => {
-        services.await;
+        self.router_service().await.ok();
         warn!("Http routing service got down");
       }
     }
@@ -200,9 +137,16 @@ impl Router<HttpsConnector<HttpConnector>> {
       .max_concurrent_streams(globals.service_config.max_concurrent_streams);
 
     let http_server = Arc::new(server);
-    let inner_relay = Arc::new(InnerRelay::try_new(globals)?);
+    let inner_relay = match &globals.service_config.relay {
+      Some(_) => Some(InnerRelay::try_new(globals)?),
+      None => None,
+    };
+    let inner_target = match &globals.service_config.target {
+      Some(_) => Some(InnerTarget::try_new(globals)?),
+      None => None,
+    };
     let inner_validator = match globals.service_config.validation.as_ref() {
-      Some(v) => Some(Arc::new(Validator::try_new(v, globals.runtime_handle.clone()).await?)),
+      Some(_) => Some(Validator::try_new(globals).await?),
       None => None,
     };
 
@@ -210,6 +154,7 @@ impl Router<HttpsConnector<HttpConnector>> {
       globals: globals.clone(),
       http_server,
       inner_relay,
+      inner_target,
       inner_validator,
       request_count: RequestCount::default(),
     })

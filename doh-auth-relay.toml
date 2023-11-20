@@ -12,7 +12,27 @@ listen_port = 8080
 ## This will be used to check host header of incoming requests.
 hostname = "modoh.example.com"
 
-## Serving path [default: "/proxy"]
+## Either one or both of [target] and [relay] must be specified
+## Target configuration
+[target]
+## Target serving path [default: "/dns-query"]
+path = "/dns-query"
+
+## Upstream resolver address with port [default: "8.8.8.8:53"]
+upstream = "8.8.8.8:53"
+
+## (Optional) TTL for errors, in seconds
+error_ttl = 2
+
+## (Optional) Maximum TTL, in seconds
+max_ttl = 604800
+
+## (Optional) Minimum TTL, in seconds
+min_ttl = 10
+
+## Relay configuration
+[relay]
+## Relay serving path [default: "/proxy"]
 path = "/proxy"
 
 ## Maximum number of subsequent nodes (relays and target resolver) [default: 3]

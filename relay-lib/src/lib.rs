@@ -7,6 +7,7 @@ mod hyper_executor;
 mod log;
 mod relay;
 mod router;
+mod target;
 mod validator;
 
 use crate::{error::*, globals::Globals, log::*};
@@ -18,13 +19,13 @@ pub use globals::{AccessConfig, ServiceConfig};
 
 /// Entry point of the relay
 pub async fn entrypoint(
-  relay_config: &ServiceConfig,
+  service_config: &ServiceConfig,
   runtime_handle: &tokio::runtime::Handle,
   term_notify: Option<Arc<tokio::sync::Notify>>,
 ) -> Result<()> {
   // build globals
   let globals = Arc::new(Globals {
-    service_config: relay_config.clone(),
+    service_config: service_config.clone(),
     runtime_handle: runtime_handle.clone(),
     term_notify: term_notify.clone(),
   });

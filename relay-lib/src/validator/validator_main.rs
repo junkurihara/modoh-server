@@ -1,12 +1,13 @@
 use crate::{
   constants::{EXPECTED_MAX_JWKS_SIZE, JWKS_REFETCH_TIMEOUT_SEC, VALIDATOR_USER_AGENT},
   error::*,
+  globals::Globals,
   hyper_client::HttpClient,
 };
 use async_trait::async_trait;
 use auth_validator::{
   reexports::{JWTClaims, NoCustomClaims},
-  JwksHttpClient, TokenValidator, ValidationConfig,
+  JwksHttpClient, TokenValidator,
 };
 use http::{header, HeaderValue, Method, Request};
 use http_body_util::{combinators::BoxBody, BodyExt, Empty};
@@ -103,9 +104,23 @@ where
 
 impl Validator<HttpsConnector<HttpConnector>> {
   /// Create a new validator
-  pub async fn try_new(config: &ValidationConfig, runtime_handle: tokio::runtime::Handle) -> Result<Self> {
-    let http_client = HttpClient::new(runtime_handle);
+  pub async fn try_new(globals: &Arc<Globals>) -> Result<Arc<Self>> {
+    let http_client = HttpClient::new(globals.runtime_handle.clone());
+    let config = globals
+      .service_config
+      .validation
+      .as_ref()
+      .ok_or(MODoHError::BuildValidatorError)?;
     let inner = TokenValidator::try_new(config, Arc::new(http_client)).await?;
-    Ok(Self { inner })
+    let validator = Arc::new(Self { inner });
+
+    let validator_clone = validator.clone();
+    let term_notify = globals.term_notify.clone();
+
+    globals
+      .runtime_handle
+      .spawn(async move { validator_clone.start_service(term_notify).await.ok() });
+
+    Ok(validator)
   }
 }

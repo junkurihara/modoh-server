@@ -1,9 +1,9 @@
 use super::toml::ConfigToml;
-use crate::log::*;
+use crate::{error::*, log::*};
 use async_trait::async_trait;
 use doh_auth_relay_lib::{AccessConfig, ServiceConfig, ValidationConfig, ValidationConfigInner};
 use hot_reload::{Reload, ReloaderError};
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 /// Wrapper of config toml and manipulation plugin settings
@@ -47,37 +47,81 @@ impl TryInto<ServiceConfig> for &TargetConfig {
   type Error = anyhow::Error;
 
   fn try_into(self) -> Result<ServiceConfig, Self::Error> {
-    let mut relay_conf = ServiceConfig::default();
+    let mut service_conf = ServiceConfig::default();
 
     if let Some(addr) = &self.config_toml.listen_address {
       let addr = addr.parse::<std::net::IpAddr>()?;
-      relay_conf.listener_socket.set_ip(addr);
+      service_conf.listener_socket.set_ip(addr);
     }
     if let Some(port) = &self.config_toml.listen_port {
-      relay_conf.listener_socket.set_port(*port);
+      service_conf.listener_socket.set_port(*port);
     }
-    info!("Listening on {}", relay_conf.listener_socket);
+    info!("Listening on {}", service_conf.listener_socket);
 
     if let Some(hostname) = &self.config_toml.hostname {
-      relay_conf.hostname = hostname.clone();
+      service_conf.hostname = hostname.clone();
     }
-    info!("Hostname: {}", relay_conf.hostname);
+    info!("Hostname: {}", service_conf.hostname);
 
-    if let Some(path) = &self.config_toml.path {
-      relay_conf.path = path.clone();
+    ensure!(
+      self.config_toml.relay.is_some() || self.config_toml.target.is_some(),
+      "Either relay or target must be set"
+    );
+    if let Some(relay) = &self.config_toml.relay {
+      info!("(M)ODoH relay enabled");
+      if let Some(path) = &relay.path {
+        service_conf.relay.as_mut().unwrap().path = path.clone();
+      }
+      info!("Relay path: {}", service_conf.relay.as_ref().unwrap().path);
+
+      if let Some(max_subseq_nodes) = &relay.max_subseq_nodes {
+        service_conf.relay.as_mut().unwrap().max_subseq_nodes = *max_subseq_nodes;
+      }
+      info!(
+        "Relay max subsequence nodes: {}",
+        service_conf.relay.as_ref().unwrap().max_subseq_nodes
+      );
+      if let Some(http_user_agent) = &relay.forwarder_user_agent {
+        service_conf.relay.as_mut().unwrap().http_user_agent = http_user_agent.clone();
+      }
+      info!(
+        "Relay http user agent: {}",
+        service_conf.relay.as_ref().unwrap().http_user_agent
+      );
+    } else {
+      service_conf.relay = None;
     }
-    info!("Relay path: {}", relay_conf.path);
-    if let Some(max_subseq_nodes) = &self.config_toml.max_subseq_nodes {
-      relay_conf.max_subseq_nodes = *max_subseq_nodes;
+    if let Some(target) = &self.config_toml.target {
+      info!("(M)ODoH target enabled");
+      if let Some(path) = &target.path {
+        service_conf.target.as_mut().unwrap().path = path.clone();
+      }
+      info!("Target path: {}", service_conf.target.as_ref().unwrap().path);
+
+      if let Some(upstream) = &target.upstream {
+        let upstream = upstream.parse::<SocketAddr>()?;
+        service_conf.target.as_mut().unwrap().upstream = upstream;
+      }
+      info!("Target upstream: {}", service_conf.target.as_ref().unwrap().upstream);
+
+      if let Some(error_ttl) = &target.error_ttl {
+        service_conf.target.as_mut().unwrap().error_ttl = *error_ttl;
+      }
+      info!("Target error ttl: {}", service_conf.target.as_ref().unwrap().error_ttl);
+      if let Some(max_ttl) = &target.max_ttl {
+        service_conf.target.as_mut().unwrap().max_ttl = *max_ttl;
+      }
+      info!("Target max ttl: {}", service_conf.target.as_ref().unwrap().max_ttl);
+      if let Some(min_ttl) = &target.min_ttl {
+        service_conf.target.as_mut().unwrap().min_ttl = *min_ttl;
+      }
+      info!("Target min ttl: {}", service_conf.target.as_ref().unwrap().min_ttl);
+    } else {
+      service_conf.target = None;
     }
-    info!("Max subsequence nodes: {}", relay_conf.max_subseq_nodes);
-    if let Some(http_user_agent) = &self.config_toml.forwarder_user_agent {
-      relay_conf.http_user_agent = http_user_agent.clone();
-    }
-    info!("Http user agent: {}", relay_conf.http_user_agent);
 
     if self.config_toml.validation.is_none() {
-      return Ok(relay_conf);
+      return Ok(service_conf);
     }
 
     if let Some(validation) = self.config_toml.validation.as_ref() {
@@ -96,7 +140,7 @@ impl TryInto<ServiceConfig> for &TargetConfig {
         );
         inner.push(t);
       }
-      relay_conf.validation = Some(ValidationConfig { inner });
+      service_conf.validation = Some(ValidationConfig { inner });
     };
 
     if let Some(access) = self.config_toml.access.as_ref() {
@@ -108,20 +152,22 @@ impl TryInto<ServiceConfig> for &TargetConfig {
       }
 
       let mut inner_domain = vec![];
-      for domain in access.allowed_destination_domains.iter() {
-        let domain = url::Url::parse(&format!("https://{domain}"))?
-          .authority()
-          .to_ascii_lowercase();
-        info!("Set allowed destination domain for relaying: {}", domain);
-        inner_domain.push(domain);
+      if service_conf.relay.is_some() {
+        for domain in access.allowed_destination_domains.iter() {
+          let domain = url::Url::parse(&format!("https://{domain}"))?
+            .authority()
+            .to_ascii_lowercase();
+          info!("Set allowed destination domain for relaying: {}", domain);
+          inner_domain.push(domain);
+        }
       }
 
-      relay_conf.access = Some(AccessConfig {
+      service_conf.access = Some(AccessConfig {
         allowed_source_ip_addresses: inner_ip,
         allowed_destination_domains: inner_domain,
       });
     };
 
-    Ok(relay_conf)
+    Ok(service_conf)
   }
 }

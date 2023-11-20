@@ -12,8 +12,14 @@ pub enum MODoHError {
   BindTcpSocketError(#[from] std::io::Error),
   #[error("No validator")]
   NoValidator,
+  #[error("Failed to build validator")]
+  BuildValidatorError,
   #[error("Failed to build relay")]
   BuildRelayError,
+  #[error("Failed to build target")]
+  BuildTargetError,
+  #[error("Failed to build odoh config")]
+  ODoHConfigError(#[from] odoh_rs::Error),
   #[error(transparent)]
   Other(#[from] anyhow::Error),
 }
@@ -58,6 +64,9 @@ pub enum HttpError {
   InvalidResponseContentType,
   #[error("Invalid response body")]
   InvalidResponseBody,
+
+  #[error("Invalid ODoH config")]
+  InvalidODoHConfig,
 
   #[error("No authorization header")]
   NoAuthorizationHeader,
