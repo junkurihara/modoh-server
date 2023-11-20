@@ -1,8 +1,11 @@
-use super::{
-  count::RequestCount, forwarder::InnerForwarder, socket::bind_tcp_socket, synthetic_error_response, EitherBody,
-};
+use super::{count::RequestCount, forwarder::InnerForwarder, socket::bind_tcp_socket};
 use crate::{
-  error::*, globals::Globals, hyper_executor::LocalExecutor, log::*, relay::passthrough_response, validator::Validator,
+  error::*,
+  globals::Globals,
+  hyper_body::{passthrough_response, synthetic_error_response, EitherBody},
+  hyper_executor::LocalExecutor,
+  log::*,
+  validator::Validator,
 };
 use hyper::{
   body::Incoming,

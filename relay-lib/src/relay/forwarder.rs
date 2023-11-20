@@ -1,4 +1,4 @@
-use crate::{constants::*, error::*, globals::Globals, http_client::HttpClient, log::*};
+use crate::{constants::*, error::*, globals::Globals, hyper_client::HttpClient, log::*};
 use http::{
   header::{self, HeaderMap, HeaderValue},
   request::Parts,

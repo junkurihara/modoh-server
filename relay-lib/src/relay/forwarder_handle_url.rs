@@ -116,7 +116,7 @@ where
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::http_client::HttpClient;
+  use crate::hyper_client::HttpClient;
   use hyper::{body::Incoming, HeaderMap};
 
   #[test]

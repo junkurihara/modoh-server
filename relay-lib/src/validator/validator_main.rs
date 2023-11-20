@@ -1,7 +1,7 @@
 use crate::{
   constants::{EXPECTED_MAX_JWKS_SIZE, JWKS_REFETCH_TIMEOUT_SEC, VALIDATOR_USER_AGENT},
   error::*,
-  http_client::HttpClient,
+  hyper_client::HttpClient,
 };
 use async_trait::async_trait;
 use auth_validator::{
