@@ -45,7 +45,7 @@ pub struct Relay {
   pub path: Option<String>,
   /// Maximum number of subsequence nodes [default: 3]
   pub max_subseq_nodes: Option<usize>,
-  /// Forwarder http user agent [default: "doh-auth-relay/<VERSION>"]
+  /// Forwarder http user agent [default: "modoh-server/<VERSION>"]
   pub forwarder_user_agent: Option<String>,
 }
 
