@@ -49,13 +49,13 @@ thiserror = "1.0.50"
 async-trait = "0.1.74"
 
 # http handling
-url = "2.4.1"
+url = "2.5.0"
 rustc-hash = "1.1.0"
 hyper = { version = "1.0.1", default-features = false }
 http = "1.0.0"
 http-body-util = "0.1.0"
 hyper-util = { version = "0.1.1", features = ["full"] }
-hyper-tls = { path = "../submodules/hyper-tls/", default-features = false }
+hyper-tls = { version = "0.6.0", default-features = false }
 # hyper-rustls = { version = "0.24.2", default-features = false, features = [
 #   "tokio-runtime",
 #   "webpki-tokio",
@@ -70,7 +70,6 @@ base64 = "0.21.5"
 byteorder = "1.5.0"
 
 # validation of id token
-# reqwest = { version = "0.11.22", features = ["json", "default"] }
 serde = { version = "1.0.193", default-features = false }
 auth-validator = { git = "https://github.com/junkurihara/rust-token-server", package = "rust-token-server-validator", branch = "develop" }
 serde_json = { version = "1.0.108" }
