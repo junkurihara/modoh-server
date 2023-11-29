@@ -1,4 +1,4 @@
-use crate::hyper_executor::LocalExecutor;
+use crate::{error::*, hyper_executor::LocalExecutor};
 use http::{Request, Response};
 use hyper::body::{Body, Incoming};
 use hyper_tls::HttpsConnector;
@@ -42,9 +42,18 @@ where
   <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
 {
   /// Build inner client with hyper-tls
-  pub fn new(runtime_handle: tokio::runtime::Handle) -> Self {
+  pub fn try_new(runtime_handle: tokio::runtime::Handle) -> Result<Self> {
     // build hyper client with hyper-tls, only https is allowed
-    let mut connector = HttpsConnector::new();
+    let alpns = &["h2", "http/1.1"];
+    let mut connector = hyper_tls::native_tls::TlsConnector::builder()
+      .request_alpns(alpns)
+      .build()
+      .map_err(|e| MODoHError::FailedToBuildHttpClient(e.to_string()))
+      .map(|tls| {
+        let mut http = HttpConnector::new();
+        http.enforce_http(false);
+        HttpsConnector::from((http, tls.into()))
+      })?;
     connector.https_only(true);
     let executor = LocalExecutor::new(runtime_handle.clone());
     let inner = Client::builder(executor).build::<_, B>(connector);
@@ -58,6 +67,6 @@ where
     //   .build();
     // let inner = Client::builder(TokioExecutor::new()).build::<_, B>(connector);
 
-    Self { inner }
+    Ok(Self { inner })
   }
 }

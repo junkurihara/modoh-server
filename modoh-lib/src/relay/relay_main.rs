@@ -177,7 +177,7 @@ impl InnerRelay<HttpsConnector<HttpConnector>> {
     request_headers.insert(header::CACHE_CONTROL, HeaderValue::from_static(ODOH_CACHE_CONTROL));
     request_headers.insert(header::USER_AGENT, user_agent);
 
-    let inner = HttpClient::new(globals.runtime_handle.clone());
+    let inner = HttpClient::try_new(globals.runtime_handle.clone())?;
 
     let relay_host = globals.service_config.hostname.clone();
     let relay_path = relay_config.path.clone();

@@ -154,7 +154,7 @@ mod tests {
       .handle()
       .clone();
     let inner: InnerRelay<_, Incoming> = InnerRelay {
-      inner: HttpClient::new(runtime_handle),
+      inner: HttpClient::try_new(runtime_handle).unwrap(),
       request_headers: HeaderMap::new(),
       relay_host: "example.com".to_string(),
       relay_path: "/proxy".to_string(),

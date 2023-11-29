@@ -10,6 +10,8 @@ pub type HttpResult<T> = std::result::Result<T, HttpError>;
 pub enum MODoHError {
   #[error("Failed to bind TCP socket")]
   BindTcpSocketError(#[from] std::io::Error),
+  #[error("Failed to build HTTP client")]
+  FailedToBuildHttpClient(String),
   #[error("No validator")]
   NoValidator,
   #[error("Failed to build validator")]

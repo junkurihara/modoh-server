@@ -105,7 +105,7 @@ where
 impl Validator<HttpsConnector<HttpConnector>> {
   /// Create a new validator
   pub async fn try_new(globals: &Arc<Globals>) -> Result<Arc<Self>> {
-    let http_client = HttpClient::new(globals.runtime_handle.clone());
+    let http_client = HttpClient::try_new(globals.runtime_handle.clone())?;
     let config = globals
       .service_config
       .validation
