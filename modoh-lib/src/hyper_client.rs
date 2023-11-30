@@ -74,7 +74,7 @@ where
     // build hyper client with hyper-tls, only https is allowed
     info!("Native TLS support is enabled for (M)ODoH forwarder");
     let alpns = &["h2", "http/1.1"];
-    let mut connector = hyper_tls::native_tls::TlsConnector::builder()
+    let connector = hyper_tls::native_tls::TlsConnector::builder()
       .request_alpns(alpns)
       .build()
       .map_err(|e| MODoHError::FailedToBuildHttpClient(e.to_string()))
@@ -84,7 +84,6 @@ where
         http.set_reuse_address(true);
         hyper_tls::HttpsConnector::from((http, tls.into()))
       })?;
-    connector.https_only(true);
     let executor = LocalExecutor::new(runtime_handle.clone());
     let inner = Client::builder(executor).build::<_, B>(connector);
 
