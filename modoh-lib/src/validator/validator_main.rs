@@ -42,6 +42,9 @@ where
       self.request(req.map(IncomingOr::Right)),
     )
     .await??;
+    if !jwks_res.status().is_success() {
+      bail!("jwks request failed: {url} {}", jwks_res.status())
+    }
     let body = jwks_res.into_body();
 
     let max = body.size_hint().upper().unwrap_or(u64::MAX);
