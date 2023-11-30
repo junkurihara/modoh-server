@@ -13,14 +13,13 @@ mod target;
 mod validator;
 
 use crate::{count::RequestCount, error::*, globals::Globals, log::*, router::Router};
-
-pub use auth_validator::{ValidationConfig, ValidationConfigInner};
-pub use globals::{AccessConfig, ServiceConfig};
-
 use hyper_client::HttpClient;
 use hyper_executor::LocalExecutor;
 use hyper_util::server::{self, conn::auto::Builder as ConnectionBuilder};
 use std::sync::Arc;
+
+pub use auth_validator::{ValidationConfig, ValidationConfigInner};
+pub use globals::{AccessConfig, ServiceConfig};
 
 /// Entry point of the relay
 pub async fn entrypoint(
@@ -28,6 +27,9 @@ pub async fn entrypoint(
   runtime_handle: &tokio::runtime::Handle,
   term_notify: Option<Arc<tokio::sync::Notify>>,
 ) -> Result<()> {
+  #[cfg(all(feature = "rustls", feature = "native-tls"))]
+  warn!("Both \"native-tls\" and feature \"rustls\" features are enabled. \"native-tls\" will be used.");
+
   // build globals
   let globals = Arc::new(Globals {
     service_config: service_config.clone(),

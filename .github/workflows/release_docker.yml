@@ -10,9 +10,9 @@ on:
       - main
 
 env:
-  #   GHCR: ghcr.io
-  #   GHCR_IMAGE_NAME: ${{ github.repository }}
   DH_REGISTRY_NAME: jqtype/modoh-server
+  # GHCR: ghcr.io
+  # GHCR_IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   docker_build_and_push:
