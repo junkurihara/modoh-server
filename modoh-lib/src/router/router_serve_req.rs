@@ -58,7 +58,7 @@ where
   // match modoh relay
   if relay.as_ref().map(|r| r.relay_path == path).unwrap_or(false) {
     // serve query as relay
-    return match relay.unwrap().serve(req).await {
+    return match relay.unwrap().serve(req.map(IncomingOr::Left)).await {
       Ok(res) => passthrough_response(res),
       Err(e) => {
         debug!("Relay failed to serve: {}", e);

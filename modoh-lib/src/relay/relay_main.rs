@@ -2,6 +2,7 @@ use crate::{
   constants::*,
   error::*,
   globals::Globals,
+  hyper_body::{BoxBody, IncomingOr},
   hyper_client::HttpClient,
   log::*,
   message_util::{check_content_type, inspect_host, inspect_request_body, RequestType},
@@ -12,13 +13,12 @@ use http::{
   Method, Request, Response,
 };
 use hyper::body::{Body, Incoming};
-use hyper_tls::HttpsConnector;
-use hyper_util::client::legacy::connect::{Connect, HttpConnector};
+use hyper_util::client::legacy::connect::Connect;
 use std::sync::Arc;
 use url::Url;
 
 /// wrapper of http client
-pub struct InnerRelay<C, B = Incoming>
+pub struct InnerRelay<C, B = IncomingOr<BoxBody>>
 where
   C: Send + Sync + Connect + Clone + 'static,
   B: Body + Send + Unpin + 'static,
@@ -26,7 +26,7 @@ where
   <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
 {
   /// hyper client
-  pub(super) inner: HttpClient<C, B>,
+  pub(super) inner: Arc<HttpClient<C, B>>,
   /// request default headers
   pub(super) request_headers: HeaderMap,
   /// relay host name
@@ -156,11 +156,9 @@ where
 
     Ok(())
   }
-}
 
-impl InnerRelay<HttpsConnector<HttpConnector>> {
   /// Build inner relay
-  pub fn try_new(globals: &Arc<Globals>) -> Result<Arc<Self>> {
+  pub fn try_new(globals: &Arc<Globals>, http_client: &Arc<HttpClient<C, B>>) -> Result<Arc<Self>> {
     let relay_config = globals
       .service_config
       .relay
@@ -177,14 +175,12 @@ impl InnerRelay<HttpsConnector<HttpConnector>> {
     request_headers.insert(header::CACHE_CONTROL, HeaderValue::from_static(ODOH_CACHE_CONTROL));
     request_headers.insert(header::USER_AGENT, user_agent);
 
-    let inner = HttpClient::try_new(globals.runtime_handle.clone())?;
-
     let relay_host = globals.service_config.hostname.clone();
     let relay_path = relay_config.path.clone();
     let max_subseq_nodes = relay_config.max_subseq_nodes;
 
     Ok(Arc::new(Self {
-      inner,
+      inner: http_client.clone(),
       request_headers,
       relay_host,
       relay_path,

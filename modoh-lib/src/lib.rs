@@ -13,10 +13,14 @@ mod target;
 mod validator;
 
 use crate::{count::RequestCount, error::*, globals::Globals, log::*, router::Router};
-use std::sync::Arc;
 
 pub use auth_validator::{ValidationConfig, ValidationConfigInner};
 pub use globals::{AccessConfig, ServiceConfig};
+
+use hyper_client::HttpClient;
+use hyper_executor::LocalExecutor;
+use hyper_util::server::{self, conn::auto::Builder as ConnectionBuilder};
+use std::sync::Arc;
 
 /// Entry point of the relay
 pub async fn entrypoint(
@@ -31,9 +35,16 @@ pub async fn entrypoint(
     term_notify: term_notify.clone(),
     request_count: RequestCount::default(),
   });
+  // build http client
+  let http_client = Arc::new(HttpClient::try_new(runtime_handle.clone())?);
+
+  // build http_server which is used for router and prometheus
+  let http_server = build_hyper_server(&globals);
 
   // build router
-  let router = Router::try_new(&globals).await?;
+  let router = Router::try_new(&globals, &http_server, &http_client).await?;
+
+  // TODO: build prometheus
 
   // start router
   if let Err(e) = router.start().await {
@@ -41,4 +52,18 @@ pub async fn entrypoint(
   }
 
   Ok(())
+}
+
+/// build hyper server
+fn build_hyper_server(globals: &Arc<Globals>) -> Arc<ConnectionBuilder<LocalExecutor>> {
+  let executor = LocalExecutor::new(globals.runtime_handle.clone());
+  let mut server = server::conn::auto::Builder::new(executor);
+  server
+    .http1()
+    .keep_alive(globals.service_config.keepalive)
+    .pipeline_flush(true);
+  server
+    .http2()
+    .max_concurrent_streams(globals.service_config.max_concurrent_streams);
+  Arc::new(server)
 }
