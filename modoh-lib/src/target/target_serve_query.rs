@@ -53,7 +53,7 @@ impl InnerTarget {
         // check request type
         match check_content_type(&req)? {
           RequestType::DoH => {
-            debug!("Serve DoH query (Post)");
+            debug!("Serve DoH query (Post) as a target server");
             let mut query = read_request_body(&mut req.into_body()).await?;
             let res = timeout(self.timeout, self.resolve(&mut query))
               .await
@@ -62,7 +62,7 @@ impl InnerTarget {
             Ok(resp)
           }
           RequestType::ODoH => {
-            debug!("Serve (M)ODoH query");
+            debug!("Serve (M)ODoH query as a target server");
             let encrypted_query = read_request_body(&mut req.into_body()).await?;
             let lock = self.odoh_configs.read().await;
             let public_key = lock.clone();
@@ -81,7 +81,7 @@ impl InnerTarget {
         // check request type, only doh is allowed
         match check_content_type(&req)? {
           RequestType::DoH => {
-            debug!("Serve (M)ODoH query (Get)");
+            debug!("Serve (M)ODoH query (Get) as a target server");
             let mut query = query_from_query_string(req)?;
             let res = timeout(self.timeout, self.resolve(&mut query))
               .await
