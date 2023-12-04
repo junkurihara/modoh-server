@@ -1,7 +1,7 @@
 use super::{router_serve_req::serve_request_with_validation, socket::bind_tcp_socket};
 use crate::{
-  count::RequestCount, error::*, globals::Globals, hyper_executor::LocalExecutor, log::*, relay::InnerRelay,
-  target::InnerTarget, validator::Validator,
+  count::RequestCount, error::*, globals::Globals, hyper_client::HttpClient, hyper_executor::LocalExecutor, log::*,
+  relay::InnerRelay, target::InnerTarget, validator::Validator,
 };
 use hyper::{
   body::Incoming,
@@ -9,12 +9,7 @@ use hyper::{
   service::service_fn,
   Request,
 };
-use hyper_tls::HttpsConnector;
-use hyper_util::{
-  client::legacy::connect::{Connect, HttpConnector},
-  rt::TokioIo,
-  server::{self, conn::auto::Builder as ConnectionBuilder},
-};
+use hyper_util::{client::legacy::connect::Connect, rt::TokioIo, server::conn::auto::Builder as ConnectionBuilder};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::time::timeout;
 
@@ -121,25 +116,17 @@ where
     }
     Ok(())
   }
-}
 
-impl Router<HttpsConnector<HttpConnector>> {
   /// build router
-  pub async fn try_new(globals: &Arc<Globals>) -> Result<Self> {
-    let executor = LocalExecutor::new(globals.runtime_handle.clone());
-    let mut server = server::conn::auto::Builder::new(executor);
-    server
-      .http1()
-      .keep_alive(globals.service_config.keepalive)
-      .pipeline_flush(true);
-    server
-      .http2()
-      .max_concurrent_streams(globals.service_config.max_concurrent_streams);
+  pub async fn try_new(
+    globals: &Arc<Globals>,
+    http_server: &Arc<ConnectionBuilder<LocalExecutor>>,
+    http_client: &Arc<HttpClient<C>>,
+  ) -> Result<Self> {
     let request_count = globals.request_count.clone();
 
-    let http_server = Arc::new(server);
     let inner_relay = match &globals.service_config.relay {
-      Some(_) => Some(InnerRelay::try_new(globals)?),
+      Some(_) => Some(InnerRelay::try_new(globals, http_client)?),
       None => None,
     };
     let inner_target = match &globals.service_config.target {
@@ -147,13 +134,13 @@ impl Router<HttpsConnector<HttpConnector>> {
       None => None,
     };
     let inner_validator = match globals.service_config.validation.as_ref() {
-      Some(_) => Some(Validator::try_new(globals).await?),
+      Some(_) => Some(Validator::try_new(globals, http_client).await?),
       None => None,
     };
 
     Ok(Self {
       globals: globals.clone(),
-      http_server,
+      http_server: http_server.clone(),
       inner_relay,
       inner_target,
       inner_validator,

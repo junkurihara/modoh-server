@@ -31,6 +31,12 @@ publish = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = ["native-tls"]
+native-tls = ["hyper-tls"]
+prometheus = []
+rustls = []
+
 [dependencies]
 futures = { version = "0.3.29", default-features = false, features = [
   "std",
@@ -48,14 +54,18 @@ tracing = "0.1.40"
 thiserror = "1.0.50"
 async-trait = "0.1.74"
 
-# http handling
+# http handling for both client and server
 url = "2.5.0"
 rustc-hash = "1.1.0"
 hyper = { version = "1.0.1", default-features = false }
 http = "1.0.0"
 http-body-util = "0.1.0"
 hyper-util = { version = "0.1.1", features = ["full"] }
-hyper-tls = { version = "0.6.0", default-features = false, features = ["alpn"] }
+
+# http handling for client
+hyper-tls = { version = "0.6.0", default-features = false, features = [
+  "alpn",
+], optional = true }
 # hyper-rustls = { version = "0.24.2", default-features = false, features = [
 #   "tokio-runtime",
 #   "webpki-tokio",

@@ -2,22 +2,22 @@ use crate::{
   constants::{EXPECTED_MAX_JWKS_SIZE, JWKS_REFETCH_TIMEOUT_SEC, VALIDATOR_USER_AGENT},
   error::*,
   globals::Globals,
+  hyper_body::{BoxBody, IncomingOr},
   hyper_client::HttpClient,
 };
 use async_trait::async_trait;
 use auth_validator::{reexports::Claims, JwksHttpClient, TokenValidator};
 use http::{header, HeaderValue, Method, Request};
-use http_body_util::{combinators::BoxBody, BodyExt, Empty};
+use http_body_util::{BodyExt, Empty};
 use hyper::body::{Body, Buf, Bytes};
-use hyper_tls::HttpsConnector;
-use hyper_util::client::legacy::connect::{Connect, HttpConnector};
+use hyper_util::client::legacy::connect::Connect;
 use serde::de::DeserializeOwned;
 use std::{sync::Arc, time::Duration};
 use url::Url;
 
 #[async_trait]
 /// JwksHttpClient trait implementation for HttpClient
-impl<C> JwksHttpClient for HttpClient<C, BoxBody<Bytes, hyper::Error>>
+impl<C> JwksHttpClient for HttpClient<C, IncomingOr<BoxBody>>
 where
   C: Send + Sync + Connect + Clone + 'static,
 {
@@ -34,7 +34,11 @@ where
       .headers_mut()
       .insert(header::USER_AGENT, HeaderValue::from_str(&user_agent)?);
 
-    let jwks_res = tokio::time::timeout(Duration::from_secs(JWKS_REFETCH_TIMEOUT_SEC), self.request(req)).await??;
+    let jwks_res = tokio::time::timeout(
+      Duration::from_secs(JWKS_REFETCH_TIMEOUT_SEC),
+      self.request(req.map(IncomingOr::Right)),
+    )
+    .await??;
     let body = jwks_res.into_body();
 
     let max = body.size_hint().upper().unwrap_or(u64::MAX);
@@ -55,7 +59,7 @@ where
 }
 
 /// Wrapper of TokenValidator
-pub struct Validator<C, B = BoxBody<Bytes, hyper::Error>>
+pub struct Validator<C, B = IncomingOr<BoxBody>>
 where
   C: Send + Sync + Connect + Clone + 'static,
   B: Body + Send + Unpin + 'static,
@@ -97,18 +101,16 @@ where
 
     Ok(claims.get(0).unwrap().clone())
   }
-}
 
-impl Validator<HttpsConnector<HttpConnector>> {
   /// Create a new validator
-  pub async fn try_new(globals: &Arc<Globals>) -> Result<Arc<Self>> {
-    let http_client = HttpClient::try_new(globals.runtime_handle.clone())?;
+  pub async fn try_new(globals: &Arc<Globals>, http_client: &Arc<HttpClient<C, B>>) -> Result<Arc<Self>> {
+    // let http_client = HttpClient::try_new(globals.runtime_handle.clone())?;
     let config = globals
       .service_config
       .validation
       .as_ref()
       .ok_or(MODoHError::BuildValidatorError)?;
-    let inner = TokenValidator::try_new(config, Arc::new(http_client)).await?;
+    let inner = TokenValidator::try_new(config, http_client.clone()).await?;
     let validator = Arc::new(Self { inner });
 
     let validator_clone = validator.clone();

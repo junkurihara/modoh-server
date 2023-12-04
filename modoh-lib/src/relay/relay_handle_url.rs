@@ -118,6 +118,7 @@ mod tests {
   use super::*;
   use crate::hyper_client::HttpClient;
   use hyper::{body::Incoming, HeaderMap};
+  use std::sync::Arc;
 
   #[test]
   fn is_looped_test() {
@@ -154,7 +155,7 @@ mod tests {
       .handle()
       .clone();
     let inner: InnerRelay<_, Incoming> = InnerRelay {
-      inner: HttpClient::try_new(runtime_handle).unwrap(),
+      inner: Arc::new(HttpClient::try_new(runtime_handle).unwrap()),
       request_headers: HeaderMap::new(),
       relay_host: "example.com".to_string(),
       relay_path: "/proxy".to_string(),
