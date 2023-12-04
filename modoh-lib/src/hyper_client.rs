@@ -57,7 +57,9 @@ Use this just for testing. Please enable native-tls or rustls feature to enable 
 --------------------------------------------------------------------------------------------------"
     );
     let executor = LocalExecutor::new(runtime_handle.clone());
-    let inner = Client::builder(executor).build::<_, B>(HttpConnector::new());
+    let mut http = HttpConnector::new();
+    http.set_reuse_address(true);
+    let inner = Client::builder(executor).build::<_, B>(http);
     Ok(Self { inner })
   }
 }
@@ -88,6 +90,22 @@ where
     let executor = LocalExecutor::new(runtime_handle.clone());
     let inner = Client::builder(executor).build::<_, B>(connector);
 
+    Ok(Self { inner })
+  }
+}
+
+#[cfg(feature = "rustls")]
+/// Build forwarder with hyper-rustls (rustls)
+impl<B> HttpClient<hyper_tls::HttpsConnector<HttpConnector>, B>
+where
+  B: Body + Send + Unpin + 'static,
+  <B as Body>::Data: Send,
+  <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
+{
+  /// Build forwarder
+  pub async fn try_new(runtime_handle: tokio::runtime::Handle) -> Result<Self> {
+    todo!("Not implemented yet. Please use native-tls-backend feature for now.");
+
     // build hyper client with rustls and webpki, only https is allowed
     // let connector = hyper_rustls::HttpsConnectorBuilder::new()
     //   .with_webpki_roots()
@@ -96,7 +114,5 @@ where
     //   .enable_http2()
     //   .build();
     // let inner = Client::builder(TokioExecutor::new()).build::<_, B>(connector);
-
-    Ok(Self { inner })
   }
 }
