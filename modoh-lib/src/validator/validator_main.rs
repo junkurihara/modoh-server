@@ -6,10 +6,7 @@ use crate::{
   hyper_client::HttpClient,
 };
 use async_trait::async_trait;
-use auth_validator::{
-  reexports::{JWTClaims, NoCustomClaims},
-  JwksHttpClient, TokenValidator,
-};
+use auth_validator::{reexports::Claims, JwksHttpClient, TokenValidator};
 use http::{header, HeaderValue, Method, Request};
 use http_body_util::{BodyExt, Empty};
 use hyper::body::{Body, Buf, Bytes};
@@ -85,7 +82,7 @@ where
   HttpClient<C, B>: JwksHttpClient,
 {
   /// Validate an id token. Return Ok(()) if validation is successful with any one of validation keys.
-  pub async fn validate_request<T>(&self, req: &Request<T>) -> HttpResult<JWTClaims<NoCustomClaims>> {
+  pub async fn validate_request<T>(&self, req: &Request<T>) -> HttpResult<Claims> {
     let Some(auth_header) = req.headers().get(header::AUTHORIZATION) else {
       return Err(HttpError::NoAuthorizationHeader);
     };

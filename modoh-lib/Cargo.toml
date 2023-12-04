@@ -34,7 +34,7 @@ publish = false
 [features]
 default = ["native-tls"]
 native-tls = ["hyper-tls"]
-prometheus = []
+metrics = []
 rustls = []
 
 [dependencies]

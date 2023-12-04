@@ -11,8 +11,8 @@ services:
       context: ../
       dockerfile: ./docker/Dockerfile # based on ubuntu 22.04 and build x86_64-unknown-linux-gnu
       platforms: # Choose your platforms
-        # - "linux/amd64"
-        - "linux/arm64"
+        - "linux/amd64"
+        # - "linux/arm64"
     environment:
       - LOG_LEVEL=debug
       - LOG_TO_FILE=true
