@@ -34,7 +34,7 @@ where
     };
     debug!(
       "token validation passed: subject {}",
-      claims.subject.as_deref().unwrap_or("")
+      claims.custom.get("sub").and_then(|v| v.as_str()).unwrap_or("")
     );
   }
   // check path and route request
