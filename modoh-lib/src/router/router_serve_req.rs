@@ -22,6 +22,8 @@ pub async fn serve_request_with_validation<C>(
 where
   C: Send + Sync + Connect + Clone + 'static,
 {
+  //TODO: timeout for each services, which should be shorter than TIMEOUT_SEC in router_main.rs
+
   // validation with header
   if let (Some(validator), true) = (validator, req.headers().contains_key(header::AUTHORIZATION)) {
     debug!("execute token validation");

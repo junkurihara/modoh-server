@@ -129,7 +129,8 @@ impl InnerTarget {
     // TCP
     if dns::is_truncated(&packet) {
       let clients_count = &self.request_count.current();
-      if self.max_tcp_sessions >= TARGET_UDP_TCP_RATIO && *clients_count >= self.max_tcp_sessions / TARGET_UDP_TCP_RATIO
+      if self.max_tcp_sessions >= TARGET_UDP_TCP_RATIO
+        && *clients_count >= self.max_tcp_sessions as isize / TARGET_UDP_TCP_RATIO as isize
       {
         return Err(HttpError::TooManyTcpSessions);
       }

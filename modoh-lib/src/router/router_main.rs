@@ -42,7 +42,7 @@ where
     I: Read + Write + Unpin + Send + 'static,
   {
     let request_count = self.request_count.clone();
-    if request_count.increment() > self.globals.service_config.max_clients {
+    if request_count.increment() > self.globals.service_config.max_clients as isize {
       request_count.decrement();
       return;
     }
@@ -56,6 +56,8 @@ where
     let timeout_sec = self.globals.service_config.timeout;
     self.globals.runtime_handle.clone().spawn(async move {
       timeout(
+        // This timeout is for the whole request. Add 1 sec for safety.
+        // For each services, i.e., relay, target, etc., shorter timeout is set.
         timeout_sec + Duration::from_secs(1),
         server_clone.serve_connection(
           stream,
