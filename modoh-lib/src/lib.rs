@@ -29,7 +29,7 @@ pub async fn entrypoint(
   term_notify: Option<Arc<tokio::sync::Notify>>,
 ) -> Result<()> {
   #[cfg(all(feature = "rustls", feature = "native-tls"))]
-  warn!("Both \"native-tls\" and feature \"rustls\" features are enabled. \"native-tls\" will be used.");
+  warn!("Both \"native-tls\" and feature \"rustls\" features are enabled. \"rustls\" will be used.");
 
   // build globals
   let globals = Arc::new(Globals {

@@ -64,7 +64,7 @@ Use this just for testing. Please enable native-tls or rustls feature to enable 
   }
 }
 
-#[cfg(feature = "native-tls")]
+#[cfg(all(feature = "native-tls", not(feature = "rustls")))]
 impl<B> HttpClient<hyper_tls::HttpsConnector<HttpConnector>, B>
 where
   B: Body + Send + Unpin + 'static,
@@ -102,7 +102,7 @@ where
   <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
 {
   /// Build forwarder
-  pub async fn try_new(runtime_handle: tokio::runtime::Handle) -> Result<Self> {
+  pub fn try_new(runtime_handle: tokio::runtime::Handle) -> Result<Self> {
     todo!("Not implemented yet. Please use native-tls-backend feature for now.");
 
     // build hyper client with rustls and webpki, only https is allowed
