@@ -8,6 +8,7 @@ mod hyper_executor;
 mod log;
 mod message_util;
 mod relay;
+mod request_filter;
 mod router;
 mod target;
 mod validator;
