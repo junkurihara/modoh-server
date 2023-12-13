@@ -72,12 +72,14 @@ impl IpFilter {
     // First check the Forwarded header, and if exists (or invalid), capture this flow to assess the source ip address (skip x-forwarded-for, etc.)
     let forwarded = retrieve_for_from_forwarded(req_header)?;
     if !forwarded.is_empty() {
+      debug!("Forwarded header found: {:?}", forwarded);
       return self.is_origin_allowed(&forwarded);
     }
 
     // Second check the X-Forwarded-For header and if exists (or invalid), capture this flow
     let xff = retrieve_from_xff(req_header)?;
     if !xff.is_empty() {
+      debug!("XFF header found: {:?}", xff);
       return self.is_origin_allowed(&xff);
     }
 
@@ -92,6 +94,7 @@ impl IpFilter {
       .iter()
       .filter(|x| !self.trusted_cdn_ip_addresses.iter().any(|y| y.contains(*x)))
       .collect::<Vec<_>>();
+    debug!("Remained ips after pruning CDN ips: {:?}", filtered_proxies);
 
     let origin = if filtered_proxies.is_empty() {
       // If all proxies are trusted, then the origin is supposed to be the first value
