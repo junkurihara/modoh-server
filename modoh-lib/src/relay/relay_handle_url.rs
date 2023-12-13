@@ -160,6 +160,7 @@ mod tests {
       relay_host: "example.com".to_string(),
       relay_path: "/proxy".to_string(),
       max_subseq_nodes: 3,
+      request_filter: None,
     };
 
     let url = Url::parse("https://example.com/proxy?targethost=example1.com&targetpath=/dns-query").unwrap();

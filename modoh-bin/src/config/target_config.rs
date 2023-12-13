@@ -2,8 +2,12 @@ use super::toml::ConfigToml;
 use crate::{error::*, log::*};
 use async_trait::async_trait;
 use hot_reload::{Reload, ReloaderError};
+use ipnet::IpNet;
 use modoh_server_lib::{AccessConfig, ServiceConfig, ValidationConfig, ValidationConfigInner};
-use std::net::{IpAddr, SocketAddr};
+use std::{
+  fs::read_to_string,
+  net::{IpAddr, SocketAddr},
+};
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 /// Wrapper of config toml and manipulation plugin settings
@@ -154,15 +158,30 @@ impl TryInto<ServiceConfig> for &TargetConfig {
 
     if let Some(access) = self.config_toml.access.as_ref() {
       let mut inner_ip = vec![];
-      for ip in access.allowed_source_ip_addresses.iter() {
-        let ip = ip.parse::<IpAddr>()?;
+      for ip in access.allowed_source_ips.as_ref().unwrap_or(&vec![]).iter() {
+        let ip = parse_ipnet(ip)?;
         info!("Set allowed source ip address: {}", ip);
         inner_ip.push(ip);
       }
 
+      let mut inner_cdn_ip = vec![];
+      for ip in access.trusted_cdn_ips.as_ref().unwrap_or(&vec![]).iter() {
+        let ip = ip.parse::<IpNet>()?;
+        info!("Set trusted cdn ip address: {}", ip);
+        inner_cdn_ip.push(ip);
+      }
+      if let Some(cdn_ip_list_path) = access.trusted_cdn_ips_file.as_ref() {
+        let ip_list = read_ipnet_list_from_file(cdn_ip_list_path)?;
+        info!("Set trusted cdn ip address from file: {:#?}", ip_list);
+        inner_cdn_ip.extend(ip_list);
+      }
+
+      let trust_previous_hop = access.trust_previous_hop.unwrap_or(true);
+      info!("Set trust previous hop: {}", trust_previous_hop);
+
       let mut inner_domain = vec![];
       if service_conf.relay.is_some() {
-        for domain in access.allowed_destination_domains.iter() {
+        for domain in access.allowed_destination_domains.as_ref().unwrap_or(&vec![]).iter() {
           let domain = url::Url::parse(&format!("https://{domain}"))?
             .authority()
             .to_ascii_lowercase();
@@ -174,9 +193,40 @@ impl TryInto<ServiceConfig> for &TargetConfig {
       service_conf.access = Some(AccessConfig {
         allowed_source_ip_addresses: inner_ip,
         allowed_destination_domains: inner_domain,
+        trusted_cdn_ip_addresses: inner_cdn_ip,
+        trust_previous_hop,
       });
     };
 
     Ok(service_conf)
   }
+}
+
+/// parse ipnet from string
+fn parse_ipnet(ip: &str) -> anyhow::Result<IpNet> {
+  if ip.contains('/') {
+    let ip = ip.parse::<IpNet>()?;
+    return Ok(ip);
+  }
+  let ip = ip.parse::<IpAddr>()?;
+  Ok(IpNet::from(ip))
+}
+
+/// read ipnet list from file
+fn read_ipnet_list_from_file(path: &str) -> anyhow::Result<Vec<IpNet>> {
+  let list_lines = read_to_string(path)?;
+
+  let ip_list = list_lines
+    .lines()
+    .filter_map(|line| {
+      let line_without_comment = line.trim().split('#').next().unwrap_or("").trim();
+      if line_without_comment.is_empty() {
+        None
+      } else {
+        parse_ipnet(line_without_comment).ok()
+      }
+    })
+    .collect::<Vec<_>>();
+
+  Ok(ip_list)
 }

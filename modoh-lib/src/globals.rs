@@ -1,7 +1,8 @@
 use crate::{constants::*, count::RequestCount};
 use auth_validator::ValidationConfig;
+use ipnet::IpNet;
 use std::{
-  net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6},
+  net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6},
   sync::Arc,
   time::Duration,
 };
@@ -87,9 +88,13 @@ pub struct TargetConfig {
 /// Allowed source ip addresses and destination domains
 pub struct AccessConfig {
   /// Allowed source ip addresses
-  pub allowed_source_ip_addresses: Vec<IpAddr>,
+  pub allowed_source_ip_addresses: Vec<IpNet>,
   /// Allowed destination domains
   pub allowed_destination_domains: Vec<String>,
+  /// Trusted CDN ip addresses
+  pub trusted_cdn_ip_addresses: Vec<IpNet>,
+  /// Whether to trust previous hop reverse proxy
+  pub trust_previous_hop: bool,
 }
 
 impl Default for ServiceConfig {
