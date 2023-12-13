@@ -86,3 +86,5 @@ serde_json = { version = "1.0.108" }
 
 # access control
 ipnet = { version = "2.9.0" }
+cedarwood = { version = "0.4.6" }
+regex = { version = "1.10.2" }

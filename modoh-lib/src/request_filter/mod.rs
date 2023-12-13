@@ -1,13 +1,13 @@
-use crate::AccessConfig;
-
-use self::ip_filter::IpFilter;
 mod domain_filter;
 mod ip_filter;
+
+use self::{domain_filter::DomainFilter, ip_filter::IpFilter};
+use crate::AccessConfig;
 
 /// RequestFilter filtering inbound and outbound request.
 pub struct RequestFilter {
   /// outbound request filter mainly using for domain filtering
-  pub outbound_filter: Option<()>,
+  pub outbound_filter: Option<DomainFilter>,
   /// inbound request filter mainly using for ip filtering
   pub inbound_filter: Option<IpFilter>,
 }
@@ -20,8 +20,13 @@ impl RequestFilter {
     } else {
       None
     };
+    let outbound_filter = if !access_config.allowed_destination_domains.is_empty() {
+      Some(DomainFilter::new(access_config.allowed_destination_domains.clone()))
+    } else {
+      None
+    };
     Self {
-      outbound_filter: None,
+      outbound_filter,
       inbound_filter,
     }
   }

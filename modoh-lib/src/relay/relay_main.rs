@@ -6,6 +6,7 @@ use crate::{
   hyper_client::HttpClient,
   log::*,
   message_util::{check_content_type, inspect_host, inspect_request_body, RequestType},
+  request_filter::RequestFilter,
 };
 use http::{
   header::{self, HeaderMap, HeaderValue},
@@ -35,6 +36,8 @@ where
   pub(crate) relay_path: String,
   /// max number of subsequent nodes
   pub(super) max_subseq_nodes: usize,
+  /// request filter for destination domain name
+  pub(super) request_filter: Option<Arc<RequestFilter>>,
 }
 
 impl<C, B> InnerRelay<C, B>
@@ -86,8 +89,23 @@ where
     };
     debug!("(M)ODoH next hop url: {}", nexthop_url.as_str());
 
-    // TODO: next hop domain name check here?
+    // next hop domain name check here
     // for authorized domains, maintain blacklist (error metrics) at each relay for given responses
+    let nexthop_domain = nexthop_url.host_str().ok_or(HttpError::InvalidUrl)?;
+    let filter_result = self.request_filter.as_ref().and_then(|filter| {
+      filter
+        .outbound_filter
+        .as_ref()
+        .map(|outbound| outbound.in_domain_list(nexthop_domain))
+    });
+    if let Some(res) = filter_result {
+      if !res {
+        debug!("Nexthop domain is filtered: {}", nexthop_domain);
+        return Err(HttpError::ForbiddenDomain(nexthop_domain.to_string()));
+      }
+
+      debug!("Passed destination domain access control");
+    }
 
     // split request into parts and body to manipulate them later
     let (mut parts, body) = req.into_parts();
@@ -158,7 +176,11 @@ where
   }
 
   /// Build inner relay
-  pub fn try_new(globals: &Arc<Globals>, http_client: &Arc<HttpClient<C, B>>) -> Result<Arc<Self>> {
+  pub fn try_new(
+    globals: &Arc<Globals>,
+    http_client: &Arc<HttpClient<C, B>>,
+    request_filter: Option<Arc<RequestFilter>>,
+  ) -> Result<Arc<Self>> {
     let relay_config = globals
       .service_config
       .relay
@@ -185,6 +207,7 @@ where
       relay_host,
       relay_path,
       max_subseq_nodes,
+      request_filter: request_filter.clone(),
     }))
   }
 }

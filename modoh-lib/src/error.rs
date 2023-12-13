@@ -104,6 +104,8 @@ pub enum HttpError {
   InvalidXForwardedForHeader(String),
   #[error("Forbidden source ip address: {0}")]
   ForbiddenSourceAddress(String),
+  #[error("Forbidden destination domain: {0}")]
+  ForbiddenDomain(String),
 
   #[error(transparent)]
   Other(#[from] anyhow::Error),
@@ -149,6 +151,8 @@ impl From<HttpError> for StatusCode {
       HttpError::NoAuthorizationHeader => StatusCode::FORBIDDEN,
       HttpError::InvalidAuthorizationHeader => StatusCode::FORBIDDEN,
       HttpError::InvalidToken => StatusCode::UNAUTHORIZED,
+      HttpError::ForbiddenSourceAddress(_) => StatusCode::FORBIDDEN,
+      HttpError::ForbiddenDomain(_) => StatusCode::FORBIDDEN,
 
       HttpError::InvalidForwardedHeader(_) => StatusCode::BAD_REQUEST,
 

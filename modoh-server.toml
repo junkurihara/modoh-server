@@ -81,4 +81,4 @@ trusted_cdn_ips_file = "/path/to/cdn_ips.txt"
 trust_previous_hop = true
 
 ## Allowed next destination target and relay domains
-allowed_destination_domains = ["example.com", "example.net"]
+allowed_destination_domains = ["example.com", "example.net", "*.example.org"]

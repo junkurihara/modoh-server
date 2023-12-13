@@ -131,14 +131,6 @@ where
   ) -> Result<Self> {
     let request_count = globals.request_count.clone();
 
-    let inner_relay = match &globals.service_config.relay {
-      Some(_) => Some(InnerRelay::try_new(globals, http_client)?),
-      None => None,
-    };
-    let inner_target = match &globals.service_config.target {
-      Some(_) => Some(InnerTarget::try_new(globals)?),
-      None => None,
-    };
     let inner_validator = match globals.service_config.validation.as_ref() {
       Some(_) => Some(Validator::try_new(globals, http_client).await?),
       None => None,
@@ -148,6 +140,15 @@ where
       .access
       .as_ref()
       .map(|_| Arc::new(RequestFilter::new(globals.service_config.access.as_ref().unwrap())));
+
+    let inner_relay = match &globals.service_config.relay {
+      Some(_) => Some(InnerRelay::try_new(globals, http_client, request_filter.clone())?),
+      None => None,
+    };
+    let inner_target = match &globals.service_config.target {
+      Some(_) => Some(InnerTarget::try_new(globals)?),
+      None => None,
+    };
 
     Ok(Self {
       globals: globals.clone(),
