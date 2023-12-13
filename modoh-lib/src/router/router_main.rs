@@ -1,7 +1,7 @@
 use super::{router_serve_req::serve_request_with_validation, socket::bind_tcp_socket};
 use crate::{
   count::RequestCount, error::*, globals::Globals, hyper_client::HttpClient, hyper_executor::LocalExecutor, log::*,
-  relay::InnerRelay, target::InnerTarget, validator::Validator,
+  relay::InnerRelay, request_filter::RequestFilter, target::InnerTarget, validator::Validator,
 };
 use hyper::{
   body::Incoming,
@@ -30,6 +30,8 @@ where
   inner_validator: Option<Arc<Validator<C>>>,
   /// request count
   request_count: RequestCount,
+  /// request filter
+  request_filter: Option<Arc<RequestFilter>>,
 }
 
 impl<C> Router<C>
@@ -53,6 +55,7 @@ where
     let relay_clone = self.inner_relay.clone();
     let target_clone = self.inner_target.clone();
     let validator_clone = self.inner_validator.clone();
+    let request_filter_clone = self.request_filter.clone();
     let timeout_sec = self.globals.service_config.timeout;
     self.globals.runtime_handle.clone().spawn(async move {
       timeout(
@@ -69,6 +72,7 @@ where
               relay_clone.clone(),
               target_clone.clone(),
               validator_clone.clone(),
+              request_filter_clone.clone(),
             )
           }),
         ),
@@ -139,6 +143,11 @@ where
       Some(_) => Some(Validator::try_new(globals, http_client).await?),
       None => None,
     };
+    let request_filter = globals
+      .service_config
+      .access
+      .as_ref()
+      .map(|_| Arc::new(RequestFilter::new(globals.service_config.access.as_ref().unwrap())));
 
     Ok(Self {
       globals: globals.clone(),
@@ -147,7 +156,7 @@ where
       inner_target,
       inner_validator,
       request_count,
+      request_filter,
     })
-    // todo!()
   }
 }

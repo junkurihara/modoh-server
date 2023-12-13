@@ -3,6 +3,7 @@ use crate::{
   hyper_body::{passthrough_response, synthetic_error_response, synthetic_response, BoxBody, IncomingOr},
   log::*,
   relay::InnerRelay,
+  request_filter::RequestFilter,
   target::InnerTarget,
   validator::Validator,
 };
@@ -14,10 +15,11 @@ use std::{net::SocketAddr, sync::Arc};
 pub async fn serve_request_with_validation<C>(
   req: Request<Incoming>,
   peer_addr: SocketAddr,
-  hostname: String,
+  _hostname: String,
   relay: Option<Arc<InnerRelay<C>>>,
   target: Option<Arc<InnerTarget>>,
   validator: Option<Arc<Validator<C>>>,
+  request_filter: Option<Arc<RequestFilter>>,
 ) -> Result<hyper::Response<IncomingOr<BoxBody>>>
 where
   C: Send + Sync + Connect + Clone + 'static,
@@ -53,9 +55,24 @@ where
     };
   }
 
-  // TODO: source ip access control here
+  // Source ip access control here
   // for authorized ip addresses, maintain blacklist (error metrics) at each relay for given requests
   // domain check should be done in forwarder.
+  let peer_ip_adder = peer_addr.ip();
+  let req_header = req.headers();
+  let filter_result = request_filter.as_ref().and_then(|filter| {
+    filter
+      .inbound_filter
+      .as_ref()
+      .map(|inbound| inbound.is_allowed_request(&peer_ip_adder, req_header))
+  });
+  if let Some(res) = filter_result {
+    if let Err(e) = res {
+      debug!("Source ip address is filtered: {}", e);
+      return synthetic_error_response(StatusCode::from(e));
+    }
+    debug!("Passed source ip address access control");
+  }
 
   // match modoh relay
   if relay.as_ref().map(|r| r.relay_path == path).unwrap_or(false) {

@@ -176,6 +176,9 @@ impl TryInto<ServiceConfig> for &TargetConfig {
         inner_cdn_ip.extend(ip_list);
       }
 
+      let trust_previous_hop = access.trust_previous_hop.unwrap_or(true);
+      info!("Set trust previous hop: {}", trust_previous_hop);
+
       let mut inner_domain = vec![];
       if service_conf.relay.is_some() {
         for domain in access.allowed_destination_domains.as_ref().unwrap_or(&vec![]).iter() {
@@ -191,6 +194,7 @@ impl TryInto<ServiceConfig> for &TargetConfig {
         allowed_source_ip_addresses: inner_ip,
         allowed_destination_domains: inner_domain,
         trusted_cdn_ip_addresses: inner_cdn_ip,
+        trust_previous_hop,
       });
     };
 

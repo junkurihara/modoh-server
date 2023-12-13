@@ -93,6 +93,8 @@ pub struct AccessConfig {
   pub allowed_destination_domains: Vec<String>,
   /// Trusted CDN ip addresses
   pub trusted_cdn_ip_addresses: Vec<IpNet>,
+  /// Whether to trust previous hop reverse proxy
+  pub trust_previous_hop: bool,
 }
 
 impl Default for ServiceConfig {

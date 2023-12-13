@@ -77,6 +77,8 @@ pub struct Access {
   pub trusted_cdn_ips: Option<Vec<String>>,
   /// Trusted cdn ip addresses file
   pub trusted_cdn_ips_file: Option<String>,
+  /// Always trust previous proxy address retrieved from remote_addr
+  pub trust_previous_hop: Option<bool>,
 
   /// Allowed destination domains
   pub allowed_destination_domains: Option<Vec<String>>,
