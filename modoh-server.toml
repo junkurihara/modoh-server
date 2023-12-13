@@ -73,7 +73,7 @@ allowed_source_ips = [
 
 ## Trusted CDNs and proxies ip ranges that will be written in X-Forwarded-For / Forwarded header
 trusted_cdn_ips = ["192.168.123.0/24"]
-trusted_cdn_ips_file = "/path/to/cdn_ips.txt"
+trusted_cdn_ips_file = "./cdn_ips.txt"
 # Always trust previous hop ip address, retrieved from remote_addr.
 # We set [default = true], since we assume that this application is always located internal network and exposed along with a TLS reverse proxy.
 # (the previous hop is always trusted)
