@@ -1,7 +1,7 @@
 use crate::{error::*, log::*, AccessConfig};
 use http::{header, HeaderMap};
 use ipnet::IpNet;
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 
 // /// Header keys that may contain the client IP address by previous routers like CDNs.
 // const HEADER_IP_KEYS: &[&str] = &[
@@ -131,7 +131,7 @@ fn retrieve_from_xff(header: &HeaderMap) -> HttpResult<Vec<IpAddr>> {
 
   let entries_extracted_for = entries
     .iter()
-    .filter_map(|entry| entry.parse::<IpAddr>().ok())
+    .filter_map(|entry| manipulate_ip_string(entry))
     .collect::<Vec<_>>();
   if entries.len() != entries_extracted_for.len() {
     return Err(HttpError::InvalidXForwardedForHeader(
@@ -152,6 +152,7 @@ fn retrieve_for_from_forwarded(header: &HeaderMap) -> HttpResult<Vec<IpAddr>> {
   let entries = forwarded_view
     .iter()
     .flat_map(|v| v.to_str().unwrap_or_default().split(','))
+    .map(|s| s.to_ascii_lowercase())
     .collect::<Vec<_>>();
 
   if !entries.iter().all(|entry| entry.contains("for=")) {
@@ -162,8 +163,8 @@ fn retrieve_for_from_forwarded(header: &HeaderMap) -> HttpResult<Vec<IpAddr>> {
   let entries_extracted_for = entries
     .iter()
     .filter_map(|entry| entry.split(';').find(|x| x.trim().starts_with("for=")))
-    .map(|v| v.split('=').last().unwrap_or_default().trim())
-    .filter_map(|v| v.parse::<IpAddr>().ok())
+    .map(|v| v.split('=').last().unwrap_or_default().trim().trim_matches('"'))
+    .filter_map(manipulate_ip_string)
     .collect::<Vec<_>>();
   if entries.len() != entries_extracted_for.len() {
     return Err(HttpError::InvalidForwardedHeader(
@@ -171,6 +172,25 @@ fn retrieve_for_from_forwarded(header: &HeaderMap) -> HttpResult<Vec<IpAddr>> {
     ));
   }
   Ok(entries_extracted_for)
+}
+
+fn manipulate_ip_string(ip: &str) -> Option<IpAddr> {
+  if ip.starts_with('[') && ip.contains(']') {
+    // ipv6 case with bracket
+    // ip[1..ip.len() - 1].to_string()
+    return ip[1..].split(']').next().unwrap_or_default().parse::<IpAddr>().ok();
+  }
+  // ipv4 case, or ipv6 case without bracket, i.e., without port
+  if !ip.contains(':') {
+    // ipv4 case without port
+    return ip.parse::<IpAddr>().ok();
+  }
+  if ip.chars().filter(|v| v == &':').count() == 1 {
+    // ipv4 case with port
+    return ip.parse::<SocketAddr>().map(|v| v.ip()).ok();
+  }
+  // ipv6 case without bracket
+  ip.parse::<IpAddr>().ok()
 }
 
 #[cfg(test)]
@@ -190,7 +210,7 @@ mod tests {
     );
     req_header.append(
       header::FORWARDED,
-      header::HeaderValue::from_str("proto=https;for=3.0.0.0;by=1.1.1.1, for=4.0.0.0").unwrap(),
+      header::HeaderValue::from_str("proto=https;for=3.0.0.0;by=1.1.1.1, for=4.0.0.0:1234").unwrap(),
     );
 
     let retrieved = retrieve_for_from_forwarded(&req_header).unwrap();
@@ -200,6 +220,28 @@ mod tests {
     assert_eq!(iter.next(), Some(&IpAddr::from([2, 0, 0, 0])));
     assert_eq!(iter.next(), Some(&IpAddr::from([3, 0, 0, 0])));
     assert_eq!(iter.next(), Some(&IpAddr::from([4, 0, 0, 0])));
+    assert_eq!(iter.next(), None);
+
+    let mut req_header = HeaderMap::new();
+    req_header.insert(
+      header::FORWARDED,
+      header::HeaderValue::from_str("proto=https;For=\"[2001:db8:cafe::17]\"").unwrap(),
+    );
+    req_header.append(
+      header::FORWARDED,
+      header::HeaderValue::from_str("proto=https;For=\"[2001:db8:cafe::18]:1234\"").unwrap(),
+    );
+    let retrieved = retrieve_for_from_forwarded(&req_header).unwrap();
+    assert_eq!(retrieved.len(), 2);
+    let mut iter = retrieved.iter();
+    assert_eq!(
+      iter.next(),
+      Some(&IpAddr::from([0x2001, 0xdb8, 0xcafe, 0, 0, 0, 0, 0x17]))
+    );
+    assert_eq!(
+      iter.next(),
+      Some(&IpAddr::from([0x2001, 0xdb8, 0xcafe, 0, 0, 0, 0, 0x18]))
+    );
     assert_eq!(iter.next(), None);
   }
   #[test]
