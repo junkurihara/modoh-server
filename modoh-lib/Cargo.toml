@@ -83,3 +83,6 @@ byteorder = "1.5.0"
 serde = { version = "1.0.193", default-features = false }
 auth-validator = { git = "https://github.com/junkurihara/rust-token-server", package = "rust-token-server-validator", branch = "develop" }
 serde_json = { version = "1.0.108" }
+
+# access control
+ipnet = { version = "2.9.0" }

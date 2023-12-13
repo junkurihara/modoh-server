@@ -71,9 +71,15 @@ pub struct Token {
 /// Allowed source ip addresses and destination domains
 pub struct Access {
   /// Allowed source ip addresses
-  pub allowed_source_ip_addresses: Vec<String>,
+  pub allowed_source_ips: Option<Vec<String>>,
+
+  /// Trusted cdn ip addresses
+  pub trusted_cdn_ips: Option<Vec<String>>,
+  /// Trusted cdn ip addresses file
+  pub trusted_cdn_ips_file: Option<String>,
+
   /// Allowed destination domains
-  pub allowed_destination_domains: Vec<String>,
+  pub allowed_destination_domains: Option<Vec<String>>,
 }
 
 impl ConfigToml {

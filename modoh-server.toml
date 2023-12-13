@@ -64,7 +64,11 @@ client_ids = ["client_id_1", "client_id_2"]
 ## (TODO: from dns, should we fetch addrs associated with a given list of authorized relay domains? but such addresses may be compromised)
 ## This is evaluated when no authorization header is given in the request or no token validation is configured.
 ## This happens typcially for forwarded requests from a relay, not a client.
-allowed_source_ip_addresses = ["192.168.1.1", "192.168.1.2"]
+allowed_source_ips = ["192.168.1.1", "192.168.1.2", "192.168.11.0/24"]
+
+## Trusted CDNs and proxies ip ranges that will be written in X-Forwarded-For / Forwarded header
+trusted_cdn_ips = ["192.168.123.0/24"]
+trusted_cdn_ips_file = "/path/to/cdn_ips.txt"
 
 ## Allowed next destination target and relay domains
 allowed_destination_domains = ["example.com", "example.net"]
