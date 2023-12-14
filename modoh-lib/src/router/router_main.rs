@@ -12,6 +12,7 @@ use hyper::{
 use hyper_util::{client::legacy::connect::Connect, rt::TokioIo, server::conn::auto::Builder as ConnectionBuilder};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::time::timeout;
+use tracing::Instrument as _;
 
 /// (M)ODoH Router main object
 pub struct Router<C>
@@ -65,15 +66,27 @@ where
         server_clone.serve_connection(
           stream,
           service_fn(move |req: Request<Incoming>| {
-            serve_request_with_validation(
-              req,
-              peer_addr,
-              hostname.clone(),
-              relay_clone.clone(),
-              target_clone.clone(),
-              validator_clone.clone(),
-              request_filter_clone.clone(),
-            )
+            {
+              // tracing
+              let req_span = tracing::info_span!(
+                  "serve_request",
+                  method = ?req.method(),
+                  uri = ?req.uri(),
+                  peer_addr = ?peer_addr,
+                  xff = ?req.headers().get("x-forwarded-for"),
+                  forwarded = ?req.headers().get("forwarded"),
+              );
+              serve_request_with_validation(
+                req,
+                peer_addr,
+                hostname.clone(),
+                relay_clone.clone(),
+                target_clone.clone(),
+                validator_clone.clone(),
+                request_filter_clone.clone(),
+              )
+              .instrument(req_span)
+            }
           }),
         ),
       )
