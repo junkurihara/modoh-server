@@ -1,5 +1,5 @@
 use super::toml::ConfigToml;
-use crate::{error::*, log::*};
+use crate::{error::*, trace::*};
 use async_trait::async_trait;
 use hot_reload::{Reload, ReloaderError};
 use ipnet::IpNet;
