@@ -51,7 +51,7 @@ tokio = { version = "1.35.0", features = [
 ] }
 anyhow = "1.0.75"
 tracing = "0.1.40"
-thiserror = "1.0.50"
+thiserror = "1.0.51"
 async-trait = "0.1.74"
 
 # http handling for both client and server
@@ -60,12 +60,15 @@ rustc-hash = "1.1.0"
 hyper = { version = "1.0.1", default-features = false }
 http = "1.0.0"
 http-body-util = "0.1.0"
-hyper-util = { version = "0.1.1", features = ["full"] }
+hyper-util = { git = "https://github.com/junkurihara/hyper-util", features = [
+  "full",
+], rev = "61724d117163adf2195c701fa8e06f5c22c0a64d" }
 
 # http handling for client
-hyper-tls = { version = "0.6.0", default-features = false, features = [
+hyper-tls = { git = "https://github.com/junkurihara/hyper-tls", features = [
   "alpn",
-], optional = true }
+  "vendored",
+], rev = "6faeba09c7c881f362b84f84ef1f292b04eabea9", optional = true }
 # hyper-rustls = { version = "0.24.2", default-features = false, features = [
 #   "tokio-runtime",
 #   "webpki-tokio",
