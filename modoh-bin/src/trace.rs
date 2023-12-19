@@ -18,7 +18,7 @@ pub fn init_tracing_subscriber() -> Guard {
     .with_level(true)
     .compact();
 
-  // This limits the logger to emits only proxy crate
+  // This limits the logger to emits only this crate
   let pkg_name = env!("CARGO_PKG_NAME").replace('-', "_");
   let level_string = std::env::var(EnvFilter::DEFAULT_ENV).unwrap_or_else(|_| "info".to_string());
   let filter_layer = EnvFilter::new(format!("{}={}", pkg_name, level_string));
@@ -44,6 +44,7 @@ pub fn init_tracing_subscriber() -> Guard {
   }
 }
 
+/// Guard for tracing subscriber
 pub(crate) struct Guard {
   #[cfg(feature = "otel")]
   pub(crate) meter_provider: MeterProvider,
