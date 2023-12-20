@@ -9,8 +9,8 @@ services:
       - 127.0.0.1:1777:1777 # pprof
       - 127.0.0.1:55679:55679 # zpages
     expose:
-      - 8889 # Prometheus
-      - 8888 # Prometheus
+      - 8889 # Prometheus exporter metrics
+      - 8888 # Prometheus metrics exposed by the collector
     volumes:
       - ./otel-config.yml:/etc/otel-config.yml
     command: ["--config=/etc/otel-config.yml"]
@@ -52,4 +52,5 @@ services:
 
 networks:
   net-otel:
+    name: net-otel
     driver: bridge
