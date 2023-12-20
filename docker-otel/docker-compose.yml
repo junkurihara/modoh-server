@@ -1,0 +1,15 @@
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:4317:4317 # gRPC
+      - 127.0.0.1:13133:13133 # health check
+      - 127.0.0.1:1777:1777 # pprof
+      - 127.0.0.1:55679:55679 # zpages
+    volumes:
+      - ./otel-config.yml:/etc/otel-config.yml
+    command: ["--config=/etc/otel-config.yml"]
+    # healthcheck:
+    #   test: ["CMD-SHELL", "wget -nv -t1 otel-collector:13133 || exit 1"]

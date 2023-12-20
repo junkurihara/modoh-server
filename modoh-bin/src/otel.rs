@@ -51,6 +51,7 @@ pub(crate) fn init_meter_provider<T: Into<String>>(otlp_endpoint: T) -> MeterPro
     .build();
   let stdout_reader = PeriodicReader::builder(stdout_exporter, runtime::Tokio).build();
 
+  /* ----------------- */
   // Rename foo metrics to foo_named and drop key_2 attribute
   let view_foo = |instrument: &Instrument| -> Option<Stream> {
     if instrument.name == "foo" {
@@ -79,6 +80,7 @@ pub(crate) fn init_meter_provider<T: Into<String>>(otlp_endpoint: T) -> MeterPro
       None
     }
   };
+  /* ----------------- */
 
   let meter_provider = MeterProvider::builder()
     .with_resource(resource())
