@@ -31,9 +31,10 @@ fn main() {
     };
 
     // Initialize tracing subscriber
-    let trace_config = TraceConfig {
+    let trace_config = TraceConfig::<String> {
       #[cfg(feature = "otel")]
       otlp_endpoint: parsed_opts.otlp_endpoint,
+      _marker: std::marker::PhantomData,
     };
     let _gurad = init_tracing_subscriber(&trace_config);
 
