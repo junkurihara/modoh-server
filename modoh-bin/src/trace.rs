@@ -9,7 +9,11 @@ use opentelemetry_sdk::metrics::MeterProvider;
 use tracing_opentelemetry::{MetricsLayer, OpenTelemetryLayer};
 
 /// Initialize tracing subscriber
-pub fn init_tracing_subscriber(trace_config: &TraceConfig) -> Guard {
+pub fn init_tracing_subscriber<'a, T>(trace_config: &'a TraceConfig<T>) -> Guard
+where
+  T: Into<String> + 'a,
+  std::string::String: std::convert::From<&'a T>,
+{
   let format_layer = fmt::layer()
     .with_line_number(false)
     .with_thread_ids(false)
@@ -34,6 +38,7 @@ pub fn init_tracing_subscriber(trace_config: &TraceConfig) -> Guard {
       reg.init();
       Guard { meter_provider: None }
     } else {
+      println!("Opentelemetry is enabled");
       let otlp_endpoint = trace_config.otlp_endpoint.as_ref().unwrap();
       let meter_provider = init_meter_provider(otlp_endpoint);
       reg
@@ -53,9 +58,12 @@ pub fn init_tracing_subscriber(trace_config: &TraceConfig) -> Guard {
 }
 
 /// Tracing config
-pub(crate) struct TraceConfig {
+pub(crate) struct TraceConfig<T>
+where
+  T: Into<String>,
+{
   #[cfg(feature = "otel")]
-  pub(crate) otlp_endpoint: Option<String>,
+  pub(crate) otlp_endpoint: Option<T>,
 }
 
 /// Guard for tracing subscriber
