@@ -1,15 +1,15 @@
-use opentelemetry_sdk::metrics::MeterProvider;
 pub use tracing::{debug, error, info, warn};
+use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 #[cfg(feature = "otel")]
 use crate::otel::{init_meter_provider, init_tracer};
 #[cfg(feature = "otel")]
-use tracing_opentelemetry::{MetricsLayer, OpenTelemetryLayer};
+use opentelemetry_sdk::metrics::MeterProvider;
 #[cfg(feature = "otel")]
-use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+use tracing_opentelemetry::{MetricsLayer, OpenTelemetryLayer};
 
 /// Initialize tracing subscriber
-pub fn init_tracing_subscriber() -> Guard {
+pub fn init_tracing_subscriber(trace_config: &TraceConfig) -> Guard {
   let format_layer = fmt::layer()
     .with_line_number(false)
     .with_thread_ids(false)
@@ -30,12 +30,20 @@ pub fn init_tracing_subscriber() -> Guard {
 
   #[cfg(feature = "otel")]
   {
-    let meter_provider = init_meter_provider();
-    reg
-      .with(MetricsLayer::new(meter_provider.clone()))
-      .with(OpenTelemetryLayer::new(init_tracer()))
-      .init();
-    Guard { meter_provider }
+    if trace_config.otlp_endpoint.is_none() {
+      reg.init();
+      Guard { meter_provider: None }
+    } else {
+      let otlp_endpoint = trace_config.otlp_endpoint.as_ref().unwrap();
+      let meter_provider = init_meter_provider(otlp_endpoint);
+      reg
+        .with(MetricsLayer::new(meter_provider.clone()))
+        .with(OpenTelemetryLayer::new(init_tracer(otlp_endpoint)))
+        .init();
+      Guard {
+        meter_provider: Some(meter_provider),
+      }
+    }
   }
   #[cfg(not(feature = "otel"))]
   {
@@ -44,16 +52,26 @@ pub fn init_tracing_subscriber() -> Guard {
   }
 }
 
+/// Tracing config
+pub(crate) struct TraceConfig {
+  #[cfg(feature = "otel")]
+  pub(crate) otlp_endpoint: Option<String>,
+}
+
 /// Guard for tracing subscriber
 pub(crate) struct Guard {
   #[cfg(feature = "otel")]
-  pub(crate) meter_provider: MeterProvider,
+  pub(crate) meter_provider: Option<MeterProvider>,
 }
 
 #[cfg(feature = "otel")]
 impl Drop for Guard {
   fn drop(&mut self) {
-    if let Err(err) = self.meter_provider.shutdown() {
+    if self.meter_provider.is_none() {
+      return;
+    }
+    let mp = self.meter_provider.take().unwrap();
+    if let Err(err) = mp.shutdown() {
       eprintln!("{err:?}");
     }
     opentelemetry::global::shutdown_tracer_provider();

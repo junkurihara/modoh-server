@@ -24,14 +24,18 @@ fn main() {
   let runtime = runtime_builder.build().unwrap();
 
   runtime.block_on(async {
-    // Initialize tracing subscriber
-    let _gurad = init_tracing_subscriber();
-
     // Initially load options
     let Ok(parsed_opts) = parse_opts() else {
-      error!("Invalid toml file");
+      eprintln!("Invalid toml file");
       std::process::exit(1);
     };
+
+    // Initialize tracing subscriber
+    let trace_config = TraceConfig {
+      #[cfg(feature = "otel")]
+      otlp_endpoint: parsed_opts.otlp_endpoint,
+    };
+    let _gurad = init_tracing_subscriber(&trace_config);
 
     #[cfg(feature = "otel")]
     {

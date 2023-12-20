@@ -27,10 +27,11 @@ pub(crate) fn resource() -> Resource {
 }
 
 /// Construct MeterProvider for MetricsLayer
-pub(crate) fn init_meter_provider() -> MeterProvider {
+pub(crate) fn init_meter_provider<T: Into<String>>(otlp_endpoint: T) -> MeterProvider {
   // exporter via otlp
   let exporter = opentelemetry_otlp::new_exporter()
     .tonic()
+    .with_endpoint(otlp_endpoint)
     .build_metrics_exporter(
       Box::new(DefaultAggregationSelector::new()),
       Box::new(DefaultTemporalitySelector::new()),
@@ -93,7 +94,7 @@ pub(crate) fn init_meter_provider() -> MeterProvider {
 }
 
 // Construct Tracer for OpenTelemetryLayer
-pub(crate) fn init_tracer() -> Tracer {
+pub(crate) fn init_tracer<T: Into<String>>(otlp_endpoint: T) -> Tracer {
   opentelemetry_otlp::new_pipeline()
     .tracing()
     .with_trace_config(
@@ -105,11 +106,7 @@ pub(crate) fn init_tracer() -> Tracer {
         .with_resource(resource()),
     )
     .with_batch_config(BatchConfig::default())
-    .with_exporter(
-      opentelemetry_otlp::new_exporter()
-        .tonic()
-        .with_endpoint("http://localhost:4317"),
-    )
+    .with_exporter(opentelemetry_otlp::new_exporter().tonic().with_endpoint(otlp_endpoint))
     .install_batch(runtime::Tokio)
     .unwrap()
 }
