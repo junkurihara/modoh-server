@@ -28,8 +28,10 @@ exporters:
     verbosity: detailed
     sampling_initial: 2 # default
     sampling_thereafter: 500 # default
-  # otlp/jaeger: # Jaeger supports OTLP directly
-  #   endpoint: https://jaeger.example.com:4317
+  otlp/jaeger: # Jaeger supports OTLP directly
+    endpoint: http://jaeger:4317
+    tls:
+      insecure: true
   # prometheusremotewrite: # the PRW exporter, to ingest metrics to backend
   #   endpoint: https://prw.example.com/v1/api/remote_write
 
@@ -47,7 +49,7 @@ service:
     traces/dev:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug]
+      exporters: [debug, otlp/jaeger]
     metrics/prod:
       receivers: [otlp]
       processors: [batch]

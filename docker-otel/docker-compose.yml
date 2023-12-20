@@ -11,5 +11,31 @@ services:
     volumes:
       - ./otel-config.yml:/etc/otel-config.yml
     command: ["--config=/etc/otel-config.yml"]
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
     # healthcheck:
     #   test: ["CMD-SHELL", "wget -nv -t1 otel-collector:13133 || exit 1"]
+    networks:
+      - net-otel
+
+  # Jaeger
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: jaeger
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:16686:16686 # frontend
+    expose:
+      - 4317 # OTLP
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - net-otel
+
+networks:
+  net-otel:
+    driver: bridge
