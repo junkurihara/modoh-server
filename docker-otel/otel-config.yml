@@ -32,8 +32,8 @@ exporters:
     endpoint: http://jaeger:4317
     tls:
       insecure: true
-  # prometheusremotewrite: # the PRW exporter, to ingest metrics to backend
-  #   endpoint: https://prw.example.com/v1/api/remote_write
+  prometheus:
+    endpoint: "0.0.0.0:8889"
 
 extensions:
   zpages: # https://github.com/open-telemetry/opentelemetry-collector/blob/main/extension/zpagesextension
@@ -53,10 +53,10 @@ service:
     metrics/prod:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug]
+      exporters: [debug, prometheus]
     metrics/host:
       receivers: [hostmetrics]
       processors: [resourcedetection/docker, batch]
-      exporters: [debug]
+      exporters: [debug, prometheus]
 
   extensions: [zpages, pprof, health_check]

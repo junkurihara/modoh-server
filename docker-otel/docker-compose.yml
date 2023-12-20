@@ -8,6 +8,9 @@ services:
       - 127.0.0.1:13133:13133 # health check
       - 127.0.0.1:1777:1777 # pprof
       - 127.0.0.1:55679:55679 # zpages
+    expose:
+      - 8889 # Prometheus
+      - 8888 # Prometheus
     volumes:
       - ./otel-config.yml:/etc/otel-config.yml
     command: ["--config=/etc/otel-config.yml"]
@@ -33,6 +36,17 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    networks:
+      - net-otel
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "127.0.0.1:9090:9090" # frontend
     networks:
       - net-otel
 
