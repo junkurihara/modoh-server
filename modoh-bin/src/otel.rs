@@ -1,3 +1,4 @@
+use crate::trace::TraceConfig;
 use opentelemetry::{global, Key, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{
@@ -10,24 +11,42 @@ use opentelemetry_sdk::{
   Resource,
 };
 use opentelemetry_semantic_conventions::{
-  resource::{DEPLOYMENT_ENVIRONMENT, SERVICE_NAME, SERVICE_VERSION},
+  resource::{DEPLOYMENT_ENVIRONMENT, HOST_NAME, SERVICE_NAME, SERVICE_VERSION},
   SCHEMA_URL,
 };
 
 // Create a Resource that captures information about the entity for which telemetry is recorded.
-pub(crate) fn resource() -> Resource {
+pub(crate) fn resource<T>(trace_config: &TraceConfig<T>) -> Resource
+where
+  T: Into<String> + Clone,
+  opentelemetry::Value: From<T>,
+{
   Resource::from_schema_url(
     [
       KeyValue::new(SERVICE_NAME, env!("CARGO_PKG_NAME")),
       KeyValue::new(SERVICE_VERSION, env!("CARGO_PKG_VERSION")),
-      KeyValue::new(DEPLOYMENT_ENVIRONMENT, "develop"),
+      KeyValue::new(
+        DEPLOYMENT_ENVIRONMENT,
+        trace_config
+          .otel_config
+          .as_ref()
+          .unwrap()
+          .deployment_environment
+          .clone(),
+      ),
+      KeyValue::new(HOST_NAME, trace_config.otel_config.as_ref().unwrap().hostname.clone()),
     ],
     SCHEMA_URL,
   )
 }
 
 /// Construct MeterProvider for MetricsLayer
-pub(crate) fn init_meter_provider<T: Into<String>>(otlp_endpoint: T) -> MeterProvider {
+pub(crate) fn init_meter_provider<T>(trace_config: &TraceConfig<T>) -> MeterProvider
+where
+  T: Into<String> + Clone,
+  opentelemetry::Value: From<T>,
+{
+  let otlp_endpoint = trace_config.otel_config.as_ref().unwrap().otlp_endpoint.clone();
   // exporter via otlp
   let exporter = opentelemetry_otlp::new_exporter()
     .tonic()
@@ -83,7 +102,7 @@ pub(crate) fn init_meter_provider<T: Into<String>>(otlp_endpoint: T) -> MeterPro
   /* ----------------- */
 
   let meter_provider = MeterProvider::builder()
-    .with_resource(resource())
+    .with_resource(resource(trace_config))
     .with_reader(reader)
     .with_reader(stdout_reader)
     .with_view(view_foo)
@@ -96,7 +115,12 @@ pub(crate) fn init_meter_provider<T: Into<String>>(otlp_endpoint: T) -> MeterPro
 }
 
 // Construct Tracer for OpenTelemetryLayer
-pub(crate) fn init_tracer<T: Into<String>>(otlp_endpoint: T) -> Tracer {
+pub(crate) fn init_tracer<T>(trace_config: &TraceConfig<T>) -> Tracer
+where
+  T: Into<String> + Clone,
+  opentelemetry::Value: From<T>,
+{
+  let otlp_endpoint = trace_config.otel_config.as_ref().unwrap().otlp_endpoint.clone();
   opentelemetry_otlp::new_pipeline()
     .tracing()
     .with_trace_config(
@@ -105,7 +129,7 @@ pub(crate) fn init_tracer<T: Into<String>>(otlp_endpoint: T) -> Tracer {
         .with_sampler(Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(1.0))))
         // If export trace to AWS X-Ray, you can use XrayIdGenerator
         .with_id_generator(RandomIdGenerator::default())
-        .with_resource(resource()),
+        .with_resource(resource(trace_config)),
     )
     .with_batch_config(BatchConfig::default())
     .with_exporter(opentelemetry_otlp::new_exporter().tonic().with_endpoint(otlp_endpoint))

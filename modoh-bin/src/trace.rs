@@ -9,11 +9,7 @@ use opentelemetry_sdk::metrics::MeterProvider;
 use tracing_opentelemetry::{MetricsLayer, OpenTelemetryLayer};
 
 /// Initialize tracing subscriber
-pub fn init_tracing_subscriber<'a, T>(_trace_config: &'a TraceConfig<T>) -> Guard
-where
-  T: Into<String> + 'a,
-  std::string::String: std::convert::From<&'a T>,
-{
+pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>) -> Guard {
   let format_layer = fmt::layer()
     .with_line_number(false)
     .with_thread_ids(false)
@@ -34,16 +30,15 @@ where
 
   #[cfg(feature = "otel")]
   {
-    if _trace_config.otlp_endpoint.is_none() {
+    if _trace_config.otel_config.is_none() {
       reg.init();
       Guard { meter_provider: None }
     } else {
       println!("Opentelemetry is enabled for metrics and traces");
-      let otlp_endpoint = _trace_config.otlp_endpoint.as_ref().unwrap();
-      let meter_provider = init_meter_provider(otlp_endpoint);
+      let meter_provider = init_meter_provider(_trace_config);
       reg
         .with(MetricsLayer::new(meter_provider.clone()))
-        .with(OpenTelemetryLayer::new(init_tracer(otlp_endpoint)))
+        .with(OpenTelemetryLayer::new(init_tracer(_trace_config)))
         .init();
       Guard {
         meter_provider: Some(meter_provider),
@@ -60,8 +55,16 @@ where
 /// Tracing config
 pub(crate) struct TraceConfig<T> {
   #[cfg(feature = "otel")]
-  pub(crate) otlp_endpoint: Option<T>,
+  pub(crate) otel_config: Option<OtelConfig<T>>,
   pub(crate) _marker: std::marker::PhantomData<fn() -> T>,
+}
+
+#[cfg(feature = "otel")]
+/// Observability config
+pub(crate) struct OtelConfig<T> {
+  pub(crate) otlp_endpoint: T,
+  pub(crate) hostname: T,
+  pub(crate) deployment_environment: T,
 }
 
 /// Guard for tracing subscriber

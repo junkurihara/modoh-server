@@ -10,9 +10,9 @@ services:
     build: # Uncomment if you build yourself
       context: ../
       dockerfile: ./docker/Dockerfile # based on ubuntu 22.04 and build x86_64-unknown-linux-gnu
-      platforms: # Choose your platforms
-        # - "linux/amd64"
-        - "linux/arm64"
+      # platforms: # Choose your platforms
+      # - "linux/amd64"
+      # - "linux/arm64"
     environment:
       - LOG_LEVEL=debug
       - LOG_TO_FILE=true
@@ -20,7 +20,9 @@ services:
       - HOST_UID=501
       - HOST_GID=501
       # - WATCH=true
-      - OTEL_ENDPOINT=http://otel-collector:4317 # opentelemetry collector if you use
+      - OTLP_ENDPOINT=http://otel-collector:4317 # opentelemetry collector if you use
+      # - OTEL_HOSTNAME=example.com # Used in otel resource attributes
+      # - OTEL_PRODUCTION=true # Used in otel resource attributes
     tty: false
     privileged: true
     volumes:

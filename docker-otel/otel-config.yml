@@ -3,6 +3,13 @@ receivers:
     protocols:
       grpc:
         endpoint: "0.0.0.0:4317" # for docker
+  prometheus:
+    config:
+      scrape_configs:
+          - job_name: 'otel-collector'
+            scrape_interval: 5s
+            static_configs:
+              - targets: ['0.0.0.0:8888']
   hostmetrics:
     collection_interval: 10s
     scrapers:
@@ -32,8 +39,19 @@ exporters:
     endpoint: http://jaeger:4317
     tls:
       insecure: true
-  prometheus:
-    endpoint: "0.0.0.0:8889"
+    # tls:
+    #   cert_file: file.cert
+    #   key_file: file.key
+  prometheusremotewrite:
+    endpoint: "http://mimir:9009/api/v1/push"
+    send_metadata: true
+    external_labels:
+      instance: "example.com" # TODO: change this to your domain running the OTel Collector? ここにホスト名入れるのは正しいのか？
+    # tls:
+    #   cert_file: file.cert
+    #   key_file: file.key
+  # prometheus:
+  #   endpoint: 0.0.0.0:8889
 
 extensions:
   zpages: # https://github.com/open-telemetry/opentelemetry-collector/blob/main/extension/zpagesextension
@@ -50,13 +68,17 @@ service:
       receivers: [otlp]
       processors: [batch]
       exporters: [debug, otlp/jaeger]
-    metrics/prod:
+    metrics/app:
       receivers: [otlp]
-      processors: [batch]
-      exporters: [debug, prometheus]
+      processors: [resourcedetection/docker, batch]
+      exporters: [debug, prometheusremotewrite]
     metrics/host:
       receivers: [hostmetrics]
       processors: [resourcedetection/docker, batch]
-      exporters: [debug, prometheus]
+      exporters: [debug, prometheusremotewrite]
+    metrics/otel-collector:
+      receivers: [prometheus]
+      processors: [resourcedetection/docker, batch]
+      exporters: [debug, prometheusremotewrite]
 
   extensions: [zpages, pprof, health_check]
