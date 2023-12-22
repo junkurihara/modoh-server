@@ -24,7 +24,6 @@ use std::sync::Arc;
 
 pub use auth_validator::{ValidationConfig, ValidationConfigInner};
 pub use globals::{AccessConfig, ServiceConfig};
-pub use trace::MetricsGuard;
 
 /// Entry point of the relay
 pub async fn entrypoint(
@@ -35,12 +34,18 @@ pub async fn entrypoint(
   #[cfg(all(feature = "rustls", feature = "native-tls"))]
   warn!("Both \"native-tls\" and feature \"rustls\" features are enabled. \"rustls\" will be used.");
 
+  #[cfg(feature = "metrics")]
+  // build meters from global meters
+  let meters = crate::metrics::Meters::new();
+
   // build globals
   let globals = Arc::new(Globals {
     service_config: service_config.clone(),
     runtime_handle: runtime_handle.clone(),
     term_notify: term_notify.clone(),
     request_count: RequestCount::default(),
+    #[cfg(feature = "metrics")]
+    meters,
   });
   // build http client
   let http_client = Arc::new(HttpClient::try_new(runtime_handle.clone())?);

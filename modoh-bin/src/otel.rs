@@ -112,6 +112,7 @@ where
     .with_view(view_prefix)
     .build();
 
+  // Set global MeterProvider to use the meter_provider inside library
   global::set_meter_provider(meter_provider.clone());
 
   meter_provider

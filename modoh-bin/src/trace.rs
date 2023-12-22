@@ -1,4 +1,4 @@
-use modoh_server_lib::MetricsGuard;
+use opentelemetry_sdk::metrics::MeterProvider;
 pub use tracing::{debug, error, info, warn};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
@@ -65,4 +65,24 @@ pub(crate) struct OtelConfig<T> {
   pub(crate) otlp_endpoint: T,
   #[cfg(feature = "otel-instance-id")]
   pub(crate) service_instance_id: T,
+}
+
+/// Guard for opentelemetry metrics
+pub struct MetricsGuard {
+  #[cfg(feature = "otel")]
+  pub meter_provider: Option<MeterProvider>,
+}
+
+#[cfg(feature = "otel")]
+impl Drop for MetricsGuard {
+  fn drop(&mut self) {
+    if self.meter_provider.is_none() {
+      return;
+    }
+    let mp = self.meter_provider.take().unwrap();
+    if let Err(err) = mp.shutdown() {
+      eprintln!("{err:?}");
+    }
+    opentelemetry::global::shutdown_tracer_provider();
+  }
 }

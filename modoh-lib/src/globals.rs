@@ -20,6 +20,10 @@ pub struct Globals {
 
   /// Request count, i.e., TCP sessions
   pub request_count: RequestCount,
+
+  #[cfg(feature = "metrics")]
+  /// Metrics
+  pub meters: crate::metrics::Meters,
 }
 
 #[derive(Clone)]
