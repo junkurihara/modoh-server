@@ -1,4 +1,4 @@
-use crate::trace::TraceConfig;
+use crate::{constants::OTEL_SERVICE_NAMESPACE, trace::TraceConfig};
 use opentelemetry::{global, Key, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{
@@ -11,7 +11,7 @@ use opentelemetry_sdk::{
   Resource,
 };
 use opentelemetry_semantic_conventions::{
-  resource::{DEPLOYMENT_ENVIRONMENT, HOST_NAME, SERVICE_NAME, SERVICE_VERSION},
+  resource::{SERVICE_NAME, SERVICE_NAMESPACE, SERVICE_VERSION},
   SCHEMA_URL,
 };
 
@@ -23,18 +23,9 @@ where
 {
   Resource::from_schema_url(
     [
+      KeyValue::new(SERVICE_NAMESPACE, OTEL_SERVICE_NAMESPACE),
       KeyValue::new(SERVICE_NAME, env!("CARGO_PKG_NAME")),
       KeyValue::new(SERVICE_VERSION, env!("CARGO_PKG_VERSION")),
-      KeyValue::new(
-        DEPLOYMENT_ENVIRONMENT,
-        trace_config
-          .otel_config
-          .as_ref()
-          .unwrap()
-          .deployment_environment
-          .clone(),
-      ),
-      KeyValue::new(HOST_NAME, trace_config.otel_config.as_ref().unwrap().hostname.clone()),
     ],
     SCHEMA_URL,
   )

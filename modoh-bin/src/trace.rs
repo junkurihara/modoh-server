@@ -63,8 +63,6 @@ pub(crate) struct TraceConfig<T> {
 /// Observability config
 pub(crate) struct OtelConfig<T> {
   pub(crate) otlp_endpoint: T,
-  pub(crate) hostname: T,
-  pub(crate) deployment_environment: T,
 }
 
 /// Guard for tracing subscriber

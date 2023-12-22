@@ -20,9 +20,7 @@ services:
       - HOST_UID=501
       - HOST_GID=501
       # - WATCH=true
-      - OTLP_ENDPOINT=http://otel-collector:4317 # opentelemetry collector if you use
-      # - OTEL_HOSTNAME=example.com # Used in otel resource attributes
-      # - OTEL_PRODUCTION=true # Used in otel resource attributes
+      - OTLP_ENDPOINT=http://otel-collector:4317 # opentelemetry is enabled if specified the OTLP_ENDPOINT
     tty: false
     privileged: true
     volumes:

@@ -3,14 +3,14 @@ receivers:
     protocols:
       grpc:
         endpoint: "0.0.0.0:4317" # for docker
-  prometheus:
+  prometheus: # the Prometheus receiver the OTel Collector is sending its own metrics to
     config:
       scrape_configs:
           - job_name: 'otel-collector'
             scrape_interval: 5s
             static_configs:
               - targets: ['0.0.0.0:8888']
-  hostmetrics:
+  hostmetrics: # the hostmetrics receiver
     collection_interval: 10s
     scrapers:
       cpu:
@@ -25,10 +25,23 @@ receivers:
 
 processors:
   batch:
-  resourcedetection/docker:
+  resourcedetection/docker: # resource detector for Docker
     detectors: [env, docker]
     timeout: 2s
     override: false
+  resource/host_metadata: # resource attributes manipulator for host metadata
+    attributes:
+      - key: "deployment.environment"
+        value: "develop" # TODO: change this to your environment
+        action: upsert
+      - key: "host.name"
+        value: "example.com" # TODO: change this to your domain running the OTel Collector
+        action: upsert
+  attributes/host_metadata: # attributes manipulator for host metadata
+    actions:
+      - key: "instance"
+        value: "example.com" # TODO: change this to your domain running the OTel Collector
+        action: upsert
 
 exporters:
   debug:
@@ -45,8 +58,6 @@ exporters:
   prometheusremotewrite:
     endpoint: "http://mimir:9009/api/v1/push"
     send_metadata: true
-    external_labels:
-      instance: "example.com" # TODO: change this to your domain running the OTel Collector? ここにホスト名入れるのは正しいのか？
     # tls:
     #   cert_file: file.cert
     #   key_file: file.key
@@ -66,19 +77,19 @@ service:
   pipelines:
     traces/dev:
       receivers: [otlp]
-      processors: [batch]
+      processors: [batch, resource/host_metadata, attributes/host_metadata]
       exporters: [debug, otlp/jaeger]
     metrics/app:
       receivers: [otlp]
-      processors: [resourcedetection/docker, batch]
+      processors: [resourcedetection/docker, resource/host_metadata, attributes/host_metadata, batch]
       exporters: [debug, prometheusremotewrite]
     metrics/host:
       receivers: [hostmetrics]
-      processors: [resourcedetection/docker, batch]
+      processors: [resourcedetection/docker, resource/host_metadata, attributes/host_metadata, batch]
       exporters: [debug, prometheusremotewrite]
     metrics/otel-collector:
       receivers: [prometheus]
-      processors: [resourcedetection/docker, batch]
+      processors: [resourcedetection/docker, resource/host_metadata, attributes/host_metadata, batch]
       exporters: [debug, prometheusremotewrite]
 
   extensions: [zpages, pprof, health_check]

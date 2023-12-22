@@ -48,20 +48,6 @@ pub fn parse_opts() -> Result<Opts, anyhow::Error> {
         .value_name("ENDPOINT_URL")
         .default_value_if("otel", ArgPredicate::IsPresent, DEFAULT_OTLP_ENDPOINT)
         .help("Opentelemetry collector endpoint url connected via gRPC"),
-  ).arg(
-    Arg::new("otel_hostname")
-        .long("otel-hostname")
-        .short('n')
-        .value_name("OTEL_HOSTNAME")
-        .default_value_if("otel", ArgPredicate::IsPresent, None)
-        .help("Opentelemetry collector endpoint url connected via gRPC [default: hostname]"),
-  ).arg(
-    Arg::new("otel_prod")
-        .long("otel-prod")
-        .short('p')
-        .action(ArgAction::SetTrue)
-        .default_value_if("otel", ArgPredicate::IsPresent, "false")
-        .help("Opentelemetry deployment environment"),
   );
 
   let matches = options.get_matches();
@@ -74,16 +60,6 @@ pub fn parse_opts() -> Result<Opts, anyhow::Error> {
     otel_config: if matches.get_flag("otel") {
       Some(OtelConfig {
         otlp_endpoint: matches.get_one::<String>("otlp_endpoint").unwrap().to_owned(),
-        hostname: matches
-          .get_one::<String>("otel_hostname")
-          .map(|v| v.to_owned())
-          .unwrap_or_else(|| gethostname::gethostname().into_string().unwrap_or("none".to_string()))
-          .to_owned(),
-        deployment_environment: if matches.get_flag("otel_prod") {
-          "production".to_string()
-        } else {
-          "develop".to_string()
-        },
       })
     } else {
       None
