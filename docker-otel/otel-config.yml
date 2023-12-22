@@ -39,7 +39,7 @@ processors:
         action: upsert
   attributes/host_metadata: # attributes manipulator for host metadata
     actions:
-      - key: "instance"
+      - key: "host.name"
         value: "example.com" # TODO: change this to your domain running the OTel Collector
         action: upsert
 
@@ -77,7 +77,7 @@ service:
   pipelines:
     traces/dev:
       receivers: [otlp]
-      processors: [batch, resource/host_metadata, attributes/host_metadata]
+      processors: [batch, resource/host_metadata] # for traces, we can see host meta in resource attributes
       exporters: [debug, otlp/jaeger]
     metrics/app:
       receivers: [otlp]

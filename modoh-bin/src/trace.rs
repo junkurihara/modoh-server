@@ -35,10 +35,11 @@ pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>) -> Guard {
       Guard { meter_provider: None }
     } else {
       println!("Opentelemetry is enabled for metrics and traces");
-      let meter_provider = init_meter_provider(_trace_config);
+      let otel_config = _trace_config.otel_config.as_ref().unwrap();
+      let meter_provider = init_meter_provider(otel_config);
       reg
         .with(MetricsLayer::new(meter_provider.clone()))
-        .with(OpenTelemetryLayer::new(init_tracer(_trace_config)))
+        .with(OpenTelemetryLayer::new(init_tracer(otel_config)))
         .init();
       Guard {
         meter_provider: Some(meter_provider),
@@ -63,6 +64,8 @@ pub(crate) struct TraceConfig<T> {
 /// Observability config
 pub(crate) struct OtelConfig<T> {
   pub(crate) otlp_endpoint: T,
+  #[cfg(feature = "otel-instance-id")]
+  pub(crate) service_instance_id: T,
 }
 
 /// Guard for tracing subscriber

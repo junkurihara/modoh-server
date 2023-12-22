@@ -32,7 +32,8 @@ publish = false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["otel"]
+default = ["otel-full"]
+otel-full = ["otel", "otel-instance-id"]
 otel = [
   "dep:opentelemetry",
   "dep:opentelemetry_sdk",
@@ -40,8 +41,8 @@ otel = [
   "dep:opentelemetry-otlp",
   "dep:opentelemetry-semantic-conventions",
   "dep:tracing-opentelemetry",
-  "dep:serde_json",
 ]
+otel-instance-id = ["dep:uuid"]
 
 [dependencies]
 modoh-server-lib = { path = "../modoh-lib" }
@@ -87,7 +88,12 @@ opentelemetry-otlp = { version = "0.14.0", features = [
   "metrics",
 ], optional = true }
 opentelemetry-semantic-conventions = { version = "0.13.0", optional = true }
-serde_json = { version = "1.0.108", default-features = false, optional = true }
+
+# add random otel service id whenever restarting
+uuid = { version = "1.6.1", default-features = false, features = [
+  "v4",
+  "fast-rng",
+], optional = true }
 
 # ip address
 ipnet = { version = "2.9.0" }

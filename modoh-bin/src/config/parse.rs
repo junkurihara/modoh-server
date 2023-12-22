@@ -60,6 +60,8 @@ pub fn parse_opts() -> Result<Opts, anyhow::Error> {
     otel_config: if matches.get_flag("otel") {
       Some(OtelConfig {
         otlp_endpoint: matches.get_one::<String>("otlp_endpoint").unwrap().to_owned(),
+        #[cfg(feature = "otel-instance-id")]
+        service_instance_id: uuid::Uuid::new_v4().to_string(),
       })
     } else {
       None
