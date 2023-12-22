@@ -2,7 +2,7 @@ use crate::{
   error::*,
   hyper_body::{BoxBody, IncomingOr},
   hyper_executor::LocalExecutor,
-  log::*,
+  trace::*,
 };
 use http::{Request, Response};
 use hyper::body::{Body, Incoming};

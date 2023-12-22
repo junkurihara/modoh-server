@@ -4,9 +4,9 @@ use crate::{
   globals::Globals,
   hyper_body::{BoxBody, IncomingOr},
   hyper_client::HttpClient,
-  log::*,
   message_util::{check_content_type, inspect_host, inspect_request_body, RequestType},
   request_filter::RequestFilter,
+  trace::*,
 };
 use http::{
   header::{self, HeaderMap, HeaderValue},

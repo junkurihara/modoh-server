@@ -5,15 +5,18 @@ mod globals;
 mod hyper_body;
 mod hyper_client;
 mod hyper_executor;
-mod log;
 mod message_util;
 mod relay;
 mod request_filter;
 mod router;
 mod target;
+mod trace;
 mod validator;
 
-use crate::{count::RequestCount, error::*, globals::Globals, log::*, router::Router};
+#[cfg(feature = "metrics")]
+mod metrics;
+
+use crate::{count::RequestCount, error::*, globals::Globals, router::Router, trace::*};
 use hyper_client::HttpClient;
 use hyper_executor::LocalExecutor;
 use hyper_util::server::{self, conn::auto::Builder as ConnectionBuilder};
@@ -21,6 +24,7 @@ use std::sync::Arc;
 
 pub use auth_validator::{ValidationConfig, ValidationConfigInner};
 pub use globals::{AccessConfig, ServiceConfig};
+pub use trace::MetricsGuard;
 
 /// Entry point of the relay
 pub async fn entrypoint(

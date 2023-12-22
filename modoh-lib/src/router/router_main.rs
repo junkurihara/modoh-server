@@ -1,7 +1,7 @@
 use super::{router_serve_req::serve_request_with_validation, socket::bind_tcp_socket};
 use crate::{
-  count::RequestCount, error::*, globals::Globals, hyper_client::HttpClient, hyper_executor::LocalExecutor, log::*,
-  relay::InnerRelay, request_filter::RequestFilter, target::InnerTarget, validator::Validator,
+  count::RequestCount, error::*, globals::Globals, hyper_client::HttpClient, hyper_executor::LocalExecutor,
+  relay::InnerRelay, request_filter::RequestFilter, target::InnerTarget, trace::*, validator::Validator,
 };
 use hyper::{
   body::Incoming,

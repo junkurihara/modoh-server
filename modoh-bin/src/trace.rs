@@ -1,15 +1,14 @@
+use modoh_server_lib::MetricsGuard;
 pub use tracing::{debug, error, info, warn};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 #[cfg(feature = "otel")]
 use crate::otel::{init_meter_provider, init_tracer};
 #[cfg(feature = "otel")]
-use opentelemetry_sdk::metrics::MeterProvider;
-#[cfg(feature = "otel")]
 use tracing_opentelemetry::{MetricsLayer, OpenTelemetryLayer};
 
 /// Initialize tracing subscriber
-pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>) -> Guard {
+pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>) -> MetricsGuard {
   let format_layer = fmt::layer()
     .with_line_number(false)
     .with_thread_ids(false)
@@ -32,7 +31,7 @@ pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>) -> Guard {
   {
     if _trace_config.otel_config.is_none() {
       reg.init();
-      Guard { meter_provider: None }
+      MetricsGuard { meter_provider: None }
     } else {
       println!("Opentelemetry is enabled for metrics and traces");
       let otel_config = _trace_config.otel_config.as_ref().unwrap();
@@ -41,7 +40,7 @@ pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>) -> Guard {
         .with(MetricsLayer::new(meter_provider.clone()))
         .with(OpenTelemetryLayer::new(init_tracer(otel_config)))
         .init();
-      Guard {
+      MetricsGuard {
         meter_provider: Some(meter_provider),
       }
     }
@@ -49,7 +48,7 @@ pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>) -> Guard {
   #[cfg(not(feature = "otel"))]
   {
     reg.init();
-    Guard {}
+    MetricsGuard {}
   }
 }
 
@@ -66,24 +65,4 @@ pub(crate) struct OtelConfig<T> {
   pub(crate) otlp_endpoint: T,
   #[cfg(feature = "otel-instance-id")]
   pub(crate) service_instance_id: T,
-}
-
-/// Guard for tracing subscriber
-pub(crate) struct Guard {
-  #[cfg(feature = "otel")]
-  pub(crate) meter_provider: Option<MeterProvider>,
-}
-
-#[cfg(feature = "otel")]
-impl Drop for Guard {
-  fn drop(&mut self) {
-    if self.meter_provider.is_none() {
-      return;
-    }
-    let mp = self.meter_provider.take().unwrap();
-    if let Err(err) = mp.shutdown() {
-      eprintln!("{err:?}");
-    }
-    opentelemetry::global::shutdown_tracer_provider();
-  }
 }

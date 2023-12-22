@@ -6,8 +6,8 @@ use crate::{
   },
   error::*,
   hyper_body::BoxBody,
-  log::*,
   message_util::{check_content_type, inspect_host, read_request_body, RequestType},
+  trace::*,
 };
 use base64::{engine::general_purpose, Engine as _};
 use byteorder::{BigEndian, ByteOrder};

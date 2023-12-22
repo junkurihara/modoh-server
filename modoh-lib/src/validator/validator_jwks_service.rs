@@ -1,5 +1,5 @@
 use super::validator_main::Validator;
-use crate::{constants::JWKS_REFETCH_DELAY_SEC, error::*, hyper_client::HttpClient, log::*};
+use crate::{constants::JWKS_REFETCH_DELAY_SEC, error::*, hyper_client::HttpClient, trace::*};
 use auth_validator::JwksHttpClient;
 use futures::{select, FutureExt};
 use hyper::body::Body;

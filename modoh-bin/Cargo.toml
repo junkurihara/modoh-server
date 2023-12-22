@@ -41,11 +41,14 @@ otel = [
   "dep:opentelemetry-otlp",
   "dep:opentelemetry-semantic-conventions",
   "dep:tracing-opentelemetry",
+  "modoh-server-lib/metrics",
 ]
 otel-instance-id = ["dep:uuid"]
 
 [dependencies]
-modoh-server-lib = { path = "../modoh-lib" }
+modoh-server-lib = { path = "../modoh-lib", default-features = false, features = [
+  "native-tls",
+] }
 
 anyhow = "1.0.75"
 mimalloc = { version = "*", default-features = false }

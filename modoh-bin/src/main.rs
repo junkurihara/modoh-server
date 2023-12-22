@@ -34,16 +34,6 @@ fn main() {
     let trace_config = parsed_opts.trace_config;
     let _gurad = init_tracing_subscriber(&trace_config);
 
-    /* -------------- */
-    // TODO: Remove this block after implementing metrics
-    #[cfg(feature = "otel")]
-    {
-      // metricsにおいて記録しておくkeyだけ指定するようにviewを設定
-      info!(monotonic_counter.foo = 1_u64, key_1 = "bar", key_2 = 10, "handle foo",);
-      info!(histogram.baz = 10, "histogram example",);
-    }
-    /* -------------- */
-
     if !parsed_opts.watch {
       if let Err(e) = relay_service_without_watcher(&parsed_opts.config_file_path, runtime.handle().clone()).await {
         error!("MODoH service existed: {e}");

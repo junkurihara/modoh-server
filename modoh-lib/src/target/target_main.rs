@@ -5,8 +5,8 @@ use crate::{
   error::*,
   globals::Globals,
   hyper_body::{full, BoxBody},
-  log::*,
   message_util::inspect_host,
+  trace::*,
 };
 use futures::{select, FutureExt};
 use http::{header, Method, Request, Response};

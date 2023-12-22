@@ -1,5 +1,5 @@
 use super::relay_main::InnerRelay;
-use crate::{constants::HOSTNAME, error::*, log::*};
+use crate::{constants::HOSTNAME, error::*, trace::*};
 use hyper::body::Body;
 use hyper_util::client::legacy::connect::Connect;
 use rustc_hash::FxHashMap as HashMap;

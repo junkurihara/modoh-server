@@ -1,4 +1,4 @@
-use crate::log::*;
+use crate::trace::*;
 use cedarwood::Cedar;
 use regex::Regex;
 

@@ -4,7 +4,7 @@ use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{
   metrics::{
     reader::{DefaultAggregationSelector, DefaultTemporalitySelector},
-    MeterProvider, PeriodicReader,
+    Instrument, MeterProvider, PeriodicReader, Stream,
   },
   runtime,
   trace::{BatchConfig, RandomIdGenerator, Sampler, Tracer},
@@ -61,6 +61,15 @@ where
   let stdout_exporter = opentelemetry_stdout::MetricsExporter::default();
   let stdout_reader = PeriodicReader::builder(stdout_exporter, runtime::Tokio).build();
 
+  // /* -------------- */
+  // // TODO: Remove this block after implementing metrics
+  // #[cfg(feature = "otel")]
+  // {
+  //   // metricsにおいて記録しておくkeyだけ指定するようにviewを設定
+  //   info!(monotonic_counter.foo = 1_u64, key_1 = "bar", key_2 = 10, "handle foo",);
+  //   info!(histogram.baz = 10, "histogram example",);
+  // }
+  // /* -------------- */
   /* ----------------- */
   // // Rename foo metrics to foo_named and drop key_2 attribute
   // let view_foo = |instrument: &Instrument| -> Option<Stream> {
@@ -90,14 +99,17 @@ where
   //     None
   //   }
   // };
+  // add prefix to metrics names
+  let view_prefix = |instrument: &Instrument| -> Option<Stream> {
+    Some(Stream::new().name(format!("{}_{}", OTEL_SERVICE_NAMESPACE, instrument.name)))
+  };
   /* ----------------- */
 
   let meter_provider = MeterProvider::builder()
     .with_resource(resource(otel_config))
     .with_reader(reader)
     .with_reader(stdout_reader)
-    // .with_view(view_foo)
-    // .with_view(view_baz)
+    .with_view(view_prefix)
     .build();
 
   global::set_meter_provider(meter_provider.clone());

@@ -1,4 +1,4 @@
-use crate::{error::*, log::*, AccessConfig};
+use crate::{error::*, trace::*, AccessConfig};
 use http::{header, HeaderMap};
 use ipnet::IpNet;
 use std::net::{IpAddr, SocketAddr};
