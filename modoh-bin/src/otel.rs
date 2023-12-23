@@ -102,7 +102,12 @@ where
   // add prefix to metrics names
   // TODO: this setting removes description and units. Fix it.
   let view_prefix = |instrument: &Instrument| -> Option<Stream> {
-    Some(Stream::new().name(format!("{}_{}", OTEL_SERVICE_NAMESPACE, instrument.name)))
+    Some(
+      Stream::new()
+        .name(format!("{}_{}", OTEL_SERVICE_NAMESPACE, instrument.name))
+        .description(instrument.description.clone())
+        .unit(instrument.unit.clone()),
+    )
   };
   /* ----------------- */
 

@@ -8,6 +8,7 @@ services:
       - 127.0.0.1:13133:13133 # health check
       - 127.0.0.1:1777:1777 # pprof
       - 127.0.0.1:55679:55679 # zpages
+      - 127.0.0.1:8889:8889 # TODO: remove later just for checking prometheus metrics
     expose:
       - 4317 # OTLP gRPC
       - 8889 # Prometheus exporter metrics

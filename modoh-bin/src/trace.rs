@@ -1,9 +1,10 @@
-use opentelemetry_sdk::metrics::MeterProvider;
 pub use tracing::{debug, error, info, warn};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 #[cfg(feature = "otel")]
 use crate::otel::{init_meter_provider, init_tracer};
+#[cfg(feature = "otel")]
+use opentelemetry_sdk::metrics::MeterProvider;
 #[cfg(feature = "otel")]
 use tracing_opentelemetry::{MetricsLayer, OpenTelemetryLayer};
 

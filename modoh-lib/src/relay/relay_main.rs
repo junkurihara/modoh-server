@@ -16,6 +16,7 @@ use http::{
 use hyper::body::{Body, Incoming};
 use hyper_util::client::legacy::connect::Connect;
 use std::sync::Arc;
+use tracing::Instrument as _;
 use url::Url;
 
 /// wrapper of http client
@@ -116,8 +117,8 @@ where
     self.update_request_parts(&nexthop_url, &mut parts)?;
     let updated_request = Request::from_parts(parts, body);
 
-    // let updated_request = Request::from_parts(parts, Body::from(encrypted_query.to_owned()));
-    let mut response = match self.inner.request(updated_request).await {
+    let relay_request_span = tracing::info_span!("relay_request");
+    let mut response = match self.inner.request(updated_request).instrument(relay_request_span).await {
       Ok(res) => res,
       Err(e) => {
         warn!("Upstream query error: {}", e);

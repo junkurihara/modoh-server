@@ -57,12 +57,12 @@ exporters:
     #   key_file: file.key
   prometheusremotewrite:
     endpoint: "http://mimir:9009/api/v1/push"
-    # send_metadata: true
+    send_metadata: true
     # tls:
     #   cert_file: file.cert
     #   key_file: file.key
-  # prometheus:
-  #   endpoint: 0.0.0.0:8889
+  prometheus:
+    endpoint: 0.0.0.0:8889
 
 extensions:
   zpages: # https://github.com/open-telemetry/opentelemetry-collector/blob/main/extension/zpagesextension
@@ -81,8 +81,8 @@ service:
       exporters: [debug, otlp/jaeger]
     metrics/app:
       receivers: [otlp]
-      processors: [resourcedetection/docker, resource/host_metadata, attributes/host_metadata, batch]
-      exporters: [debug, prometheusremotewrite]
+      processors: [resource/host_metadata, attributes/host_metadata, batch]
+      exporters: [debug, prometheusremotewrite, prometheus]
     metrics/host:
       receivers: [hostmetrics]
       processors: [resourcedetection/docker, resource/host_metadata, attributes/host_metadata, batch]
