@@ -23,7 +23,7 @@ pub struct Globals {
 
   #[cfg(feature = "metrics")]
   /// Metrics
-  pub meters: crate::metrics::Meters,
+  pub meters: Arc<crate::metrics::Meters>,
 }
 
 #[derive(Clone)]

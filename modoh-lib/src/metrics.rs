@@ -6,8 +6,10 @@ use opentelemetry::{
 #[derive(Debug)]
 /// Opentelemetry meters, i.e., counters, gauges, histograms, etc.
 pub(crate) struct Meters {
-  pub(crate) test_cnt: Counter<u64>,
-  pub(crate) test_cnt2: Counter<u64>,
+  /// counter for token validation
+  pub(crate) token_validation: Counter<u64>,
+  /// counter for token validation error
+  pub(crate) token_validation_error: Counter<u64>,
 }
 
 impl Meters {
@@ -16,13 +18,20 @@ impl Meters {
     let meter_provider = global::meter_provider();
     let meter = meter_provider.meter("modoh-server");
 
-    // TODO: define metrics
-    let x = meter.u64_counter("test_counter").init();
-    let y = meter.u64_counter("ok").init();
+    // define metrics and change monotonic_counter to metrics defined here
+    let token_validation = meter
+      .u64_counter("token_validation")
+      .with_description("Count of token validation")
+      .init();
+    let token_validation_error = meter
+      .u64_counter("token_validation_error")
+      .with_description("Count of token validation error")
+      .init();
+    // TODO: define more
 
     Meters {
-      test_cnt: x,
-      test_cnt2: y,
+      token_validation,
+      token_validation_error,
     }
   }
 }

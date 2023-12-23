@@ -14,25 +14,26 @@ use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::time::timeout;
 use tracing::Instrument as _;
 
+#[derive(Clone)]
 /// (M)ODoH Router main object
 pub struct Router<C>
 where
   C: Send + Sync + Connect + Clone + 'static,
 {
   /// global config
-  globals: Arc<Globals>,
+  pub(crate) globals: Arc<Globals>,
   /// hyper server receiving http request
-  http_server: Arc<ConnectionBuilder<LocalExecutor>>,
+  pub(crate) http_server: Arc<ConnectionBuilder<LocalExecutor>>,
   /// hyper client forwarding requests to upstream
-  inner_relay: Option<Arc<InnerRelay<C>>>,
+  pub(crate) inner_relay: Option<Arc<InnerRelay<C>>>,
   /// dns client forwarding dns query to upstream
-  inner_target: Option<Arc<InnerTarget>>,
+  pub(crate) inner_target: Option<Arc<InnerTarget>>,
   /// validator for token validation
-  inner_validator: Option<Arc<Validator<C>>>,
+  pub(crate) inner_validator: Option<Arc<Validator<C>>>,
   /// request count
-  request_count: RequestCount,
+  pub(crate) request_count: RequestCount,
   /// request filter
-  request_filter: Option<Arc<RequestFilter>>,
+  pub(crate) request_filter: Option<Arc<RequestFilter>>,
 }
 
 impl<C> Router<C>
@@ -51,12 +52,8 @@ where
     }
     debug!("Request incoming: current # {}", request_count.current());
 
+    let self_clone = self.clone();
     let server_clone = self.http_server.clone();
-    let hostname = self.globals.service_config.hostname.clone();
-    let relay_clone = self.inner_relay.clone();
-    let target_clone = self.inner_target.clone();
-    let validator_clone = self.inner_validator.clone();
-    let request_filter_clone = self.request_filter.clone();
     let timeout_sec = self.globals.service_config.timeout;
     self.globals.runtime_handle.clone().spawn(async move {
       timeout(
@@ -76,16 +73,7 @@ where
                   xff = ?req.headers().get("x-forwarded-for"),
                   forwarded = ?req.headers().get("forwarded"),
               );
-              serve_request_with_validation(
-                req,
-                peer_addr,
-                hostname.clone(),
-                relay_clone.clone(),
-                target_clone.clone(),
-                validator_clone.clone(),
-                request_filter_clone.clone(),
-              )
-              .instrument(req_span)
+              serve_request_with_validation(req, peer_addr, self_clone.clone()).instrument(req_span)
             }
           }),
         ),

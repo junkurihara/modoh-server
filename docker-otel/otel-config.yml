@@ -57,7 +57,7 @@ exporters:
     #   key_file: file.key
   prometheusremotewrite:
     endpoint: "http://mimir:9009/api/v1/push"
-    send_metadata: true
+    # send_metadata: true
     # tls:
     #   cert_file: file.cert
     #   key_file: file.key

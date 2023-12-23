@@ -36,7 +36,7 @@ pub async fn entrypoint(
 
   #[cfg(feature = "metrics")]
   // build meters from global meters
-  let meters = crate::metrics::Meters::new();
+  let meters = Arc::new(crate::metrics::Meters::new());
 
   // build globals
   let globals = Arc::new(Globals {
@@ -55,8 +55,6 @@ pub async fn entrypoint(
 
   // build router
   let router = Router::try_new(&globals, &http_server, &http_client).await?;
-
-  // TODO: build prometheus
 
   // start router
   if let Err(e) = router.start().await {

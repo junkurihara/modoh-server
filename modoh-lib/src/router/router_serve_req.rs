@@ -1,30 +1,31 @@
+use super::Router;
 use crate::{
   error::*,
   hyper_body::{passthrough_response, synthetic_error_response, synthetic_response, BoxBody, IncomingOr},
-  relay::InnerRelay,
-  request_filter::RequestFilter,
-  target::InnerTarget,
   trace::*,
-  validator::Validator,
 };
 use hyper::{body::Incoming, header, Request, StatusCode};
 use hyper_util::client::legacy::connect::Connect;
-use std::{net::SocketAddr, sync::Arc};
+use std::net::SocketAddr;
 use tracing::Instrument as _;
 
 /// Service wrapper with validation
 pub async fn serve_request_with_validation<C>(
   req: Request<Incoming>,
   peer_addr: SocketAddr,
-  _hostname: String,
-  relay: Option<Arc<InnerRelay<C>>>,
-  target: Option<Arc<InnerTarget>>,
-  validator: Option<Arc<Validator<C>>>,
-  request_filter: Option<Arc<RequestFilter>>,
+  router: Router<C>,
 ) -> Result<hyper::Response<IncomingOr<BoxBody>>>
 where
   C: Send + Sync + Connect + Clone + 'static,
 {
+  let relay = router.inner_relay.clone();
+  let target = router.inner_target.clone();
+  let validator = router.inner_validator.clone();
+  let request_filter = router.request_filter.clone();
+
+  #[cfg(feature = "metrics")]
+  let meters = router.globals.meters.clone();
+
   //TODO: timeout for each services, which should be shorter than TIMEOUT_SEC in router_main.rs
 
   // validation with header
@@ -32,14 +33,19 @@ where
   if let (Some(validator), true) = (validator, req.headers().contains_key(header::AUTHORIZATION)) {
     let token_validation_span = tracing::info_span!("token_validation");
     let _enter = token_validation_span.enter();
-    debug!(monotonic_counter.token_validation = 1_u64, "execute token validation");
+    debug!("execute token validation");
+
+    #[cfg(feature = "metrics")]
+    meters.token_validation.add(1_u64, &[]);
+
     let claims = match validator.validate_request(&req).in_current_span().await {
       Ok(claims) => claims,
       Err(e) => {
-        warn!(
-          monotonic_counter.token_validation_error = 1_u64,
-          "token validation failed: {}", e
-        );
+        warn!("token validation failed: {}", e);
+
+        #[cfg(feature = "metrics")]
+        meters.token_validation_error.add(1_u64, &[]);
+
         return synthetic_error_response(StatusCode::from(e));
       }
     };
