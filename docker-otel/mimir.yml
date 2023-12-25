@@ -1,43 +1,51 @@
 # Do not use this configuration in production.
 # It is for demonstration purposes only.
-multitenancy_enabled: false
 
+# Run Mimir in single process mode, with all components running in 1 process.
+target: all,alertmanager,overrides-exporter
+
+common:
+  storage:
+    backend: s3
+    s3:
+      endpoint: rclone:58080
+      secret_access_key: "${SECRET_ACCESS_KEY}" # This is a secret injected via an environment variable
+      access_key_id: "${ACCESS_KEY_ID}" # This is a secret injected via an environment variable
+      bucket_name: "${S3_BUCKET_NAME}" # This is a secret injected via an environment variable
+      insecure: true
+
+# Blocks storage requires a prefix when using a common object storage bucket.
 blocks_storage:
-  backend: filesystem
-  bucket_store:
-    sync_dir: /var/mimir/tsdb-sync
-  filesystem:
-    dir: /var/mimir/data/tsdb
+  storage_prefix: blocks
   tsdb:
-    dir: /var/mimir/tsdb
+    dir: /data/ingester
 
-compactor:
-  data_dir: /var/mimir/compactor
-  sharding_ring:
-    kvstore:
-      store: memberlist
+# Use memberlist, a gossip-based protocol, to enable the 3 Mimir replicas to communicate
+memberlist:
+  join_members: [mimir]
 
-distributor:
+ruler:
+  rule_path: /data/ruler
+  alertmanager_url: http://127.0.0.1:9009/alertmanager
   ring:
-    instance_addr: 127.0.0.1
-    kvstore:
-      store: memberlist
+    # Quickly detect unhealthy rulers to speed up the tutorial.
+    heartbeat_period: 2s
+    heartbeat_timeout: 10s
+
+alertmanager:
+  data_dir: /data/alertmanager
+  fallback_config_file: /etc/mimir-alertmanager-fallback.yml
+  external_url: http://localhost:9009/alertmanager
+  sharding_ring:
+    replication_factor: 1
 
 ingester:
   ring:
-    instance_addr: 127.0.0.1
-    kvstore:
-      store: memberlist
     replication_factor: 1
-
-ruler_storage:
-  backend: filesystem
-  filesystem:
-    dir: /var/mimir/rules
 
 server:
   http_listen_port: 9009
-  log_level: error
+  log_level: info
 
 store_gateway:
   sharding_ring:

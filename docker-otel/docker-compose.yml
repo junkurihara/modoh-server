@@ -8,7 +8,6 @@ services:
       - 127.0.0.1:13133:13133 # health check
       - 127.0.0.1:1777:1777 # pprof
       - 127.0.0.1:55679:55679 # zpages
-      - 127.0.0.1:8889:8889 # TODO: remove later just for checking prometheus metrics
     expose:
       - 4317 # OTLP gRPC
       - 8889 # Prometheus exporter metrics
@@ -46,27 +45,66 @@ services:
   mimir:
     image: grafana/mimir:latest
     container_name: mimir
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:9009:9009 # frontend
     expose:
       - 9009
-    command: ["--config.file=/etc/mimir.yml"]
+    command: ["--config.file=/etc/mimir.yml", "--config.expand-env=true"]
+    env_file: .env
     volumes:
-      - ./otel-data/mimir:/var/mimir:rw
-      - ./mimir.yml:/etc/mimir.yml
+      - ./otel-data/mimir:/data:rw
+      - ./mimir.yml:/etc/mimir.yml:ro
+      - ./mimir-alertmanager-fallback.yml:/etc/mimir-alertmanager-fallback.yml:ro
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      - rclone
+    networks:
+      - net-otel
+
+  # Prometheus Remote Write Endpoint Storage (S3)
+  rclone:
+    image: rclone/rclone:latest
+    expose:
+      - 58080
+    container_name: rclone
+    security_opt:
+      - apparmor:unconfined
+    cap_add:
+      - SYS_ADMIN
+    # devices:
+    #   - /dev/fuse
+    env_file: .env
+    entrypoint: |
+      sh -c "
+        rclone serve s3 --auth-key ${ACCESS_KEY_ID},${SECRET_ACCESS_KEY} ${RCLONE_SERVER_NAME}:${S3_ROOT} --vfs-cache-mode writes --addr 0.0.0.0:58080 & \
+        wait
+      "
+    restart: always
+    volumes:
+      - ~/.config/rclone/rclone.conf:/config/rclone/rclone.conf:ro
+      - /tmp/rclone-cache:/root/.cache/
     logging:
       options:
         max-size: "10m"
         max-file: "3"
     networks:
-      - net-otel
+      net-otel:
 
   # Visualize metrics
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
+    restart: unless-stopped
     ports:
       - 127.0.0.1:3000:3000 # frontend
     volumes:
       - ./otel-data/grafana:/var/lib/grafana
+    depends_on:
+      - mimir
     logging:
       options:
         max-size: "10m"

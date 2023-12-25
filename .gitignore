@@ -8,3 +8,4 @@ log
 
 !src/target
 otel-data/
+.env
