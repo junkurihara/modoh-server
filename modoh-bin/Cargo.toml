@@ -31,8 +31,35 @@ publish = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = ["otel-full"]
+otel-full = ["otel-trace", "otel-metrics", "otel-instance-id"]
+otel-trace = [
+  "opentelemetry/trace",
+  "opentelemetry_sdk/trace",
+  "opentelemetry-stdout/trace",
+  "opentelemetry-otlp/trace",
+  "dep:tracing-opentelemetry",
+  "otel-base",
+]
+otel-metrics = [
+  "modoh-server-lib/metrics",
+  "opentelemetry/metrics",
+  "opentelemetry_sdk/metrics",
+  "opentelemetry-stdout/metrics",
+  "opentelemetry-otlp/metrics",
+  "otel-base",
+]
+otel-base = [
+  "opentelemetry_sdk/rt-tokio",
+  "dep:opentelemetry-semantic-conventions",
+]
+otel-instance-id = ["dep:uuid"]
+
 [dependencies]
-modoh-server-lib = { path = "../modoh-lib" }
+modoh-server-lib = { path = "../modoh-lib", default-features = false, features = [
+  "native-tls",
+] }
 
 anyhow = "1.0.75"
 mimalloc = { version = "*", default-features = false }
@@ -53,9 +80,23 @@ clap = { version = "4.4.11", features = ["std", "cargo", "wrap_help"] }
 toml = { version = "0.8.8", default-features = false, features = ["parse"] }
 hot_reload = "0.1.4"
 
-# logging
+# tracing and metrics
 tracing = { version = "0.1.40" }
-tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json"] }
+tracing-opentelemetry = { version = "0.22.0", optional = true }
+opentelemetry = { version = "0.21.0", optional = true }
+opentelemetry_sdk = { version = "0.21.1", features = [
+  "rt-tokio",
+], optional = true }
+opentelemetry-stdout = { version = "0.2.0", optional = true }
+opentelemetry-otlp = { version = "0.14.0", optional = true }
+opentelemetry-semantic-conventions = { version = "0.13.0", optional = true }
+
+# add random otel service id whenever restarting
+uuid = { version = "1.6.1", default-features = false, features = [
+  "v4",
+  "fast-rng",
+], optional = true }
 
 # ip address
 ipnet = { version = "2.9.0" }

@@ -10,9 +10,9 @@ services:
     build: # Uncomment if you build yourself
       context: ../
       dockerfile: ./docker/Dockerfile # based on ubuntu 22.04 and build x86_64-unknown-linux-gnu
-      platforms: # Choose your platforms
-        - "linux/amd64"
-        # - "linux/arm64"
+      # platforms: # Choose your platforms
+      # - "linux/amd64"
+      # - "linux/arm64"
     environment:
       - LOG_LEVEL=debug
       - LOG_TO_FILE=true
@@ -20,11 +20,20 @@ services:
       - HOST_UID=501
       - HOST_GID=501
       # - WATCH=true
+      - OTLP_ENDPOINT=http://otel-collector:4317 # opentelemetry is enabled if specified the OTLP_ENDPOINT
     tty: false
     privileged: true
     volumes:
       - ./log:/modoh/log:rw
+      - ../.private/cdn_ips.txt:/etc/cdn_ips.txt:ro
       - ../.private/modoh-server.toml:/etc/modoh-server.toml:ro
       # NOTE: To correctly enable "watch" in docker,
       # ** you should mount not a file but a dir mapped to /modoh/config including "modoh-server.toml" due to the limitation of docker **
       # e.g, - ./modoh-config:/modoh/config
+    networks:
+      - net-otel # When you use opentelemetry collector
+
+networks:
+  # opentelemetry collector network should be created beforehand
+  net-otel:
+    external: true

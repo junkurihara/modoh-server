@@ -1,7 +1,8 @@
-use crate::{error::*, log::*, AccessConfig};
+use crate::{error::*, trace::*, AccessConfig};
 use http::{header, HeaderMap};
 use ipnet::IpNet;
 use std::net::{IpAddr, SocketAddr};
+use tracing::instrument;
 
 // /// Header keys that may contain the client IP address by previous routers like CDNs.
 // const HEADER_IP_KEYS: &[&str] = &[
@@ -58,6 +59,7 @@ impl IpFilter {
     }
   }
 
+  #[instrument(level = "debug", name = "is_request_from_allowed_ip_addr", skip(self, req_header))]
   /// Check if the incoming request is allowed to be forwarded by source ip filter
   /// Note that `peer-addr` is always the address of the reverse proxy.
   pub(crate) fn is_allowed_request(&self, peer_addr: &IpAddr, req_header: &HeaderMap) -> HttpResult<()> {

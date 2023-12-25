@@ -33,8 +33,8 @@ publish = false
 
 [features]
 default = ["native-tls"]
-native-tls = ["hyper-tls"]
-metrics = []
+metrics = ["dep:opentelemetry_sdk", "dep:opentelemetry"]
+native-tls = ["dep:hyper-tls"]
 rustls = []
 
 [dependencies]
@@ -51,21 +51,24 @@ tokio = { version = "1.35.0", features = [
 ] }
 anyhow = "1.0.75"
 tracing = "0.1.40"
-thiserror = "1.0.50"
+thiserror = "1.0.51"
 async-trait = "0.1.74"
 
 # http handling for both client and server
 url = "2.5.0"
 rustc-hash = "1.1.0"
-hyper = { version = "1.0.1", default-features = false }
+hyper = { version = "1.1.0", default-features = false }
 http = "1.0.0"
 http-body-util = "0.1.0"
-hyper-util = { version = "0.1.1", features = ["full"] }
+hyper-util = { git = "https://github.com/junkurihara/hyper-util", features = [
+  "full",
+], rev = "324408be9666670b47bf84180a4306fdd649cffc" }
 
 # http handling for client
-hyper-tls = { version = "0.6.0", default-features = false, features = [
+hyper-tls = { git = "https://github.com/junkurihara/hyper-tls", features = [
   "alpn",
-], optional = true }
+  "vendored",
+], rev = "17478f86118ca5b1dba3c76b660f4e7e0f17c020", optional = true }
 # hyper-rustls = { version = "0.24.2", default-features = false, features = [
 #   "tokio-runtime",
 #   "webpki-tokio",
@@ -88,3 +91,14 @@ serde_json = { version = "1.0.108" }
 ipnet = { version = "2.9.0" }
 cedarwood = { version = "0.4.6" }
 regex = { version = "1.10.2" }
+
+# metrics
+opentelemetry = { version = "0.21.0", features = [
+  "trace",
+  "metrics",
+], optional = true }
+opentelemetry_sdk = { version = "0.21.1", features = [
+  "trace",
+  "metrics",
+  "rt-tokio",
+], optional = true }

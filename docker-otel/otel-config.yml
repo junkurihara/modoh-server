@@ -1,0 +1,95 @@
+receivers:
+  otlp: # the OTLP receiver the app is sending traces to
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317" # for docker
+  prometheus: # the Prometheus receiver the OTel Collector is sending its own metrics to
+    config:
+      scrape_configs:
+          - job_name: 'otel-collector'
+            scrape_interval: 5s
+            static_configs:
+              - targets: ['0.0.0.0:8888']
+  hostmetrics: # the hostmetrics receiver
+    collection_interval: 10s
+    scrapers:
+      cpu:
+      disk:
+      load:
+      filesystem:
+      memory:
+      network:
+      paging:
+      processes:
+      process:
+
+processors:
+  batch:
+  resourcedetection/docker: # resource detector for Docker
+    detectors: [env, docker]
+    timeout: 2s
+    override: false
+  resource/host_metadata: # resource attributes manipulator for host metadata
+    attributes:
+      - key: "deployment.environment"
+        value: "develop" # TODO: change this to your environment
+        action: upsert
+      - key: "host.name"
+        value: "example.com" # TODO: change this to your domain running the OTel Collector
+        action: upsert
+  attributes/host_metadata: # attributes manipulator for host metadata
+    actions:
+      - key: "host.name"
+        value: "example.com" # TODO: change this to your domain running the OTel Collector
+        action: upsert
+
+exporters:
+  debug:
+    verbosity: detailed
+    sampling_initial: 2 # default
+    sampling_thereafter: 500 # default
+  otlp/jaeger: # Jaeger supports OTLP directly
+    endpoint: http://jaeger:4317
+    tls:
+      insecure: true
+    # tls:
+    #   cert_file: file.cert
+    #   key_file: file.key
+  prometheusremotewrite:
+    endpoint: "http://mimir:9009/api/v1/push"
+    send_metadata: true
+    # tls:
+    #   cert_file: file.cert
+    #   key_file: file.key
+  prometheus:
+    endpoint: 0.0.0.0:8889
+
+extensions:
+  zpages: # https://github.com/open-telemetry/opentelemetry-collector/blob/main/extension/zpagesextension
+    endpoint: 0.0.0.0:55679 # for docker
+  pprof: # https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/pprofextension
+    endpoint: 0.0.0.0:1777 # for docker
+  health_check: # https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/healthcheckextension
+    endpoint: 0.0.0.0:13133 # for docker
+
+
+service:
+  pipelines:
+    traces/dev:
+      receivers: [otlp]
+      processors: [batch, resource/host_metadata] # for traces, we can see host meta in resource attributes
+      exporters: [debug, otlp/jaeger]
+    metrics/app:
+      receivers: [otlp]
+      processors: [resource/host_metadata, attributes/host_metadata, batch]
+      exporters: [debug, prometheusremotewrite, prometheus]
+    metrics/host:
+      receivers: [hostmetrics]
+      processors: [resourcedetection/docker, resource/host_metadata, attributes/host_metadata, batch]
+      exporters: [debug, prometheusremotewrite]
+    metrics/otel-collector:
+      receivers: [prometheus]
+      processors: [resourcedetection/docker, resource/host_metadata, attributes/host_metadata, batch]
+      exporters: [debug, prometheusremotewrite]
+
+  extensions: [zpages, pprof, health_check]

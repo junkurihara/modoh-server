@@ -4,19 +4,20 @@ static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
 mod config;
 mod constants;
 mod error;
-mod log;
+mod trace;
+
+#[cfg(any(feature = "otel-trace", feature = "otel-metrics"))]
+mod otel;
 
 use crate::{
   config::{parse_opts, ConfigReloader, TargetConfig},
   constants::CONFIG_WATCH_DELAY_SECS,
-  log::*,
+  trace::*,
 };
 use hot_reload::{ReloaderReceiver, ReloaderService};
 use modoh_server_lib::{entrypoint, ServiceConfig};
 
 fn main() {
-  init_logger();
-
   let mut runtime_builder = tokio::runtime::Builder::new_multi_thread();
   runtime_builder.enable_all();
   runtime_builder.thread_name("modoh-server");
@@ -25,9 +26,13 @@ fn main() {
   runtime.block_on(async {
     // Initially load options
     let Ok(parsed_opts) = parse_opts() else {
-      error!("Invalid toml file");
+      eprintln!("Invalid toml file");
       std::process::exit(1);
     };
+
+    // Initialize tracing subscriber
+    let trace_config = parsed_opts.trace_config;
+    let _gurad = init_tracing_subscriber(&trace_config);
 
     if !parsed_opts.watch {
       if let Err(e) = relay_service_without_watcher(&parsed_opts.config_file_path, runtime.handle().clone()).await {

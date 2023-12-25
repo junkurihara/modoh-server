@@ -1,7 +1,7 @@
 use super::{router_serve_req::serve_request_with_validation, socket::bind_tcp_socket};
 use crate::{
-  count::RequestCount, error::*, globals::Globals, hyper_client::HttpClient, hyper_executor::LocalExecutor, log::*,
-  relay::InnerRelay, request_filter::RequestFilter, target::InnerTarget, validator::Validator,
+  count::RequestCount, error::*, globals::Globals, hyper_client::HttpClient, hyper_executor::LocalExecutor,
+  relay::InnerRelay, request_filter::RequestFilter, target::InnerTarget, trace::*, validator::Validator,
 };
 use hyper::{
   body::Incoming,
@@ -13,25 +13,26 @@ use hyper_util::{client::legacy::connect::Connect, rt::TokioIo, server::conn::au
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::time::timeout;
 
+#[derive(Clone)]
 /// (M)ODoH Router main object
 pub struct Router<C>
 where
   C: Send + Sync + Connect + Clone + 'static,
 {
   /// global config
-  globals: Arc<Globals>,
+  pub(crate) globals: Arc<Globals>,
   /// hyper server receiving http request
-  http_server: Arc<ConnectionBuilder<LocalExecutor>>,
+  pub(crate) http_server: Arc<ConnectionBuilder<LocalExecutor>>,
   /// hyper client forwarding requests to upstream
-  inner_relay: Option<Arc<InnerRelay<C>>>,
+  pub(crate) inner_relay: Option<Arc<InnerRelay<C>>>,
   /// dns client forwarding dns query to upstream
-  inner_target: Option<Arc<InnerTarget>>,
+  pub(crate) inner_target: Option<Arc<InnerTarget>>,
   /// validator for token validation
-  inner_validator: Option<Arc<Validator<C>>>,
+  pub(crate) inner_validator: Option<Arc<Validator<C>>>,
   /// request count
-  request_count: RequestCount,
+  pub(crate) request_count: RequestCount,
   /// request filter
-  request_filter: Option<Arc<RequestFilter>>,
+  pub(crate) request_filter: Option<Arc<RequestFilter>>,
 }
 
 impl<C> Router<C>
@@ -50,12 +51,8 @@ where
     }
     debug!("Request incoming: current # {}", request_count.current());
 
+    let self_clone = self.clone();
     let server_clone = self.http_server.clone();
-    let hostname = self.globals.service_config.hostname.clone();
-    let relay_clone = self.inner_relay.clone();
-    let target_clone = self.inner_target.clone();
-    let validator_clone = self.inner_validator.clone();
-    let request_filter_clone = self.request_filter.clone();
     let timeout_sec = self.globals.service_config.timeout;
     self.globals.runtime_handle.clone().spawn(async move {
       timeout(
@@ -64,17 +61,7 @@ where
         timeout_sec + Duration::from_secs(1),
         server_clone.serve_connection(
           stream,
-          service_fn(move |req: Request<Incoming>| {
-            serve_request_with_validation(
-              req,
-              peer_addr,
-              hostname.clone(),
-              relay_clone.clone(),
-              target_clone.clone(),
-              validator_clone.clone(),
-              request_filter_clone.clone(),
-            )
-          }),
+          service_fn(move |req: Request<Incoming>| serve_request_with_validation(req, peer_addr, self_clone.clone())),
         ),
       )
       .await

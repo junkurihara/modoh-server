@@ -4,9 +4,9 @@ use crate::{
   globals::Globals,
   hyper_body::{BoxBody, IncomingOr},
   hyper_client::HttpClient,
-  log::*,
   message_util::{check_content_type, inspect_host, inspect_request_body, RequestType},
   request_filter::RequestFilter,
+  trace::*,
 };
 use http::{
   header::{self, HeaderMap, HeaderValue},
@@ -16,6 +16,7 @@ use http::{
 use hyper::body::{Body, Incoming};
 use hyper_util::client::legacy::connect::Connect;
 use std::sync::Arc;
+use tracing::instrument;
 use url::Url;
 
 /// wrapper of http client
@@ -38,6 +39,10 @@ where
   pub(super) max_subseq_nodes: usize,
   /// request filter for destination domain name
   pub(super) request_filter: Option<Arc<RequestFilter>>,
+
+  #[cfg(feature = "metrics")]
+  /// metrics
+  pub(super) meters: Arc<crate::metrics::Meters>,
 }
 
 impl<C, B> InnerRelay<C, B>
@@ -47,6 +52,7 @@ where
   <B as Body>::Data: Send,
   <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
 {
+  #[instrument(name = "relay_serve", skip_all)]
   /// Serve request as relay
   /// 1. check host, method and listening path: as described in [RFC9230](https://datatracker.ietf.org/doc/rfc9230/) and Golang implementation [odoh-server-go](https://github.com/cloudflare/odoh-server-go), only post method is allowed.
   /// 2. check content type: only "application/oblivious-dns-message" is allowed.
@@ -93,6 +99,9 @@ where
     // for authorized domains, maintain blacklist (error metrics) at each relay for given responses
     let nexthop_domain = nexthop_url.host_str().ok_or(HttpError::InvalidUrl)?;
     let filter_result = self.request_filter.as_ref().and_then(|filter| {
+      #[cfg(feature = "metrics")]
+      self.meters.dst_domain_access_control.add(1_u64, &[]);
+
       filter
         .outbound_filter
         .as_ref()
@@ -101,6 +110,13 @@ where
     if let Some(res) = filter_result {
       if !res {
         debug!("Nexthop domain is filtered: {}", nexthop_domain);
+
+        #[cfg(feature = "metrics")]
+        self.meters.dst_domain_access_control_result_rejected.add(
+          1_u64,
+          &[opentelemetry::KeyValue::new("domain", nexthop_domain.to_string())],
+        );
+
         return Err(HttpError::ForbiddenDomain(nexthop_domain.to_string()));
       }
 
@@ -116,7 +132,9 @@ where
     self.update_request_parts(&nexthop_url, &mut parts)?;
     let updated_request = Request::from_parts(parts, body);
 
-    // let updated_request = Request::from_parts(parts, Body::from(encrypted_query.to_owned()));
+    #[cfg(feature = "metrics")]
+    let start = tokio::time::Instant::now();
+
     let mut response = match self.inner.request(updated_request).await {
       Ok(res) => res,
       Err(e) => {
@@ -124,12 +142,36 @@ where
         return Err(HttpError::SendRequestError(e));
       }
     };
+
+    #[cfg(feature = "metrics")]
+    {
+      let elapsed = start.elapsed().as_millis() as u64;
+      let subseq_relay_num = if nexthop_url.query_pairs().count() > 0 {
+        nexthop_url
+          .query_pairs()
+          .filter(|(k, _)| k.contains("relayhost"))
+          .count()
+          + 1
+      } else {
+        0 // direct query to target
+      };
+      self.meters.latency_relay_upstream.record(
+        elapsed,
+        &[opentelemetry::KeyValue::new(
+          "subseq_relay",
+          subseq_relay_num.to_string(),
+        )],
+      );
+      self.meters.subsequent_relay_num.record(subseq_relay_num as u64, &[])
+    }
+
     // Inspect and update response
     self.inspect_and_update_response_header(&mut response)?;
 
     Ok(response)
   }
 
+  #[instrument(level = "debug", skip_all)]
   /// Update request headers and clear information as much as possible
   fn update_request_parts(&self, nexthop_url: &Url, parts: &mut Parts) -> HttpResult<()> {
     parts.method = Method::POST;
@@ -145,6 +187,7 @@ where
     Ok(())
   }
 
+  #[instrument(level = "debug", skip_all)]
   /// inspect and update response header
   /// (M)ODoH response MUST NOT be cached as specified in [RFC9230](https://datatracker.ietf.org/doc/rfc9230/),
   /// and hence "no-cache, no-store" is set (overwritten) in cache-control header.
@@ -208,6 +251,9 @@ where
       relay_path,
       max_subseq_nodes,
       request_filter: request_filter.clone(),
+
+      #[cfg(feature = "metrics")]
+      meters: globals.meters.clone(),
     }))
   }
 }

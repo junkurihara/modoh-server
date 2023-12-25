@@ -5,15 +5,18 @@ mod globals;
 mod hyper_body;
 mod hyper_client;
 mod hyper_executor;
-mod log;
 mod message_util;
 mod relay;
 mod request_filter;
 mod router;
 mod target;
+mod trace;
 mod validator;
 
-use crate::{count::RequestCount, error::*, globals::Globals, log::*, router::Router};
+#[cfg(feature = "metrics")]
+mod metrics;
+
+use crate::{count::RequestCount, error::*, globals::Globals, router::Router, trace::*};
 use hyper_client::HttpClient;
 use hyper_executor::LocalExecutor;
 use hyper_util::server::{self, conn::auto::Builder as ConnectionBuilder};
@@ -31,12 +34,18 @@ pub async fn entrypoint(
   #[cfg(all(feature = "rustls", feature = "native-tls"))]
   warn!("Both \"native-tls\" and feature \"rustls\" features are enabled. \"rustls\" will be used.");
 
+  #[cfg(feature = "metrics")]
+  // build meters from global meters
+  let meters = Arc::new(crate::metrics::Meters::new());
+
   // build globals
   let globals = Arc::new(Globals {
     service_config: service_config.clone(),
     runtime_handle: runtime_handle.clone(),
     term_notify: term_notify.clone(),
     request_count: RequestCount::default(),
+    #[cfg(feature = "metrics")]
+    meters,
   });
   // build http client
   let http_client = Arc::new(HttpClient::try_new(runtime_handle.clone())?);
@@ -46,8 +55,6 @@ pub async fn entrypoint(
 
   // build router
   let router = Router::try_new(&globals, &http_server, &http_client).await?;
-
-  // TODO: build prometheus
 
   // start router
   if let Err(e) = router.start().await {
