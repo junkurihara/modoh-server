@@ -118,16 +118,24 @@ impl InnerTarget {
     }
     dns::set_edns_max_payload_size(query, MAX_DNS_RESPONSE_LEN as _).map_err(|_| HttpError::InvalidDnsQuery)?;
 
+    #[cfg(feature = "metrics")]
+    let start = tokio::time::Instant::now();
+
     // focus on the response from the upstream dns server to count metrics
     let resp = self.resolve_inner(query).await;
 
     #[cfg(feature = "metrics")]
-    if resp.is_err() {
-      let kind = resp.as_ref().unwrap_err().to_string();
-      self
-        .meters
-        .upstream_raw_dns_server_error
-        .add(1_u64, &[opentelemetry::KeyValue::new("kind", kind)]);
+    {
+      let elapsed = start.elapsed().as_millis() as u64;
+      self.meters.latency_target_upstream.record(elapsed, &[]);
+
+      if resp.is_err() {
+        let kind = resp.as_ref().unwrap_err().to_string();
+        self
+          .meters
+          .upstream_raw_dns_server_error
+          .add(1_u64, &[opentelemetry::KeyValue::new("kind", kind)]);
+      }
     }
 
     #[allow(clippy::let_and_return)]

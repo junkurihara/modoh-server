@@ -39,6 +39,10 @@ where
   pub(super) max_subseq_nodes: usize,
   /// request filter for destination domain name
   pub(super) request_filter: Option<Arc<RequestFilter>>,
+
+  #[cfg(feature = "metrics")]
+  /// metrics
+  pub(super) meters: Arc<crate::metrics::Meters>,
 }
 
 impl<C, B> InnerRelay<C, B>
@@ -95,6 +99,9 @@ where
     // for authorized domains, maintain blacklist (error metrics) at each relay for given responses
     let nexthop_domain = nexthop_url.host_str().ok_or(HttpError::InvalidUrl)?;
     let filter_result = self.request_filter.as_ref().and_then(|filter| {
+      #[cfg(feature = "metrics")]
+      self.meters.dst_domain_access_control.add(1_u64, &[]);
+
       filter
         .outbound_filter
         .as_ref()
@@ -103,6 +110,13 @@ where
     if let Some(res) = filter_result {
       if !res {
         debug!("Nexthop domain is filtered: {}", nexthop_domain);
+
+        #[cfg(feature = "metrics")]
+        self.meters.dst_domain_access_control_result_rejected.add(
+          1_u64,
+          &[opentelemetry::KeyValue::new("domain", nexthop_domain.to_string())],
+        );
+
         return Err(HttpError::ForbiddenDomain(nexthop_domain.to_string()));
       }
 
@@ -118,6 +132,9 @@ where
     self.update_request_parts(&nexthop_url, &mut parts)?;
     let updated_request = Request::from_parts(parts, body);
 
+    #[cfg(feature = "metrics")]
+    let start = tokio::time::Instant::now();
+
     let mut response = match self.inner.request(updated_request).await {
       Ok(res) => res,
       Err(e) => {
@@ -125,6 +142,29 @@ where
         return Err(HttpError::SendRequestError(e));
       }
     };
+
+    #[cfg(feature = "metrics")]
+    {
+      let elapsed = start.elapsed().as_millis() as u64;
+      let subseq_relay_num = if nexthop_url.query_pairs().count() > 0 {
+        nexthop_url
+          .query_pairs()
+          .filter(|(k, _)| k.contains("relayhost"))
+          .count()
+          + 1
+      } else {
+        0 // direct query to target
+      };
+      self.meters.latency_relay_upstream.record(
+        elapsed,
+        &[opentelemetry::KeyValue::new(
+          "subseq_relay",
+          subseq_relay_num.to_string(),
+        )],
+      );
+      self.meters.subsequent_relay_num.record(subseq_relay_num as u64, &[])
+    }
+
     // Inspect and update response
     self.inspect_and_update_response_header(&mut response)?;
 
@@ -211,6 +251,9 @@ where
       relay_path,
       max_subseq_nodes,
       request_filter: request_filter.clone(),
+
+      #[cfg(feature = "metrics")]
+      meters: globals.meters.clone(),
     }))
   }
 }

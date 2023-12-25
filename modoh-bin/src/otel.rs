@@ -47,6 +47,8 @@ where
   T: Into<String> + Clone,
   opentelemetry::Value: From<T>,
 {
+  use opentelemetry_sdk::metrics::Aggregation;
+
   let otlp_endpoint = otel_config.otlp_endpoint.clone();
   // exporter via otlp
   let exporter = opentelemetry_otlp::new_exporter()
@@ -66,59 +68,29 @@ where
   let stdout_exporter = opentelemetry_stdout::MetricsExporter::default();
   let stdout_reader = PeriodicReader::builder(stdout_exporter, runtime::Tokio).build();
 
-  // /* -------------- */
-  // // TODO: Remove this block after implementing metrics
-  // {
-  //   // metricsにおいて記録しておくkeyだけ指定するようにviewを設定
-  //   info!(monotonic_counter.foo = 1_u64, key_1 = "bar", key_2 = 10, "handle foo",);
-  //   info!(histogram.baz = 10, "histogram example",);
-  // }
-  // /* -------------- */
-  /* ----------------- */
-  // // Rename foo metrics to foo_named and drop key_2 attribute
-  // let view_foo = |instrument: &Instrument| -> Option<Stream> {
-  //   if instrument.name == "foo" {
-  //     Some(
-  //       Stream::new()
-  //         .name("foo_named")
-  //         .allowed_attribute_keys([Key::from("key_1")]),
-  //     )
-  //   } else {
-  //     None
-  //   }
-  // };
+  // define view
+  let view = |instrument: &Instrument| -> Option<Stream> {
+    // add prefix to metrics names
+    let stream = Stream::new()
+      .name(format!("{}_{}", OTEL_SERVICE_NAMESPACE, instrument.name)) // add prefix to metrics names
+      .description(instrument.description.clone())
+      .unit(instrument.unit.clone());
 
-  // // Set Custom histogram boundaries for baz metrics
-  // let view_baz = |instrument: &Instrument| -> Option<Stream> {
-  //   if instrument.name == "baz" {
-  //     Some(
-  //       Stream::new()
-  //         .name("baz")
-  //         .aggregation(Aggregation::ExplicitBucketHistogram {
-  //           boundaries: vec![0.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0],
-  //           record_min_max: true,
-  //         }),
-  //     )
-  //   } else {
-  //     None
-  //   }
-  // };
-  // add prefix to metrics names
-  let view_prefix = |instrument: &Instrument| -> Option<Stream> {
-    Some(
-      Stream::new()
-        .name(format!("{}_{}", OTEL_SERVICE_NAMESPACE, instrument.name))
-        .description(instrument.description.clone())
-        .unit(instrument.unit.clone()),
-    )
+    if instrument.name.contains("latency_") {
+      Some(stream.aggregation(Aggregation::ExplicitBucketHistogram {
+        boundaries: vec![25.0, 50.0, 100.0, 200.0, 400.0, 800.0, 1600.0, 3200.0],
+        record_min_max: true,
+      }))
+    } else {
+      Some(stream)
+    }
   };
-  /* ----------------- */
 
   let meter_provider = MeterProvider::builder()
     .with_resource(resource(otel_config))
     .with_reader(reader)
     .with_reader(stdout_reader)
-    .with_view(view_prefix)
+    .with_view(view)
     .build();
 
   // Set global MeterProvider to use the meter_provider inside library

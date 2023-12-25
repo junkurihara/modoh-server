@@ -40,7 +40,7 @@ where
     let claims = match validator.validate_request(&req).await {
       Ok(claims) => claims,
       Err(e) => {
-        warn!("token validation failed: {}", e);
+        warn!("token validation failed: {e}");
         let status_code = StatusCode::from(e);
 
         #[cfg(feature = "metrics")]

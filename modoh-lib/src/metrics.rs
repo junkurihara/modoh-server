@@ -1,6 +1,6 @@
 use opentelemetry::{
   global,
-  metrics::{Counter, MeterProvider},
+  metrics::{Counter, Histogram, MeterProvider, Unit},
 };
 
 #[derive(Debug)]
@@ -45,6 +45,17 @@ pub(crate) struct Meters {
   pub(crate) upstream_raw_dns_server_error: Counter<u64>,
   /// counter for upstream query tcp (fallback from udp)
   pub(crate) upstream_query_tcp: Counter<u64>,
+  /// histogram for target upstream latency
+  pub(crate) latency_target_upstream: Histogram<u64>,
+
+  /// histogram for subsequent relay number
+  pub(crate) subsequent_relay_num: Histogram<u64>,
+  /// histogram for relaying upstream latency
+  pub(crate) latency_relay_upstream: Histogram<u64>,
+  /// counter for destination domain access control
+  pub(crate) dst_domain_access_control: Counter<u64>,
+  /// counter for rejection by destination domain access control
+  pub(crate) dst_domain_access_control_result_rejected: Counter<u64>,
 }
 
 impl Meters {
@@ -131,7 +142,28 @@ impl Meters {
       .u64_counter("upstream_query_tcp")
       .with_description("Count of upstream query via TCP due to the truncation of UDP packet")
       .init();
-
+    let latency_target_upstream = meter
+      .u64_histogram("latency_target_upstream")
+      .with_description("Histogram of target upstream latency (msec)")
+      .with_unit(Unit::new("msec"))
+      .init();
+    let subsequent_relay_num = meter
+      .u64_histogram("subsequent_relay_num")
+      .with_description("Histogram of subsequent relay number")
+      .init();
+    let dst_domain_access_control = meter
+      .u64_counter("dst_domain_access_control")
+      .with_description("Count of destination domain access control")
+      .init();
+    let dst_domain_access_control_result_rejected = meter
+      .u64_counter("dst_domain_access_control_result_rejected")
+      .with_description("Count of rejection by destination domain access control")
+      .init();
+    let latency_relay_upstream = meter
+      .u64_histogram("latency_relay_upstream")
+      .with_description("Histogram of relaying upstream latency (msec)")
+      .with_unit(Unit::new("msec"))
+      .init();
     // TODO: define more
 
     Meters {
@@ -159,6 +191,12 @@ impl Meters {
       query_target_modoh,
       upstream_raw_dns_server_error,
       upstream_query_tcp,
+      latency_target_upstream,
+
+      subsequent_relay_num,
+      dst_domain_access_control,
+      dst_domain_access_control_result_rejected,
+      latency_relay_upstream,
     }
   }
 }

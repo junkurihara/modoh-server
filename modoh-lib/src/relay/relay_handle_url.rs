@@ -163,6 +163,9 @@ mod tests {
       relay_path: "/proxy".to_string(),
       max_subseq_nodes: 3,
       request_filter: None,
+
+      #[cfg(feature = "metrics")]
+      meters: Arc::new(crate::metrics::Meters::new()),
     };
 
     let url = Url::parse("https://example.com/proxy?targethost=example1.com&targetpath=/dns-query").unwrap();
