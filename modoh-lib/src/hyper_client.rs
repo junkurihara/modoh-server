@@ -10,6 +10,7 @@ use hyper_util::client::legacy::{
   connect::{Connect, HttpConnector},
   Client,
 };
+use tracing::instrument;
 
 #[derive(Clone)]
 /// Http client that is used for forwarding requests to upstream and fetching jwks from auth server.
@@ -30,6 +31,7 @@ where
   <B as Body>::Data: Send,
   <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
 {
+  #[instrument(level = "debug", name = "http_request", skip_all)]
   /// wrapper request fn
   pub async fn request(
     &self,

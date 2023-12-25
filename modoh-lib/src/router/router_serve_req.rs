@@ -7,8 +7,9 @@ use crate::{
 use hyper::{body::Incoming, header, Request, StatusCode};
 use hyper_util::client::legacy::connect::Connect;
 use std::net::SocketAddr;
-use tracing::Instrument as _;
+use tracing::instrument;
 
+#[instrument(name = "router_serve", skip_all, fields(method = ?req.method(), uri = ?req.uri(), peer_addr = ?peer_addr, xff = ?req.headers().get("x-forwarded-for"), forwarded = ?req.headers().get("forwarded")))]
 /// Service wrapper with validation
 pub async fn serve_request_with_validation<C>(
   req: Request<Incoming>,
@@ -36,8 +37,7 @@ where
     #[cfg(feature = "metrics")]
     meters.token_validation.add(1_u64, &[]);
 
-    let token_validation_span = tracing::info_span!("token_validation");
-    let claims = match validator.validate_request(&req).instrument(token_validation_span).await {
+    let claims = match validator.validate_request(&req).await {
       Ok(claims) => claims,
       Err(e) => {
         warn!("token validation failed: {}", e);
@@ -64,13 +64,7 @@ where
     #[cfg(feature = "metrics")]
     meters.query_odoh_configs.add(1_u64, &[]);
 
-    let odoh_config_span = tracing::info_span!("odoh_config");
-    return match target
-      .unwrap()
-      .serve_odoh_configs(req)
-      .instrument(odoh_config_span)
-      .await
-    {
+    return match target.unwrap().serve_odoh_configs(req).await {
       Ok(res) => synthetic_response(res),
       Err(e) => {
         warn!("ODoH config service failed to serve: {}", e);
@@ -88,9 +82,6 @@ where
   // For authorized ip addresses, maintain blacklist (error metrics) at each relay for given requests.
   // Domain check should be done in forwarder.
   if !token_validated {
-    let src_ip_ac_span = tracing::info_span!("src_ip_access_control");
-    let _enter = src_ip_ac_span.enter();
-
     #[cfg(feature = "metrics")]
     meters.src_ip_access_control.add(1_u64, &[]);
 
@@ -129,13 +120,7 @@ where
       }
     }
 
-    let relay_span = tracing::info_span!("relay");
-    return match relay
-      .unwrap()
-      .serve(req.map(IncomingOr::Left))
-      .instrument(relay_span)
-      .await
-    {
+    return match relay.unwrap().serve(req.map(IncomingOr::Left)).await {
       Ok(res) => {
         #[cfg(feature = "metrics")]
         count_with_http_status_code(&meters.query_relaying_result_responded, &res.status());
@@ -163,8 +148,7 @@ where
       }
     }
 
-    let target_span = tracing::info_span!("target");
-    return match target.unwrap().serve(req).instrument(target_span).await {
+    return match target.unwrap().serve(req).await {
       Ok(res) => {
         #[cfg(feature = "metrics")]
         count_with_http_status_code(&meters.query_target_result_responded, &res.status());

@@ -16,7 +16,7 @@ use http::{
 use hyper::body::{Body, Incoming};
 use hyper_util::client::legacy::connect::Connect;
 use std::sync::Arc;
-use tracing::Instrument as _;
+use tracing::instrument;
 use url::Url;
 
 /// wrapper of http client
@@ -48,6 +48,7 @@ where
   <B as Body>::Data: Send,
   <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
 {
+  #[instrument(name = "relay_serve", skip_all)]
   /// Serve request as relay
   /// 1. check host, method and listening path: as described in [RFC9230](https://datatracker.ietf.org/doc/rfc9230/) and Golang implementation [odoh-server-go](https://github.com/cloudflare/odoh-server-go), only post method is allowed.
   /// 2. check content type: only "application/oblivious-dns-message" is allowed.
@@ -117,8 +118,7 @@ where
     self.update_request_parts(&nexthop_url, &mut parts)?;
     let updated_request = Request::from_parts(parts, body);
 
-    let relay_request_span = tracing::info_span!("relay_request");
-    let mut response = match self.inner.request(updated_request).instrument(relay_request_span).await {
+    let mut response = match self.inner.request(updated_request).await {
       Ok(res) => res,
       Err(e) => {
         warn!("Upstream query error: {}", e);
@@ -131,6 +131,7 @@ where
     Ok(response)
   }
 
+  #[instrument(level = "debug", skip_all)]
   /// Update request headers and clear information as much as possible
   fn update_request_parts(&self, nexthop_url: &Url, parts: &mut Parts) -> HttpResult<()> {
     parts.method = Method::POST;
@@ -146,6 +147,7 @@ where
     Ok(())
   }
 
+  #[instrument(level = "debug", skip_all)]
   /// inspect and update response header
   /// (M)ODoH response MUST NOT be cached as specified in [RFC9230](https://datatracker.ietf.org/doc/rfc9230/),
   /// and hence "no-cache, no-store" is set (overwritten) in cache-control header.

@@ -1,6 +1,7 @@
 use crate::trace::*;
 use cedarwood::Cedar;
 use regex::Regex;
+use tracing::instrument;
 
 /// Domain filter supporting prefix and suffix matching
 pub(crate) struct DomainFilter {
@@ -105,6 +106,8 @@ impl DomainFilter {
     matched_as_domain.next().is_some()
   }
 
+  #[instrument(level = "debug", skip(self))]
+  /// Check if the domain name is in the list
   pub fn in_domain_list(&self, domain_name: &str) -> bool {
     // remove final dot
     let nn = domain_name.to_ascii_lowercase();

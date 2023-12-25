@@ -35,13 +35,16 @@ pub(crate) struct Meters {
   /// counter for targeted query error
   pub(crate) query_target_result_error: Counter<u64>,
 
-  // TODO: targetはmetersを持ってないのでそのインプリから
   /// counter for DoH query via GET as target
   pub(crate) query_target_doh_get: Counter<u64>,
   /// counter for DoH query via POST as target
   pub(crate) query_target_doh_post: Counter<u64>,
   /// counter for (M)ODoH query as target
   pub(crate) query_target_modoh: Counter<u64>,
+  /// counter for upstream raw DNS server error
+  pub(crate) upstream_raw_dns_server_error: Counter<u64>,
+  /// counter for upstream query tcp (fallback from udp)
+  pub(crate) upstream_query_tcp: Counter<u64>,
 }
 
 impl Meters {
@@ -120,6 +123,14 @@ impl Meters {
       .u64_counter("query_target_modoh")
       .with_description("Count of (M)ODoH query as target")
       .init();
+    let upstream_raw_dns_server_error = meter
+      .u64_counter("upstream_raw_dns_server_error")
+      .with_description("Count of upstream raw DNS server error")
+      .init();
+    let upstream_query_tcp = meter
+      .u64_counter("upstream_query_tcp")
+      .with_description("Count of upstream query via TCP due to the truncation of UDP packet")
+      .init();
 
     // TODO: define more
 
@@ -146,6 +157,8 @@ impl Meters {
       query_target_doh_get,
       query_target_doh_post,
       query_target_modoh,
+      upstream_raw_dns_server_error,
+      upstream_query_tcp,
     }
   }
 }

@@ -7,6 +7,7 @@ use odoh_rs::{
   ObliviousDoHMessagePlaintext, OdohSecret, ResponseNonce, Serialize,
 };
 use rand::Rng;
+use tracing::instrument;
 
 #[derive(Clone)]
 /// ODoH public key
@@ -35,6 +36,7 @@ impl ODoHPublicKey {
     &self.serialized_configs
   }
 
+  #[instrument(level = "debug", skip_all)]
   /// Decrypt ODoH query
   pub fn decrypt_query(&self, encrypted_query: Vec<u8>) -> HttpResult<(Vec<u8>, ODoHQueryContext)> {
     let odoh_query =
@@ -70,6 +72,7 @@ pub struct ODoHQueryContext {
 }
 
 impl ODoHQueryContext {
+  #[instrument(level = "debug", skip_all)]
   /// Encrypt raw DNS response
   pub fn encrypt_response(self, response_body: Vec<u8>) -> HttpResult<Vec<u8>> {
     let response_nonce = rand::thread_rng().gen::<ResponseNonce>();
