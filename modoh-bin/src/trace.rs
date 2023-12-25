@@ -1,12 +1,15 @@
 pub use tracing::{debug, error, info, warn};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
-#[cfg(feature = "otel")]
-use crate::otel::{init_meter_provider, init_tracer};
-#[cfg(feature = "otel")]
+#[cfg(feature = "otel-trace")]
+use crate::otel::init_tracer;
+#[cfg(feature = "otel-trace")]
+use tracing_opentelemetry::OpenTelemetryLayer;
+
+#[cfg(feature = "otel-metrics")]
+use crate::otel::init_meter_provider;
+#[cfg(feature = "otel-metrics")]
 use opentelemetry_sdk::metrics::MeterProvider;
-#[cfg(feature = "otel")]
-use tracing_opentelemetry::{MetricsLayer, OpenTelemetryLayer};
 
 /// Initialize tracing subscriber
 pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>) -> MetricsGuard {
@@ -28,25 +31,44 @@ pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>) -> MetricsGu
 
   let reg = tracing_subscriber::registry().with(format_layer).with(filter_layer);
 
-  #[cfg(feature = "otel")]
+  #[cfg(any(feature = "otel-trace", feature = "otel-metrics"))]
   {
     if _trace_config.otel_config.is_none() {
       reg.init();
-      MetricsGuard { meter_provider: None }
-    } else {
-      println!("Opentelemetry is enabled for metrics and traces");
-      let otel_config = _trace_config.otel_config.as_ref().unwrap();
-      let meter_provider = init_meter_provider(otel_config);
-      reg
-        .with(MetricsLayer::new(meter_provider.clone()))
-        .with(OpenTelemetryLayer::new(init_tracer(otel_config)))
-        .init();
       MetricsGuard {
-        meter_provider: Some(meter_provider),
+        #[cfg(feature = "otel-metrics")]
+        meter_provider: None,
+      }
+    } else {
+      let otel_config = _trace_config.otel_config.as_ref().unwrap();
+
+      // traces
+      #[cfg(feature = "otel-trace")]
+      if otel_config.trace_enabled {
+        println!("Opentelemetry is enabled for traces");
+        reg.with(OpenTelemetryLayer::new(init_tracer(otel_config))).init();
+      } else {
+        reg.init();
+      }
+      #[cfg(not(feature = "otel-trace"))]
+      reg.init();
+
+      // metrics
+      // tracing-opentelemetry for metrics is disabled and we use opentelemetry directly for metrics.
+      MetricsGuard {
+        #[cfg(feature = "otel-metrics")]
+        meter_provider: {
+          if otel_config.metrics_enabled {
+            println!("Opentelemetry is enabled for metrics");
+            Some(init_meter_provider(otel_config))
+          } else {
+            None
+          }
+        },
       }
     }
   }
-  #[cfg(not(feature = "otel"))]
+  #[cfg(not(any(feature = "otel-trace", feature = "otel-metrics")))]
   {
     reg.init();
     MetricsGuard {}
@@ -55,26 +77,30 @@ pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>) -> MetricsGu
 
 /// Tracing config
 pub(crate) struct TraceConfig<T> {
-  #[cfg(feature = "otel")]
+  #[cfg(any(feature = "otel-trace", feature = "otel-metrics"))]
   pub(crate) otel_config: Option<OtelConfig<T>>,
   pub(crate) _marker: std::marker::PhantomData<fn() -> T>,
 }
 
-#[cfg(feature = "otel")]
+#[cfg(any(feature = "otel-trace", feature = "otel-metrics"))]
 /// Observability config
 pub(crate) struct OtelConfig<T> {
   pub(crate) otlp_endpoint: T,
+  #[cfg(feature = "otel-trace")]
+  pub(crate) trace_enabled: bool,
+  #[cfg(feature = "otel-metrics")]
+  pub(crate) metrics_enabled: bool,
   #[cfg(feature = "otel-instance-id")]
   pub(crate) service_instance_id: T,
 }
 
 /// Guard for opentelemetry metrics
 pub struct MetricsGuard {
-  #[cfg(feature = "otel")]
+  #[cfg(feature = "otel-metrics")]
   pub meter_provider: Option<MeterProvider>,
 }
 
-#[cfg(feature = "otel")]
+#[cfg(feature = "otel-metrics")]
 impl Drop for MetricsGuard {
   fn drop(&mut self) {
     if self.meter_provider.is_none() {

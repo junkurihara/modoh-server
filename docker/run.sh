@@ -37,7 +37,7 @@ if $DISABLE_OTEL ; then
   echo "modoh-server: OpenTelemetry disabled"
 else
   echo "modoh-server: OpenTelemetry enabled with endpoint ${OTLP_ENDPOINT}"
-  OTEL_ARG="--otel --otlp-endpoint ${OTLP_ENDPOINT}"
+  OTEL_ARG="--otel-trace --otel-metrics --otlp-endpoint ${OTLP_ENDPOINT}"
 fi
 
 if  $WATCH ; then

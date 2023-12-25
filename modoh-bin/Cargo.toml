@@ -33,15 +33,26 @@ publish = false
 
 [features]
 default = ["otel-full"]
-otel-full = ["otel", "otel-instance-id"]
-otel = [
-  "dep:opentelemetry",
-  "dep:opentelemetry_sdk",
-  "dep:opentelemetry-stdout",
-  "dep:opentelemetry-otlp",
-  "dep:opentelemetry-semantic-conventions",
+otel-full = ["otel-trace", "otel-metrics", "otel-instance-id"]
+otel-trace = [
+  "opentelemetry/trace",
+  "opentelemetry_sdk/trace",
+  "opentelemetry-stdout/trace",
+  "opentelemetry-otlp/trace",
   "dep:tracing-opentelemetry",
+  "otel-base",
+]
+otel-metrics = [
   "modoh-server-lib/metrics",
+  "opentelemetry/metrics",
+  "opentelemetry_sdk/metrics",
+  "opentelemetry-stdout/metrics",
+  "opentelemetry-otlp/metrics",
+  "otel-base",
+]
+otel-base = [
+  "opentelemetry_sdk/rt-tokio",
+  "dep:opentelemetry-semantic-conventions",
 ]
 otel-instance-id = ["dep:uuid"]
 
@@ -73,23 +84,12 @@ hot_reload = "0.1.4"
 tracing = { version = "0.1.40" }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json"] }
 tracing-opentelemetry = { version = "0.22.0", optional = true }
-opentelemetry = { version = "0.21.0", features = [
-  "trace",
-  "metrics",
-], optional = true }
+opentelemetry = { version = "0.21.0", optional = true }
 opentelemetry_sdk = { version = "0.21.1", features = [
-  "trace",
-  "metrics",
   "rt-tokio",
 ], optional = true }
-opentelemetry-stdout = { version = "0.2.0", features = [
-  "trace",
-  "metrics",
-], optional = true }
-opentelemetry-otlp = { version = "0.14.0", features = [
-  "trace",
-  "metrics",
-], optional = true }
+opentelemetry-stdout = { version = "0.2.0", optional = true }
+opentelemetry-otlp = { version = "0.14.0", optional = true }
 opentelemetry-semantic-conventions = { version = "0.13.0", optional = true }
 
 # add random otel service id whenever restarting

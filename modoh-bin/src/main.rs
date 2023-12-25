@@ -6,7 +6,7 @@ mod constants;
 mod error;
 mod trace;
 
-#[cfg(feature = "otel")]
+#[cfg(any(feature = "otel-trace", feature = "otel-metrics"))]
 mod otel;
 
 use crate::{

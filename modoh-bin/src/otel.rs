@@ -1,19 +1,23 @@
 use crate::{constants::OTEL_SERVICE_NAMESPACE, trace::OtelConfig};
-use opentelemetry::{global, KeyValue};
+use opentelemetry::KeyValue;
 use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::{
-  metrics::{
-    reader::{DefaultAggregationSelector, DefaultTemporalitySelector},
-    Instrument, MeterProvider, PeriodicReader, Stream,
-  },
-  runtime,
-  trace::{BatchConfig, RandomIdGenerator, Sampler, Tracer},
-  Resource,
-};
+use opentelemetry_sdk::{runtime, Resource};
 use opentelemetry_semantic_conventions::{
   resource::{SERVICE_NAME, SERVICE_NAMESPACE, SERVICE_VERSION},
   SCHEMA_URL,
 };
+
+#[cfg(feature = "otel-trace")]
+use opentelemetry_sdk::trace::{BatchConfig, RandomIdGenerator, Sampler, Tracer};
+
+#[cfg(feature = "otel-metrics")]
+use opentelemetry_sdk::metrics::{
+  reader::{DefaultAggregationSelector, DefaultTemporalitySelector},
+  Instrument, MeterProvider, PeriodicReader, Stream,
+};
+
+#[cfg(feature = "otel-metrics")]
+use opentelemetry::global;
 
 #[cfg(feature = "otel-instance-id")]
 use opentelemetry_semantic_conventions::resource::SERVICE_INSTANCE_ID;
@@ -36,6 +40,7 @@ where
   )
 }
 
+#[cfg(feature = "otel-metrics")]
 /// Construct MeterProvider for MetricsLayer
 pub(crate) fn init_meter_provider<T>(otel_config: &OtelConfig<T>) -> MeterProvider
 where
@@ -63,7 +68,6 @@ where
 
   // /* -------------- */
   // // TODO: Remove this block after implementing metrics
-  // #[cfg(feature = "otel")]
   // {
   //   // metricsにおいて記録しておくkeyだけ指定するようにviewを設定
   //   info!(monotonic_counter.foo = 1_u64, key_1 = "bar", key_2 = 10, "handle foo",);
@@ -100,7 +104,6 @@ where
   //   }
   // };
   // add prefix to metrics names
-  // TODO: this setting removes description and units. Fix it.
   let view_prefix = |instrument: &Instrument| -> Option<Stream> {
     Some(
       Stream::new()
@@ -124,6 +127,7 @@ where
   meter_provider
 }
 
+#[cfg(feature = "otel-trace")]
 // Construct Tracer for OpenTelemetryLayer
 pub(crate) fn init_tracer<T>(otel_config: &OtelConfig<T>) -> Tracer
 where
