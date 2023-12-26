@@ -38,21 +38,21 @@ native-tls = ["dep:hyper-tls"]
 rustls = []
 
 [dependencies]
-futures = { version = "0.3.29", default-features = false, features = [
+futures = { version = "0.3.30", default-features = false, features = [
   "std",
   "async-await",
 ] }
-tokio = { version = "1.35.0", features = [
+tokio = { version = "1.35.1", features = [
   "net",
   "rt-multi-thread",
   "time",
   "sync",
   "macros",
 ] }
-anyhow = "1.0.75"
+anyhow = "1.0.76"
 tracing = "0.1.40"
-thiserror = "1.0.51"
-async-trait = "0.1.74"
+thiserror = "1.0.52"
+async-trait = "0.1.75"
 
 # http handling for both client and server
 url = "2.5.0"
