@@ -52,17 +52,17 @@ exporters:
     endpoint: http://jaeger:4317
     tls:
       insecure: true
-    # tls:
-    #   cert_file: file.cert
-    #   key_file: file.key
+    # tls:  # need to connect to Jaeger deployed on the Internet with TLS
+    #   cert_file: /client_crt/otel-client.crt
+    #   key_file: /client_crt/otel-client.key
   prometheusremotewrite:
     endpoint: "http://mimir:9009/api/v1/push"
     headers:
       X-Scope-OrgID: "modoh" # TODO: change this to your org ID. This will be used to filter metrics in Mimir as tenant ID.
     send_metadata: true
-    # tls:
-    #   cert_file: file.cert
-    #   key_file: file.key
+    # tls: # need to connect to Mimir deployed on the Internet with TLS
+    #   cert_file: /client_crt/otel-client.crt
+    #   key_file: /client_crt/otel-client.key
   # prometheus:
   #   endpoint: 0.0.0.0:8889
 

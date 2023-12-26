@@ -15,6 +15,7 @@ services:
     volumes:
       - ./otel-config.yml:/etc/otel-config.yml
       - /var/run/docker.sock:/var/run/docker.sock # docker env detector
+      # - ./client_crt:/client_crt:ro # Needed to deploy on the internet
     command: ["--config=/etc/otel-config.yml"]
     logging:
       options:
