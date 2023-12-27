@@ -57,7 +57,7 @@ otel-base = [
 otel-instance-id = ["dep:uuid"]
 
 # DO NOT USE THIS IN PRODUCTION
-otel-evil-trace = ["modoh-server-lib/evil-trace"]
+otel-evil-trace = ["modoh-server-lib/evil-trace", "otel-trace"]
 
 [dependencies]
 modoh-server-lib = { path = "../modoh-lib", default-features = false, features = [
