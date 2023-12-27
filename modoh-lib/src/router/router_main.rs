@@ -72,10 +72,11 @@ where
               let span_cx = crate::evil_trace::get_span_cx_from_request(&req);
               if span_cx.is_some() {
                 let span_cx = span_cx.unwrap();
-                debug!("evil-trace enabled. parent span context: {:?}", span_cx);
+                debug!(trace_id = span_cx.trace_id().to_string(), parent_span_id = span_cx.span_id().to_string(), "evil-trace enabled. received traceparent header.");
                 let context = Context::new().with_remote_span_context(span_cx);
                 current_span.set_parent(context);
-                debug!("get into child span: {:?}", current_span.context().span());
+                current_span.context().span().span_context().trace_id();
+                debug!(trace_id = current_span.context().span().span_context().trace_id().to_string(), child_span_id = current_span.context().span().span_context().span_id().to_string(), "evil-trace enabled. get into child span");
               }
             }
             serve_request_with_validation(req, peer_addr, self_clone.clone()).instrument(current_span)

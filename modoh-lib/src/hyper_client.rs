@@ -56,7 +56,13 @@ where
         http::HeaderName::from_static(EVIL_TRACE_HEADER_NAME),
         http::HeaderValue::from_str(&header_value).unwrap_or(http::HeaderValue::from_static("")),
       );
-      debug!("evil-trace enabled. header: {:?}", req.headers());
+      debug!(
+        new_traceparent = headers
+          .get("traceparent")
+          .and_then(|v| v.to_str().ok())
+          .unwrap_or("none"),
+        "evil-trace enabled. send request with traceparent header."
+      );
       self.inner.request(req).await
     }
 
