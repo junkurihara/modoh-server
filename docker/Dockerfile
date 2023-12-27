@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -qy --no-install-recommends $BUILD_DEPS &&
     curl -sSf https://sh.rustup.rs | bash -s -- -y --default-toolchain stable && \
     export PATH="$HOME/.cargo/bin:$PATH" && \
     echo "Building Mutualized Oblivious DNS relay and target from source" && \
-    cargo build --release --no-default-features --features=otel-full,otel-evil-trace --package modoh-server && \
+    cargo build --release --no-default-features --features=otel-full --package modoh-server && \
     strip --strip-all /tmp/target/release/modoh-server
 
 ########################################
