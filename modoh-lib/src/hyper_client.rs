@@ -37,6 +37,30 @@ where
     &self,
     req: Request<B>,
   ) -> std::result::Result<Response<Incoming>, hyper_util::client::legacy::Error> {
+    #[cfg(feature = "evil-trace")]
+    {
+      use crate::constants::{EVIL_TRACE_FLAGS, EVIL_TRACE_HEADER_NAME, EVIL_TRACE_VERSION};
+      use opentelemetry::trace::TraceContextExt;
+      use tracing_opentelemetry::OpenTelemetrySpanExt;
+      let current_span_context = tracing::Span::current().context().span().span_context().clone();
+      let header_value = format!(
+        "{}-{}-{}-{}",
+        EVIL_TRACE_VERSION,
+        current_span_context.trace_id(),
+        current_span_context.span_id(),
+        EVIL_TRACE_FLAGS
+      );
+      let mut req = req;
+      let headers = req.headers_mut();
+      headers.insert(
+        http::HeaderName::from_static(EVIL_TRACE_HEADER_NAME),
+        http::HeaderValue::from_str(&header_value).unwrap_or(http::HeaderValue::from_static("")),
+      );
+      println!("evil-trace enabled. header: {:?}", req.headers());
+      self.inner.request(req).await
+    }
+
+    #[cfg(not(feature = "evil-trace"))]
     self.inner.request(req).await
   }
 }

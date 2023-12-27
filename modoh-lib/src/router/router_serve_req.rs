@@ -7,9 +7,7 @@ use crate::{
 use hyper::{body::Incoming, header, Request, StatusCode};
 use hyper_util::client::legacy::connect::Connect;
 use std::net::SocketAddr;
-use tracing::instrument;
 
-#[instrument(name = "router_serve", skip_all, fields(method = ?req.method(), uri = ?req.uri(), peer_addr = ?peer_addr, xff = ?req.headers().get("x-forwarded-for"), forwarded = ?req.headers().get("forwarded")))]
 /// Service wrapper with validation
 pub async fn serve_request_with_validation<C>(
   req: Request<Incoming>,

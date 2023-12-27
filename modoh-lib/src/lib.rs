@@ -16,6 +16,9 @@ mod validator;
 #[cfg(feature = "metrics")]
 mod metrics;
 
+#[cfg(feature = "evil-trace")]
+mod evil_trace;
+
 use crate::{count::RequestCount, error::*, globals::Globals, router::Router, trace::*};
 use hyper_client::HttpClient;
 use hyper_executor::LocalExecutor;

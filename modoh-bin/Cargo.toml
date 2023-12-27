@@ -32,7 +32,7 @@ publish = false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["otel-full"]
+default = ["otel-full", "otel-evil-trace"]
 otel-full = ["otel-trace", "otel-metrics", "otel-instance-id"]
 otel-trace = [
   "opentelemetry/trace",
@@ -55,6 +55,9 @@ otel-base = [
   "dep:opentelemetry-semantic-conventions",
 ]
 otel-instance-id = ["dep:uuid"]
+
+# DO NOT USE THIS IN PRODUCTION
+otel-evil-trace = ["modoh-server-lib/evil-trace"]
 
 [dependencies]
 modoh-server-lib = { path = "../modoh-lib", default-features = false, features = [
