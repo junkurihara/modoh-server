@@ -42,7 +42,7 @@ impl From<TraceCX> for SpanContext {
       TraceId::from_hex(&val.trace_id).unwrap(),
       SpanId::from_hex(&val.span_id).unwrap(),
       trace_flags,
-      false,
+      true,
       opentelemetry::trace::TraceState::default(),
     )
   }
@@ -84,7 +84,7 @@ mod tests {
         TraceId::from_hex("80e1afed08e019fc1110464cfa66635c").unwrap(),
         SpanId::from_hex("7a085853722dc6d2").unwrap(),
         TraceFlags::SAMPLED,
-        false,
+        true,
         TraceState::default(),
       )
     );

@@ -56,7 +56,7 @@ where
         http::HeaderName::from_static(EVIL_TRACE_HEADER_NAME),
         http::HeaderValue::from_str(&header_value).unwrap_or(http::HeaderValue::from_static("")),
       );
-      println!("evil-trace enabled. header: {:?}", req.headers());
+      debug!("evil-trace enabled. header: {:?}", req.headers());
       self.inner.request(req).await
     }
 
