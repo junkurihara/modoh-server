@@ -12,6 +12,7 @@ use hyper::{
 use hyper_util::{client::legacy::connect::Connect, rt::TokioIo, server::conn::auto::Builder as ConnectionBuilder};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::time::timeout;
+use tracing::Instrument as _;
 
 #[derive(Clone)]
 /// (M)ODoH Router main object
@@ -61,7 +62,23 @@ where
         timeout_sec + Duration::from_secs(1),
         server_clone.serve_connection(
           stream,
-          service_fn(move |req: Request<Incoming>| serve_request_with_validation(req, peer_addr, self_clone.clone())),
+          service_fn(move |req: Request<Incoming>| {
+            let current_span = tracing::info_span!("router_serve", method = ?req.method(), uri = ?req.uri(), peer_addr = ?peer_addr, xff = ?req.headers().get("x-forwarded-for"), forwarded = ?req.headers().get("forwarded"));
+
+            #[cfg(feature = "evil-trace")]
+            {
+              use opentelemetry::trace::TraceContextExt;
+              use tracing_opentelemetry::OpenTelemetrySpanExt;
+              let span_cx = crate::evil_trace::get_span_cx_from_request(&req);
+              if span_cx.is_some() {
+                debug!("evil-trace enabled. parente span context: {:?}", span_cx);
+                let span_cx = span_cx.unwrap();
+                let context = current_span.context().with_remote_span_context(span_cx);
+                current_span.set_parent(context);
+              }
+            }
+            serve_request_with_validation(req, peer_addr, self_clone.clone()).instrument(current_span)
+    }),
         ),
       )
       .await
