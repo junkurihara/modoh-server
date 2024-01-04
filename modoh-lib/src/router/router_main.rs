@@ -1,7 +1,7 @@
 use super::{router_serve_req::serve_request_with_validation, socket::bind_tcp_socket};
 use crate::{
-  count::RequestCount, error::*, globals::Globals, hyper_client::HttpClient, hyper_executor::LocalExecutor, log::*,
-  relay::InnerRelay, target::InnerTarget, validator::Validator,
+  count::RequestCount, error::*, globals::Globals, hyper_client::HttpClient, hyper_executor::LocalExecutor,
+  relay::InnerRelay, request_filter::RequestFilter, target::InnerTarget, trace::*, validator::Validator,
 };
 use hyper::{
   body::Incoming,
@@ -12,24 +12,28 @@ use hyper::{
 use hyper_util::{client::legacy::connect::Connect, rt::TokioIo, server::conn::auto::Builder as ConnectionBuilder};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::time::timeout;
+use tracing::Instrument as _;
 
+#[derive(Clone)]
 /// (M)ODoH Router main object
 pub struct Router<C>
 where
   C: Send + Sync + Connect + Clone + 'static,
 {
   /// global config
-  globals: Arc<Globals>,
+  pub(crate) globals: Arc<Globals>,
   /// hyper server receiving http request
-  http_server: Arc<ConnectionBuilder<LocalExecutor>>,
+  pub(crate) http_server: Arc<ConnectionBuilder<LocalExecutor>>,
   /// hyper client forwarding requests to upstream
-  inner_relay: Option<Arc<InnerRelay<C>>>,
+  pub(crate) inner_relay: Option<Arc<InnerRelay<C>>>,
   /// dns client forwarding dns query to upstream
-  inner_target: Option<Arc<InnerTarget>>,
+  pub(crate) inner_target: Option<Arc<InnerTarget>>,
   /// validator for token validation
-  inner_validator: Option<Arc<Validator<C>>>,
+  pub(crate) inner_validator: Option<Arc<Validator<C>>>,
   /// request count
-  request_count: RequestCount,
+  pub(crate) request_count: RequestCount,
+  /// request filter
+  pub(crate) request_filter: Option<Arc<RequestFilter>>,
 }
 
 impl<C> Router<C>
@@ -42,33 +46,41 @@ where
     I: Read + Write + Unpin + Send + 'static,
   {
     let request_count = self.request_count.clone();
-    if request_count.increment() > self.globals.service_config.max_clients {
+    if request_count.increment() > self.globals.service_config.max_clients as isize {
       request_count.decrement();
       return;
     }
     debug!("Request incoming: current # {}", request_count.current());
 
+    let self_clone = self.clone();
     let server_clone = self.http_server.clone();
-    let hostname = self.globals.service_config.hostname.clone();
-    let relay_clone = self.inner_relay.clone();
-    let target_clone = self.inner_target.clone();
-    let validator_clone = self.inner_validator.clone();
     let timeout_sec = self.globals.service_config.timeout;
     self.globals.runtime_handle.clone().spawn(async move {
       timeout(
+        // This timeout is for the whole request. Add 1 sec for safety.
+        // For each services, i.e., relay, target, etc., shorter timeout is set.
         timeout_sec + Duration::from_secs(1),
         server_clone.serve_connection(
           stream,
           service_fn(move |req: Request<Incoming>| {
-            serve_request_with_validation(
-              req,
-              peer_addr,
-              hostname.clone(),
-              relay_clone.clone(),
-              target_clone.clone(),
-              validator_clone.clone(),
-            )
-          }),
+            let current_span = tracing::info_span!("router_serve", method = ?req.method(), uri = ?req.uri(), peer_addr = ?peer_addr, xff = ?req.headers().get("x-forwarded-for"), forwarded = ?req.headers().get("forwarded"), traceparent = ?req.headers().get("traceparent"));
+
+            #[cfg(feature = "evil-trace")]
+            {
+              use opentelemetry::{Context, trace::TraceContextExt};
+              use tracing_opentelemetry::OpenTelemetrySpanExt;
+              let span_cx = crate::evil_trace::get_span_cx_from_request(&req);
+              if span_cx.is_some() {
+                let span_cx = span_cx.unwrap();
+                debug!(trace_id = span_cx.trace_id().to_string(), parent_span_id = span_cx.span_id().to_string(), "evil-trace enabled. received traceparent header.");
+                let context = Context::new().with_remote_span_context(span_cx);
+                current_span.set_parent(context);
+                current_span.context().span().span_context().trace_id();
+                debug!(trace_id = current_span.context().span().span_context().trace_id().to_string(), child_span_id = current_span.context().span().span_context().span_id().to_string(), "evil-trace enabled. get into child span");
+              }
+            }
+            serve_request_with_validation(req, peer_addr, self_clone.clone()).instrument(current_span)
+    }),
         ),
       )
       .await
@@ -125,16 +137,22 @@ where
   ) -> Result<Self> {
     let request_count = globals.request_count.clone();
 
+    let inner_validator = match globals.service_config.validation.as_ref() {
+      Some(_) => Some(Validator::try_new(globals, http_client).await?),
+      None => None,
+    };
+    let request_filter = globals
+      .service_config
+      .access
+      .as_ref()
+      .map(|_| Arc::new(RequestFilter::new(globals.service_config.access.as_ref().unwrap())));
+
     let inner_relay = match &globals.service_config.relay {
-      Some(_) => Some(InnerRelay::try_new(globals, http_client)?),
+      Some(_) => Some(InnerRelay::try_new(globals, http_client, request_filter.clone())?),
       None => None,
     };
     let inner_target = match &globals.service_config.target {
       Some(_) => Some(InnerTarget::try_new(globals)?),
-      None => None,
-    };
-    let inner_validator = match globals.service_config.validation.as_ref() {
-      Some(_) => Some(Validator::try_new(globals, http_client).await?),
       None => None,
     };
 
@@ -145,7 +163,7 @@ where
       inner_target,
       inner_validator,
       request_count,
+      request_filter,
     })
-    // todo!()
   }
 }

@@ -2,7 +2,7 @@ use crate::{
   error::*,
   hyper_body::{BoxBody, IncomingOr},
   hyper_executor::LocalExecutor,
-  log::*,
+  trace::*,
 };
 use http::{Request, Response};
 use hyper::body::{Body, Incoming};
@@ -10,6 +10,7 @@ use hyper_util::client::legacy::{
   connect::{Connect, HttpConnector},
   Client,
 };
+use tracing::instrument;
 
 #[derive(Clone)]
 /// Http client that is used for forwarding requests to upstream and fetching jwks from auth server.
@@ -30,11 +31,42 @@ where
   <B as Body>::Data: Send,
   <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
 {
+  #[instrument(level = "debug", name = "http_request", skip_all)]
   /// wrapper request fn
   pub async fn request(
     &self,
     req: Request<B>,
   ) -> std::result::Result<Response<Incoming>, hyper_util::client::legacy::Error> {
+    #[cfg(feature = "evil-trace")]
+    {
+      use crate::constants::{EVIL_TRACE_FLAGS, EVIL_TRACE_HEADER_NAME, EVIL_TRACE_VERSION};
+      use opentelemetry::trace::TraceContextExt;
+      use tracing_opentelemetry::OpenTelemetrySpanExt;
+      let current_span_context = tracing::Span::current().context().span().span_context().clone();
+      let header_value = format!(
+        "{}-{}-{}-{}",
+        EVIL_TRACE_VERSION,
+        current_span_context.trace_id(),
+        current_span_context.span_id(),
+        EVIL_TRACE_FLAGS
+      );
+      let mut req = req;
+      let headers = req.headers_mut();
+      headers.insert(
+        http::HeaderName::from_static(EVIL_TRACE_HEADER_NAME),
+        http::HeaderValue::from_str(&header_value).unwrap_or(http::HeaderValue::from_static("")),
+      );
+      debug!(
+        new_traceparent = headers
+          .get("traceparent")
+          .and_then(|v| v.to_str().ok())
+          .unwrap_or("none"),
+        "evil-trace enabled. send request with traceparent header."
+      );
+      self.inner.request(req).await
+    }
+
+    #[cfg(not(feature = "evil-trace"))]
     self.inner.request(req).await
   }
 }
@@ -64,7 +96,7 @@ Use this just for testing. Please enable native-tls or rustls feature to enable 
   }
 }
 
-#[cfg(feature = "native-tls")]
+#[cfg(all(feature = "native-tls", not(feature = "rustls")))]
 impl<B> HttpClient<hyper_tls::HttpsConnector<HttpConnector>, B>
 where
   B: Body + Send + Unpin + 'static,
@@ -102,7 +134,7 @@ where
   <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
 {
   /// Build forwarder
-  pub async fn try_new(runtime_handle: tokio::runtime::Handle) -> Result<Self> {
+  pub fn try_new(runtime_handle: tokio::runtime::Handle) -> Result<Self> {
     todo!("Not implemented yet. Please use native-tls-backend feature for now.");
 
     // build hyper client with rustls and webpki, only https is allowed

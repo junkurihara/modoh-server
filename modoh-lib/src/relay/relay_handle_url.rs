@@ -1,8 +1,9 @@
 use super::relay_main::InnerRelay;
-use crate::{constants::HOSTNAME, error::*, log::*};
+use crate::{constants::HOSTNAME, error::*, trace::*};
 use hyper::body::Body;
 use hyper_util::client::legacy::connect::Connect;
 use rustc_hash::FxHashMap as HashMap;
+use tracing::instrument;
 use url::Url;
 
 const ODOH_TARGETHOST: &str = "targethost";
@@ -38,6 +39,7 @@ where
   <B as Body>::Data: Send,
   <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
 {
+  #[instrument(level = "debug", skip_all)]
   /// build next-hop url with loop detection and max subsequent nodes check
   pub fn build_nexthop_url(&self, current_url: &Url) -> HttpResult<Url> {
     // check loop
@@ -160,6 +162,10 @@ mod tests {
       relay_host: "example.com".to_string(),
       relay_path: "/proxy".to_string(),
       max_subseq_nodes: 3,
+      request_filter: None,
+
+      #[cfg(feature = "metrics")]
+      meters: Arc::new(crate::metrics::Meters::new()),
     };
 
     let url = Url::parse("https://example.com/proxy?targethost=example1.com&targetpath=/dns-query").unwrap();

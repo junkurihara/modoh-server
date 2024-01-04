@@ -13,6 +13,7 @@ use hyper::body::{Body, Buf, Bytes};
 use hyper_util::client::legacy::connect::Connect;
 use serde::de::DeserializeOwned;
 use std::{sync::Arc, time::Duration};
+use tracing::instrument;
 use url::Url;
 
 #[async_trait]
@@ -21,6 +22,7 @@ impl<C> JwksHttpClient for HttpClient<C, IncomingOr<BoxBody>>
 where
   C: Send + Sync + Connect + Clone + 'static,
 {
+  #[instrument(name = "fetch_jwks", skip(self))]
   async fn fetch_jwks<R>(&self, url: &Url) -> std::result::Result<R, anyhow::Error>
   where
     R: DeserializeOwned + Send + Sync,
@@ -81,6 +83,7 @@ where
   <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
   HttpClient<C, B>: JwksHttpClient,
 {
+  #[instrument(name = "validate_request", skip_all)]
   /// Validate an id token. Return Ok(()) if validation is successful with any one of validation keys.
   pub async fn validate_request<T>(&self, req: &Request<T>) -> HttpResult<Claims> {
     let Some(auth_header) = req.headers().get(header::AUTHORIZATION) else {
@@ -102,7 +105,7 @@ where
       return Err(HttpError::InvalidToken);
     }
 
-    Ok(claims.get(0).unwrap().clone())
+    Ok(claims.first().unwrap().clone())
   }
 
   /// Create a new validator

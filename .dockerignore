@@ -3,3 +3,4 @@ target/
 .private/
 .github/
 obsolete/
+.rclone.env

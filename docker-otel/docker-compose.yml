@@ -1,0 +1,131 @@
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:4317:4317 # gRPC
+      - 127.0.0.1:13133:13133 # health check
+      - 127.0.0.1:1777:1777 # pprof
+      - 127.0.0.1:55679:55679 # zpages
+    expose:
+      - 4317 # OTLP gRPC
+      - 8889 # Prometheus exporter metrics
+      - 8888 # Prometheus metrics exposed by the collector
+    volumes:
+      - ./otel-config.yml:/etc/otel-config.yml
+      - /var/run/docker.sock:/var/run/docker.sock # docker env detector
+      # - ./client_crt:/client_crt:ro # Needed to deploy on the internet
+    command: ["--config=/etc/otel-config.yml"]
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # healthcheck:
+    #   test: ["CMD-SHELL", "wget -nv -t1 otel-collector:13133 || exit 1"]
+    networks:
+      - net-otel
+
+  # Jaeger
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: jaeger
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:16686:16686 # frontend
+    expose:
+      - 4317 # OTLP
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - net-otel
+
+  # Prometheus Remote Write Endpoint
+  mimir:
+    image: grafana/mimir:latest
+    container_name: mimir
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:9009:9009 # frontend
+    expose:
+      - 9009
+    command: ["--config.file=/etc/mimir.yml", "--config.expand-env=true"]
+    env_file: .env
+    volumes:
+      - ./otel-data/mimir:/data:rw
+      - ./mimir.yml:/etc/mimir.yml:ro
+      - ./mimir-alertmanager-fallback.yml:/etc/mimir-alertmanager-fallback.yml:ro
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      - rclone
+    networks:
+      - net-otel
+
+  # Prometheus Remote Write Endpoint Storage (S3)
+  rclone:
+    image: rclone/rclone:latest
+    expose:
+      - 58080
+    container_name: rclone
+    security_opt:
+      - apparmor:unconfined
+    cap_add:
+      - SYS_ADMIN
+    # devices:
+    #   - /dev/fuse
+    env_file: .env
+    entrypoint: |
+      sh -c "
+        rclone serve s3 --auth-key ${ACCESS_KEY_ID},${SECRET_ACCESS_KEY} ${RCLONE_SERVER_NAME}:${S3_ROOT} --vfs-cache-mode writes --addr 0.0.0.0:58080 & \
+        wait
+      "
+    restart: always
+    volumes:
+      - ~/.config/rclone/rclone.conf:/config/rclone/rclone.conf:ro
+      - /tmp/rclone-cache:/root/.cache/
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      net-otel:
+
+  # Visualize metrics
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:3000:3000 # frontend
+    volumes:
+      - ./otel-data/grafana:/var/lib/grafana
+    depends_on:
+      - mimir
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - net-otel
+
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   container_name: prometheus
+  #   command: ["--config.file=/etc/prometheus/prometheus.yml"]
+  #   volumes:
+  #     # - ./data/prometheus:/prometheus
+  #     - ./prometheus.yml:/etc/prometheus/prometheus.yml
+  #   ports:
+  #     - "127.0.0.1:9090:9090" # frontend
+  #   networks:
+  #     - net-otel
+
+networks:
+  net-otel:
+    name: net-otel
+    driver: bridge

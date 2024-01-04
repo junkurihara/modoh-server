@@ -1,0 +1,52 @@
+# Do not use this configuration in production.
+# It is for demonstration purposes only.
+
+# Run Mimir in single process mode, with all components running in 1 process.
+target: all,alertmanager,overrides-exporter
+
+common:
+  storage:
+    backend: s3
+    s3:
+      endpoint: rclone:58080
+      secret_access_key: "${SECRET_ACCESS_KEY}" # This is a secret injected via an environment variable
+      access_key_id: "${ACCESS_KEY_ID}" # This is a secret injected via an environment variable
+      bucket_name: "${S3_BUCKET_NAME}" # This is a secret injected via an environment variable
+      insecure: true
+
+# Blocks storage requires a prefix when using a common object storage bucket.
+blocks_storage:
+  storage_prefix: blocks
+  tsdb:
+    dir: /data/ingester
+
+# Use memberlist, a gossip-based protocol, to enable the 3 Mimir replicas to communicate
+memberlist:
+  join_members: [mimir]
+
+ruler:
+  rule_path: /data/ruler
+  alertmanager_url: http://127.0.0.1:9009/alertmanager
+  ring:
+    # Quickly detect unhealthy rulers to speed up the tutorial.
+    heartbeat_period: 2s
+    heartbeat_timeout: 10s
+
+alertmanager:
+  data_dir: /data/alertmanager
+  fallback_config_file: /etc/mimir-alertmanager-fallback.yml
+  external_url: http://localhost:9009/alertmanager
+  sharding_ring:
+    replication_factor: 1
+
+ingester:
+  ring:
+    replication_factor: 1
+
+server:
+  http_listen_port: 9009
+  log_level: info
+
+store_gateway:
+  sharding_ring:
+    replication_factor: 1

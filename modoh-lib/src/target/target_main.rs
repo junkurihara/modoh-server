@@ -5,8 +5,8 @@ use crate::{
   error::*,
   globals::Globals,
   hyper_body::{full, BoxBody},
-  log::*,
   message_util::inspect_host,
+  trace::*,
 };
 use futures::{select, FutureExt};
 use http::{header, Method, Request, Response};
@@ -16,7 +16,9 @@ use tokio::{
   sync::{Notify, RwLock},
   time::sleep,
 };
+use tracing::instrument;
 
+#[instrument(level = "debug", skip_all)]
 /// build http response from given packet
 pub(super) fn build_http_response(
   packet: &[u8],
@@ -68,10 +70,15 @@ pub struct InnerTarget {
   pub(super) max_tcp_sessions: usize,
   /// HTTP request count under the service to count tcp sessions
   pub(super) request_count: RequestCount,
+
+  #[cfg(feature = "metrics")]
+  /// Metrics
+  pub meters: Arc<crate::metrics::Meters>,
 }
 
 impl InnerTarget {
   /// Serve odoh config via GET method
+  #[instrument(name = "target_serve_odoh_configs", skip_all)]
   pub async fn serve_odoh_configs<B>(&self, req: Request<B>) -> HttpResult<Response<BoxBody>> {
     // check host
     inspect_host(&req, &self.target_host)?;
@@ -161,6 +168,9 @@ impl InnerTarget {
       timeout,
       max_tcp_sessions,
       request_count,
+
+      #[cfg(feature = "metrics")]
+      meters: globals.meters.clone(),
     });
 
     let target_clone = target.clone();
