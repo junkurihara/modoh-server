@@ -105,7 +105,7 @@ where
       return Err(HttpError::InvalidToken);
     }
 
-    Ok(claims.get(0).unwrap().clone())
+    Ok(claims.first().unwrap().clone())
   }
 
   /// Create a new validator

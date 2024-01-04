@@ -1,3 +1,4 @@
+#[allow(unused)]
 pub use anyhow::{anyhow, bail, ensure, Context};
 use http::StatusCode;
 use thiserror::Error;
