@@ -67,13 +67,13 @@ http = "1.0.0"
 http-body-util = "0.1.0"
 hyper-util = { git = "https://github.com/junkurihara/hyper-util", features = [
   "full",
-], rev = "324408be9666670b47bf84180a4306fdd649cffc" }
+], rev = "784109db021d076b0822ea5344a315e530831973" }
 
 # http handling for client
 hyper-tls = { git = "https://github.com/junkurihara/hyper-tls", features = [
   "alpn",
   "vendored",
-], rev = "17478f86118ca5b1dba3c76b660f4e7e0f17c020", optional = true }
+], rev = "33dafc7251866260b66b0fc93c09f04f1923827f", optional = true }
 # hyper-rustls = { version = "0.24.2", default-features = false, features = [
 #   "tokio-runtime",
 #   "webpki-tokio",
@@ -84,11 +84,11 @@ hyper-tls = { git = "https://github.com/junkurihara/hyper-tls", features = [
 # modoh target handling
 odoh-rs = { git = "https://github.com/junkurihara/odoh-rs" }
 rand = "0.8.5"
-base64 = "0.21.5"
+base64 = "0.21.6"
 byteorder = "1.5.0"
 
 # validation of id token
-serde = { version = "1.0.194", default-features = false }
+serde = { version = "1.0.195", default-features = false }
 auth-validator = { git = "https://github.com/junkurihara/rust-token-server", package = "rust-token-server-validator", branch = "develop" }
 serde_json = { version = "1.0.111" }
 
@@ -99,7 +99,7 @@ regex = { version = "1.10.2" }
 
 # metrics
 opentelemetry = { version = "0.21.0", optional = true }
-opentelemetry_sdk = { version = "0.21.1", features = [
+opentelemetry_sdk = { version = "0.21.2", features = [
   "rt-tokio",
 ], optional = true }
 
