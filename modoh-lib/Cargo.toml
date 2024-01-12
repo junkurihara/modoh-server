@@ -32,7 +32,7 @@ publish = false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["native-tls"]
+default = ["rustls"]
 metrics = ["opentelemetry_sdk/metrics", "opentelemetry/metrics"]
 evil-trace = [
   "dep:tracing-opentelemetry",
@@ -40,7 +40,8 @@ evil-trace = [
   "opentelemetry/trace",
 ]
 native-tls = ["dep:hyper-tls"]
-rustls = []
+rustls = ["dep:hyper-rustls"]
+rustls-webpki-roots = ["rustls", "hyper-rustls/webpki-tokio"]
 
 [dependencies]
 futures = { version = "0.3.30", default-features = false, features = [
@@ -65,26 +66,24 @@ rustc-hash = "1.1.0"
 hyper = { version = "1.1.0", default-features = false }
 http = "1.0.0"
 http-body-util = "0.1.0"
-hyper-util = { git = "https://github.com/junkurihara/hyper-util", features = [
-  "full",
-], rev = "784109db021d076b0822ea5344a315e530831973" }
+hyper-util = { version = "0.1.2", features = ["full"] }
 
 # http handling for client
-hyper-tls = { git = "https://github.com/junkurihara/hyper-tls", features = [
+hyper-tls = { version = "0.6.0", features = [
   "alpn",
   "vendored",
-], rev = "33dafc7251866260b66b0fc93c09f04f1923827f", optional = true }
-# hyper-rustls = { version = "0.24.2", default-features = false, features = [
-#   "tokio-runtime",
-#   "webpki-tokio",
-#   "http1",
-#   "http2",
-# ] }
+], optional = true }
+hyper-rustls = { version = "0.26.0", default-features = false, features = [
+  "native-tokio",
+  "ring",
+  "http1",
+  "http2",
+], optional = true }
 
 # modoh target handling
 odoh-rs = { git = "https://github.com/junkurihara/odoh-rs" }
 rand = "0.8.5"
-base64 = "0.21.6"
+base64 = "0.21.7"
 byteorder = "1.5.0"
 
 # validation of id token
