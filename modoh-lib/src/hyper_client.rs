@@ -127,7 +127,7 @@ where
 
 #[cfg(feature = "rustls")]
 /// Build forwarder with hyper-rustls (rustls)
-impl<B> HttpClient<hyper_tls::HttpsConnector<HttpConnector>, B>
+impl<B> HttpClient<hyper_rustls::HttpsConnector<HttpConnector>, B>
 where
   B: Body + Send + Unpin + 'static,
   <B as Body>::Data: Send,
@@ -135,15 +135,15 @@ where
 {
   /// Build forwarder
   pub fn try_new(runtime_handle: tokio::runtime::Handle) -> Result<Self> {
-    todo!("Not implemented yet. Please use native-tls-backend feature for now.");
-
     // build hyper client with rustls and webpki, only https is allowed
-    // let connector = hyper_rustls::HttpsConnectorBuilder::new()
-    //   .with_webpki_roots()
-    //   .https_only()
-    //   .enable_http1()
-    //   .enable_http2()
-    //   .build();
-    // let inner = Client::builder(TokioExecutor::new()).build::<_, B>(connector);
+    #[cfg(feature = "rustls-webpki-roots")]
+    let builder = hyper_rustls::HttpsConnectorBuilder::new().with_webpki_roots();
+    #[cfg(not(feature = "rustls-webpki-roots"))]
+    let builder = hyper_rustls::HttpsConnectorBuilder::new().with_native_roots()?;
+
+    let connector = builder.https_only().enable_http1().enable_http2().build();
+    let executor = LocalExecutor::new(runtime_handle.clone());
+    let inner = Client::builder(executor).build::<_, B>(connector);
+    Ok(Self { inner })
   }
 }
