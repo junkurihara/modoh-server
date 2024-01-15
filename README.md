@@ -1,6 +1,13 @@
 # modoh-server
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+![Unit Test](https://github.com/junkurihara/modoh-server/actions/workflows/test.yml/badge.svg)
+![Docker](https://github.com/junkurihara/modoh-server/actions/workflows/release_docker.yml/badge.svg)
+![ShiftLeft Scan](https://github.com/junkurihara/modoh-server/actions/workflows/shiftleft-analysis.yml/badge.svg)
+[![Docker Image Size (latest by date)](https://img.shields.io/docker/image-size/jqtype/modoh-server)](https://hub.docker.com/r/jqtype/modoh-server)
+
+
+
 
 Relay and target implementation for Oblivious DoH (ODoH) and ODoH-based Mutualized Oblivious DNS (ODoH-based &mu;ODNS; &mu;ODoH) supporting authenticated connection, written in Rust. Standard DoH target server is also supported.
 
