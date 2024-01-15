@@ -10,7 +10,7 @@ Relay and target implementation for Oblivious DoH (ODoH) and ODoH-based Mutualiz
 
 ## Introduction
 
-<img src="assets/modoh-structure.png" alt="&mu;ODoH Network Structure" style="background-color: white"/>
+![&mu;ODoH Network Structure](./assets/modoh-structure.jpg)
 
 ## Installing/Building an Executable Binary
 
@@ -47,7 +47,7 @@ If you specify `-w` option along with the config file path, `modoh-server` track
 The full help messages are given follows.
 
 ```bash:
-% ./target/debug/modoh-server --help
+% ./target/release/modoh-server --help
 Relay and target for (Mutualized) Oblivious DNS over HTTPS with Authorization
 
 Usage: modoh-server [OPTIONS] --config <FILE>
