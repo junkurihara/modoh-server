@@ -26,7 +26,7 @@ Here is an example of the network architecture of &mu;ODoH.
 
 The &mu;ODoH network consists of &mu;ODoH client ([`doh-auth-proxy`](https://github.com/junkurihara/doh-auth-proxy)), &mu;ODoH relay and target servers(`modoh-server`), and supplementary authentication server ([`rust-token-server`](https://github.com/junkurihara/rust-token-server)). Note that when there exist two `modoh-server`, i.e., single relay and single target available, it exactly coincides with ODoH.
 
-`modoh-server` supplementary provides several access control functions for incoming and outgoing HTTP requests: For incoming requests, it provides (1) client authentication by Bearer token and (2) acceptance of pre-authorized previous relays by their source IP address; For outgoing requests, it enforces (3) filtering requests by pre-authorized target domains. To enable the (1) client authentication, the `rust-token-server` must be configured and deployed on the Internet in addition to `modoh-server`.
+`modoh-server` supplementary provides several access control functions for incoming and outgoing HTTP requests: For incoming requests, it provides (1) client authentication by Bearer token and (2) acceptance of pre-authorized previous relays by their source IP addresses; For outgoing requests, it enforces (3) filtering requests by pre-authorized target domains. To enable the (1) client authentication, the `rust-token-server` must be configured and deployed on the Internet in addition to `modoh-server`.
 
 ## Installing/Building an Executable Binary
 
@@ -245,7 +245,7 @@ client_ids = ["client_id_1", "client_id_2"]
 
 `modoh-server` allows multiple `[[validation.token]]` directives to accepts multiple clients authorized under various authorities. `modoh-server` periodically fetches their validation keys (public keys) through the token APIs' `jwks` endpoints, and concurrently verifies a request with the retrieved keys.
 
-Note that *when the bearer token does not exist in the HTTP request header, the request filtering based on the token validation is always bypassed*. This is because requests not from clients but from other relays have no such token in their header [^1]. Thus, *you should employ the source IP filtering mechanism for pre-authorized relays simultaneously token validation.*
+Note that *when the bearer token does not exist in the HTTP request header, the request filtering based on the token validation is always bypassed*. This is because requests not from clients but from other relays have no such token in their header [^1]. Thus, *you should employ the source IP filtering mechanism for pre-authorized relays simultaneously with token validation.*
 
 [^1]: It is mandatory to strip any client-specific information at the first-hop relay for privacy.
 
