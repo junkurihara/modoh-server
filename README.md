@@ -80,17 +80,200 @@ Options:
 
 ## Basic Configuration
 
-## Advanced Configuration
+### First Step
 
-### Configuration with Access Control Mechanisms
+At least, either one or both of `[relay]` and `[target]` directives must be satisfied.
 
-#### Client Authentication using Bearer Token
+#### As a Target (Forwarder of plaintext DNS Queries)
 
-#### Configuration of Pre-authorized Relays for Incoming Requests
+`modoh-server` works as a target, i.e., a forwarder of DNS queries to upstream Do53 full-service resolver, with default parameters just by adding the following directive in `config.toml`.
 
-#### Configuration of Pre-authorized Domains for Outgoing Requests
+```toml:config.toml
+[target]
+```
 
-### Using Opentelemetry for Observability
+You can run `modoh-server` as a target and check its logs as follows (only `[target]` is specified in the config file).
+
+```log:
+./modoh-server -c config.toml
+2024-01-17T02:33:54.082519Z  INFO main modoh_server: Start MODoH service
+2024-01-17T02:33:54.083804Z  INFO main modoh_server::config::target_config: Listening on 0.0.0.0:8080
+2024-01-17T02:33:54.083847Z  INFO main modoh_server::config::target_config: Hostname: localhost
+2024-01-17T02:33:54.083880Z  INFO main modoh_server::config::target_config: (M)ODoH target enabled
+2024-01-17T02:33:54.083899Z  INFO main modoh_server::config::target_config: Target path: /dns-query
+2024-01-17T02:33:54.083904Z  INFO main modoh_server::config::target_config: Target upstream: 8.8.8.8:53
+2024-01-17T02:33:54.083909Z  INFO main modoh_server::config::target_config: Target local bind address: 0.0.0.0:0
+2024-01-17T02:33:54.083926Z  INFO main modoh_server::config::target_config: Target error ttl: 2
+2024-01-17T02:33:54.083942Z  INFO main modoh_server::config::target_config: Target max ttl: 604800
+2024-01-17T02:33:54.083947Z  INFO main modoh_server::config::target_config: Target min ttl: 10
+2024-01-17T02:33:54.268199Z  INFO main modoh_server_lib::router::router_main: Start (M)ODoH services
+2024-01-17T02:33:54.268243Z  INFO modoh-server modoh_server_lib::target::target_main: Start odoh config rotation service
+2024-01-17T02:33:54.268310Z  INFO         main modoh_server_lib::router::router_main: Start TCP listener serving with HTTP request for configured host names
+```
+
+You can check its target functionality by `dig` sending a DoH request as follows.
+
+```bash:
+dig t.co @localhost -p 8080 +http-plain
+
+; <<>> DiG 9.18.21 <<>> t.co @localhost -p 8080 +http-plain
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 27036
+;; flags: qr rd ra; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags:; udp: 512
+; PAD: (15 bytes)
+;; QUESTION SECTION:
+;t.co.                          IN      A
+
+;; ANSWER SECTION:
+t.co.                   300     IN      A       104.244.42.133
+
+;; Query time: 30 msec
+;; SERVER: 127.0.0.1#8080(localhost) (HTTP)
+;; WHEN: Wed Jan 17 11:57:34 JST 2024
+;; MSG SIZE  rcvd: 68
+```
+
+The full configuration options for the target functionality are given as follows.
+
+```toml:config.toml
+## Target configuration
+[target]
+## Target serving path [default: "/dns-query"]
+path = "/dns-query"
+
+## Upstream resolver address with port [default: "8.8.8.8:53"]
+upstream = "8.8.8.8:53"
+
+## (Optional) TTL for errors, in seconds
+error_ttl = 2
+
+## (Optional) Maximum TTL, in seconds
+max_ttl = 604800
+
+## (Optional) Minimum TTL, in seconds
+min_ttl = 10
+```
+
+#### As a Relay
+
+Much like the previous example, the relay (proxy) functionality can be enabled with default parameters just by adding the following directive in `config.toml`.
+
+```toml:config.toml
+[relay]
+```
+
+You can run `modoh-server` as a relay and check its logs as follows (only `[relay]` is specified in the config file).
+
+```log:
+$ ./modoh-server -c config.toml
+2024-01-17T02:59:38.424488Z  INFO main modoh_server: Start MODoH service
+2024-01-17T02:59:38.425403Z  INFO main modoh_server::config::target_config: Listening on 0.0.0.0:8080
+2024-01-17T02:59:38.425588Z  INFO main modoh_server::config::target_config: Hostname: localhost
+2024-01-17T02:59:38.425598Z  INFO main modoh_server::config::target_config: (M)ODoH relay enabled
+2024-01-17T02:59:38.425608Z  INFO main modoh_server::config::target_config: Relay path: /proxy
+2024-01-17T02:59:38.425616Z  INFO main modoh_server::config::target_config: Relay max subsequence nodes: 3
+2024-01-17T02:59:38.425626Z  INFO main modoh_server::config::target_config: Relay http user agent: modoh-server/0.1.0
+2024-01-17T02:59:38.603780Z  INFO main modoh_server_lib::router::router_main: Start (M)ODoH services
+2024-01-17T02:59:38.603896Z  INFO main modoh_server_lib::router::router_main: Start TCP listener serving with HTTP request for configured host names
+```
+
+The full configuration options for the relay functionality are given as follows.
+
+```toml: config.toml
+## Relay configuration
+[relay]
+## Relay serving path [default: "/proxy"]
+path = "/proxy"
+
+## Maximum number of subsequent nodes (relays and target resolver) [default: 3]
+max_subsequent_nodes = 3
+
+## (Optional) User agent string to be sent to the next relay/resolver [default "modoh-server/<VERSION>"]
+# forwarder_user_agent = "whatever"
+```
+
+### Second Step: Configuration of Listening Socket and Hostname
+
+The default listen address and port are `0.0.0.0` and `8080`. To override these parameters, following top-level parameters needs to be specified.
+
+```toml:config.toml
+## Listen address [default: "0.0.0.0"]
+listen_address = "0.0.0.0"
+
+## Listen port [default: 8080]
+listen_port = 8080
+```
+
+Also the default hostname is `localhost`, which is used to check the header fo incoming HTTP request. *This should be adequately changed when deployed according to the configured domain* by setting the following top-level parameter.
+
+```toml:config.toml
+## Serving hostname [default: "localhost"]
+## This will be used to check host header of incoming requests.
+hostname = "modoh.example.com"
+```
+
+You can check the full options available in `modoh-server` in our example [`modoh-server.toml`](./modoh-server.toml).
+
+## Advanced Configuration with Access Control Mechanisms
+
+
+```toml:
+## (Optional, but highly reccomended to set)
+## Validation of source, typically user clients, using Id token
+[validation]
+
+## Token validation method, multiple methods can be configured
+[[validation.token]]
+## Token API endpoint
+token_api = "https://example.com/v1.0"
+
+## Token issuer, which will be evaluated as `iss` claim of the token
+## If not specified, token_api_endpoint will be used as token issuer
+token_issuer = "https://example.com/v1.0"
+
+## Allowed client Ids, which will be evaluated as `aud` claim of the token
+client_ids = ["client_id_1", "client_id_2"]
+
+## (Optional, but highly reccomended to set)
+## Access control of source, typically relays, using source ip address and nexthop destination domain
+[access]
+## Allowed source ip addrs
+## (TODO: from dns, should we fetch addrs associated with a given list of authorized relay domains? but such addresses may be compromised)
+## This is evaluated when no authorization header is given in the request or no token validation is configured.
+## This happens typcially for forwarded requests from a relay, not a client.
+allowed_source_ips = [
+  "127.0.0.1",
+  "192.168.1.1",
+  "192.168.1.2",
+  "192.168.11.0/24",
+]
+
+## Trusted CDNs and proxies ip ranges that will be written in X-Forwarded-For / Forwarded header
+trusted_cdn_ips = ["192.168.123.0/24"]
+# trusted_cdn_ips_file = "/etc/cdn_ips.txt" # for docker
+trusted_cdn_ips_file = "./cdn_ips.txt"
+# Always trust previous hop ip address, retrieved from remote_addr.
+# We set [default = true], since we assume that this application is always located internal network and exposed along with a TLS reverse proxy.
+# (the previous hop is always trusted)
+# If you set this to false, you should put your proxy address in trusted_cdn_ips or trusted_cdn_ips_file.
+trust_previous_hop = true
+
+## Allowed next destination target and relay domains
+allowed_destination_domains = ["example.com", "example.net", "*.example.org"]
+
+```
+
+### Client Authentication using Bearer Token
+
+### Configuration of Pre-authorized Relays for Incoming Requests
+
+### Configuration of Pre-authorized Domains for Outgoing Requests
+
+## Using Opentelemetry for Observability
 
 ## License
 `modoh-server` is free, open-source software licensed under MIT License.
@@ -98,5 +281,3 @@ Options:
 You can open issues for bugs you've found or features you think are missing. You can also submit pull requests to this repository.
 
 Contributors are more than welcome!
-
-Footnotes
