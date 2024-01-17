@@ -8,8 +8,8 @@
 
 Relay and target implementation for Oblivious DoH (ODoH) and ODoH-based Mutualized Oblivious DNS (ODoH-based &mu;ODNS; &mu;ODoH) supporting authenticated connection, written in Rust. Standard DoH target server is also supported.
 
-> **NOTE: This is a re-implementation of [https://github.com/junkurihara/doh-server](https://github.com/junkurihara/doh-server) for ease of maintenance and feature updates for &mu;ODNS.**
-
+> **This is a re-implementation of [https://github.com/junkurihara/doh-server](https://github.com/junkurihara/doh-server) for ease of maintenance and feature updates for &mu;ODNS.**
+>
 > **In &mu;ODoH, the target function is fully compatible with that of ODoH. For the detailed information on &mu;ODNS, please also refer to [https://junkurihara.github.io/dns/](https://junkurihara.github.io/dns/).**
 
 ## Introduction
@@ -218,9 +218,13 @@ hostname = "modoh.example.com"
 
 You can check the full options available in `modoh-server` in our example [`modoh-server.toml`](./modoh-server.toml).
 
-## Advanced Configuration with Access Control Mechanisms
+## Advanced Configuration for Access Control Mechanisms
+
+For the secure deployment of `modoh-server`, the access control mechanisms should be configured in addition to the basic configuration explained above.
 
 ### Client Authentication using Bearer Token
+
+For the client authentication, we can use the Bearer token in HTTP Authorization header, which is issued by [`rust-token-server`](https://github.com/junkurihara/rust-token-server) in the context of OpenID Connect. The authentication through the token validation is configured in the `[validation]` directive in `config.toml` as follows.
 
 ```toml:config.toml
 ## Validation of source, typically user clients, using Id token
@@ -239,7 +243,15 @@ token_issuer = "https://example.com/v1.0"
 client_ids = ["client_id_1", "client_id_2"]
 ```
 
+`modoh-server` allows multiple `[[validation.token]]` directives to accepts multiple clients authorized under various authorities. `modoh-server` periodically fetches their validation keys (public keys) through the token APIs' `jwks` endpoints, and concurrently verifies a request with the retrieved keys.
+
+Note that *when the bearer token does not exist in the HTTP request header, the request filtering based on the token validation is always bypassed*. This is because requests not from clients but from other relays have no such token in their header [^1]. Thus, *you should employ the source IP filtering mechanism for pre-authorized relays simultaneously token validation.*
+
+[^1]: It is mandatory to strip any client-specific information at the first-hop relay for privacy.
+
 ### Configuration of Pre-authorized Relays for Incoming Requests
+
+(Only) When the token validation is not configured or bypassed for requests without Authorization header, `modoh-server` can filters requests incoming from non-authorized nodes by their source IP addresses. The source IP filtering can be configured in `[access]` directive in `config.toml` as follows.
 
 ```toml:config.toml
 ## Access control of source, typically relays, using source ip address and nexthop destination domain
@@ -253,7 +265,6 @@ allowed_source_ips = [
   "192.168.1.2",
   "192.168.11.0/24",
 ]
-
 ## Trusted CDNs and proxies ip ranges that will be written in X-Forwarded-For / Forwarded header
 trusted_cdn_ips = ["192.168.123.0/24"]
 trusted_cdn_ips_file = "./cdn_ips.txt"
@@ -264,7 +275,11 @@ trusted_cdn_ips_file = "./cdn_ips.txt"
 trust_previous_hop = true
 ```
 
+When the `modoh-server` instance uses CDNs, `trusted_cdn_ips` and/or `trusted_cdn_ips_file` must be configured. For [Cloudflare's IPs](https://www.cloudflare.com/th-th/ips/) and [Fastly's IPs](https://developer.fastly.com/reference/api/utils/public-ip-list/) are listed in [./cdn_ips.txt](./cdn_ips.txt). Also, when a TLS-terminated reverse proxy is not collocated with the `modoh-server` instance, you should make `trust_previous_hop` to `false`.
+
 ### Configuration of Pre-authorized Domains for Outgoing Requests
+
+In &mu;ODoH, the request path to the target through relays is configured by the client itself. Hence, `modoh-server` can filter relaying requests outgoing to unauthorized domains to disallow &mu;ODoH queries to travel towards unexpected destinations and limit the possibility of DoS attacks to external domains. This can be configured in `[access]` directive as well as the source IP filtering in `config.toml`.
 
 ```toml:config.toml
 [access]
@@ -275,6 +290,8 @@ allowed_destination_domains = ["example.com", "example.net", "*.example.org"]
 ## Using Opentelemetry for Observability
 
 `modoh-server` provides the functionality to monitor traces and metrics for DevOps with [Opentelemetry](https://opentelemetry.io/). Namely, `modoh-server` can send traces and metrics to an [`opentelemetry-collector`](https://github.com/open-telemetry/opentelemetry-collector) endpoint via gRPC.
+
+To enable the observability options, start `modoh-server` with `--otel-trace` for traces and `--otel-metrics` for metrics. By default, the gRPC endpoint of `opentelemetry-collector` is `http://localhost:4317`, which can be overridden with `--otel-endpoint <ENDPOINT_URL>` option.
 
 ## License
 
