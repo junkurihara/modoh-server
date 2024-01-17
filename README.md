@@ -20,7 +20,7 @@ Relay and target implementation for Oblivious DoH (ODoH) and ODoH-based Mutualiz
 
 ### Network structure of &mu;ODoH
 
-Here we explain the network architecture of &mu;ODoH.
+Here is an example of the network architecture of &mu;ODoH.
 
 ![&mu;ODoH Network Structure](./assets/modoh-structure.jpg)
 
@@ -79,3 +79,24 @@ Options:
 ```
 
 ## Basic Configuration
+
+## Advanced Configuration
+
+### Configuration with Access Control Mechanisms
+
+#### Client Authentication using Bearer Token
+
+#### Configuration of Pre-authorized Relays for Incoming Requests
+
+#### Configuration of Pre-authorized Domains for Outgoing Requests
+
+### Using Opentelemetry for Observability
+
+## License
+`modoh-server` is free, open-source software licensed under MIT License.
+
+You can open issues for bugs you've found or features you think are missing. You can also submit pull requests to this repository.
+
+Contributors are more than welcome!
+
+Footnotes
