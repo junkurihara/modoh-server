@@ -18,7 +18,7 @@ Relay and target implementation for Oblivious DoH (ODoH) and ODoH-based Mutualiz
 
 `modoh-server` is server software that provides the target and relay functions of these three encrypted and privacy-enhanced NDS protocols. Note that as the target function, `modoh-server` works not as the full-service resolver like `bind` and `unbound` but as the DNS forwarder decrypting encrypted queries and sends the plaintext ones to the upstream full-service resolver via UDP/TCP over port 53.
 
-### Network structure of &mu;ODoH
+### Network Structure of &mu;ODoH
 
 Here is an example of the network architecture of &mu;ODoH.
 
@@ -82,7 +82,7 @@ Options:
 
 ### First Step
 
-At least, either one or both of `[relay]` and `[target]` directives must be satisfied.
+At least, either one or both of `[relay]` and `[target]` directives must be specified.
 
 #### As a Target (Forwarder of plaintext DNS Queries)
 
@@ -95,7 +95,7 @@ At least, either one or both of `[relay]` and `[target]` directives must be sati
 You can run `modoh-server` as a target and check its logs as follows (only `[target]` is specified in the config file).
 
 ```log:
-./modoh-server -c config.toml
+% ./modoh-server -c config.toml
 2024-01-17T02:33:54.082519Z  INFO main modoh_server: Start MODoH service
 2024-01-17T02:33:54.083804Z  INFO main modoh_server::config::target_config: Listening on 0.0.0.0:8080
 2024-01-17T02:33:54.083847Z  INFO main modoh_server::config::target_config: Hostname: localhost
@@ -114,7 +114,7 @@ You can run `modoh-server` as a target and check its logs as follows (only `[tar
 You can check its target functionality by `dig` sending a DoH request as follows.
 
 ```bash:
-dig t.co @localhost -p 8080 +http-plain
+% dig t.co @localhost -p 8080 +http-plain
 
 ; <<>> DiG 9.18.21 <<>> t.co @localhost -p 8080 +http-plain
 ;; global options: +cmd
@@ -169,7 +169,7 @@ Much like the previous example, the relay (proxy) functionality can be enabled w
 You can run `modoh-server` as a relay and check its logs as follows (only `[relay]` is specified in the config file).
 
 ```log:
-$ ./modoh-server -c config.toml
+% ./modoh-server -c config.toml
 2024-01-17T02:59:38.424488Z  INFO main modoh_server: Start MODoH service
 2024-01-17T02:59:38.425403Z  INFO main modoh_server::config::target_config: Listening on 0.0.0.0:8080
 2024-01-17T02:59:38.425588Z  INFO main modoh_server::config::target_config: Hostname: localhost
