@@ -220,9 +220,9 @@ You can check the full options available in `modoh-server` in our example [`modo
 
 ## Advanced Configuration with Access Control Mechanisms
 
+### Client Authentication using Bearer Token
 
-```toml:
-## (Optional, but highly reccomended to set)
+```toml:config.toml
 ## Validation of source, typically user clients, using Id token
 [validation]
 
@@ -237,14 +237,16 @@ token_issuer = "https://example.com/v1.0"
 
 ## Allowed client Ids, which will be evaluated as `aud` claim of the token
 client_ids = ["client_id_1", "client_id_2"]
+```
 
-## (Optional, but highly reccomended to set)
+### Configuration of Pre-authorized Relays for Incoming Requests
+
+```toml:config.toml
 ## Access control of source, typically relays, using source ip address and nexthop destination domain
 [access]
 ## Allowed source ip addrs
-## (TODO: from dns, should we fetch addrs associated with a given list of authorized relay domains? but such addresses may be compromised)
 ## This is evaluated when no authorization header is given in the request or no token validation is configured.
-## This happens typcially for forwarded requests from a relay, not a client.
+## This happens typically for forwarded requests from a relay, not a client.
 allowed_source_ips = [
   "127.0.0.1",
   "192.168.1.1",
@@ -254,28 +256,28 @@ allowed_source_ips = [
 
 ## Trusted CDNs and proxies ip ranges that will be written in X-Forwarded-For / Forwarded header
 trusted_cdn_ips = ["192.168.123.0/24"]
-# trusted_cdn_ips_file = "/etc/cdn_ips.txt" # for docker
 trusted_cdn_ips_file = "./cdn_ips.txt"
+
 # Always trust previous hop ip address, retrieved from remote_addr.
-# We set [default = true], since we assume that this application is always located internal network and exposed along with a TLS reverse proxy.
-# (the previous hop is always trusted)
+# We set [default = true], since we assume that this application is always located internal network and exposed along with a TLS reverse proxy (the previous hop is always trusted).
 # If you set this to false, you should put your proxy address in trusted_cdn_ips or trusted_cdn_ips_file.
 trust_previous_hop = true
-
-## Allowed next destination target and relay domains
-allowed_destination_domains = ["example.com", "example.net", "*.example.org"]
-
 ```
-
-### Client Authentication using Bearer Token
-
-### Configuration of Pre-authorized Relays for Incoming Requests
 
 ### Configuration of Pre-authorized Domains for Outgoing Requests
 
+```toml:config.toml
+[access]
+## Allowed next destination target and relay domains
+allowed_destination_domains = ["example.com", "example.net", "*.example.org"]
+```
+
 ## Using Opentelemetry for Observability
 
+`modoh-server` provides the functionality to monitor traces and metrics for DevOps with [Opentelemetry](https://opentelemetry.io/). Namely, `modoh-server` can send traces and metrics to an [`opentelemetry-collector`](https://github.com/open-telemetry/opentelemetry-collector) endpoint via gRPC.
+
 ## License
+
 `modoh-server` is free, open-source software licensed under MIT License.
 
 You can open issues for bugs you've found or features you think are missing. You can also submit pull requests to this repository.
