@@ -1,4 +1,4 @@
-# Example Construction of Opentelemetry and its related servers for Observability
+# Example Construction of Opentelemetry and its Related Servers for Observability
 
 Here is an example of docker containers for the observability of `modoh-server`, conjunctively configured with its container in [`../docker/`](../docker/) directory.
 

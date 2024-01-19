@@ -1,4 +1,4 @@
-# modoh-server
+# modoh-server: Relay and Target Server Implementation for Oblivious DNS over HTTPS (ODoH), ODoH-based Mutualized Oblivious DNS (&mu;ODoH), and Standard DoH.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Unit Test](https://github.com/junkurihara/modoh-server/actions/workflows/test.yml/badge.svg)
