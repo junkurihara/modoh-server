@@ -287,11 +287,17 @@ In &mu;ODoH, the request path to the target through relays is configured by the 
 allowed_destination_domains = ["example.com", "example.net", "*.example.org"]
 ```
 
+## Deployment using Docker
+
+See the [`./docker`](./docker) directory.
+
 ## Using Opentelemetry for Observability
 
 `modoh-server` provides the functionality to monitor traces and metrics for DevOps with [Opentelemetry](https://opentelemetry.io/). Namely, `modoh-server` can send traces and metrics to an [`opentelemetry-collector`](https://github.com/open-telemetry/opentelemetry-collector) endpoint via gRPC.
 
 To enable the observability options, start `modoh-server` with `--otel-trace` for traces and `--otel-metrics` for metrics. By default, the gRPC endpoint of `opentelemetry-collector` is `http://localhost:4317`, which can be overridden with `--otel-endpoint <ENDPOINT_URL>` option.
+
+The [`./docker-otel`](./docker-otel) directory contains an example architecture for observability based on `opentelemetry-collector`, metrics storage, visualizer, and analyzer containers.
 
 ## License
 
