@@ -1,33 +1,16 @@
 [package]
 name = "modoh-server"
-version = "0.1.0"
 description = "Relay and target for (Mutualized) Oblivious DNS over HTTPS with Authorization"
-authors = ["Jun Kurihara"]
-homepage = "https://github.com/junkurihara/modoh-server"
-repository = "https://github.com/junkurihara/modoh-server"
-license = "MIT"
-readme = "../README.md"
-categories = [
-  "asynchronous",
-  "network-programming",
-  "command-line-utilities",
-  "web-programming::http-server",
-]
-keywords = [
-  "dns",
-  "https",
-  "dns-over-https",
-  "doh",
-  "oblivious-dns-over-https",
-  "odoh",
-  "mutualized-oblivious-dns",
-  "mutualized-odoh",
-  "modoh",
-  "relay",
-  "authorization",
-]
-edition = "2021"
-publish = false
+version.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+categories.workspace = true
+keywords.workspace = true
+edition.workspace = true
+publish.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -67,7 +50,7 @@ modoh-server-lib = { path = "../modoh-lib", default-features = false, features =
 anyhow = "1.0.79"
 mimalloc = { version = "*", default-features = false }
 serde = { version = "1.0.196", default-features = false, features = ["derive"] }
-derive_builder = "0.13.1"
+derive_builder = "0.20.0"
 tokio = { version = "1.36.0", default-features = false, features = [
   "net",
   "rt-multi-thread",
