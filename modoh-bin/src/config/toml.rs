@@ -82,6 +82,20 @@ pub struct Access {
 
   /// Allowed destination domains
   pub allowed_destination_domains: Option<Vec<String>>,
+
+  /// Configuration for HTTP message signatures
+  pub httpsig: Option<Httpsig>,
+}
+
+#[derive(Deserialize, Debug, Default, PartialEq, Eq, Clone)]
+/// Configuration for HTTP message signatures
+pub struct Httpsig {
+  /// Public key and KEM types used for Diffie-Hellman key exchange for httpsig's hmac-sha256 signature.
+  pub dh_kem_types: Option<Vec<String>>,
+  /// Public key rotation period for Diffie-Hellman key exchange, in seconds.
+  pub dh_key_rotation_period: Option<u64>,
+  /// List of HTTP message signatures enabled domains, which exposes public keys to use Diffie-Hellman key exchange.
+  pub enabled_domains: Option<Vec<String>>,
 }
 
 impl ConfigToml {

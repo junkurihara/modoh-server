@@ -81,5 +81,31 @@ trusted_cdn_ips_file = "./cdn_ips.txt"
 # If you set this to false, you should put your proxy address in trusted_cdn_ips or trusted_cdn_ips_file.
 trust_previous_hop = true
 
-## Allowed next destination target and relay domains
+## Allowed next destination target and relay domains, evaluated only when the destination is not httpsig-enabled.
 allowed_destination_domains = ["example.com", "example.net", "*.example.org"]
+
+## Configuration for HTTP message signatures, which is used to
+## - verify if the incoming request is from one of the httpsig-enabled domains,
+## - sign outgoing (relayed) requests when the next node is one of the httpsig-enabled domains.
+## Note that Source IP address is prioritized over the signature verification.
+## When the destination domain is not in the list, it is not signed and dispatched without signature.
+## If [access.httpsig] is not specified, the signature verification is not performed, and public key is not served at endpoint.
+[access.httpsig]
+## Public key types used for Diffie-Hellman key exchange for hmac-sha256 signature.
+## These are automatically generated and exposed at `/.well-known/httpsigconfigs` endpoint.
+## (default = ["x25519-hkdf-sha256"], supported = "p256-hkdf-sha256" (ecdh), and "x25519-hkdf-sha256")
+dh_kem_types = ["p256-hkdf-sha256", "x25519-hkdf-sha256"]
+
+## Public key rotation period for Diffie-Hellman key exchange, in seconds.
+## Keys are periodically rotated and exposed to mitigate the risk of key compromise.
+## (default = 3600)
+dh_key_rotation_period = 3600
+
+## List of HTTP message signatures enabled domains, which exposes public keys to use Diffie-Hellman key exchange.
+## Keys are periodically refetched from `httpsigconfigs` endpoints of the domains.
+## (default = [])
+enabled_domains = [
+  "modoh.example.com",
+  "modoh.example.net",
+  "modoh.example.org",
+]

@@ -3,7 +3,7 @@ use crate::{error::*, trace::*};
 use async_trait::async_trait;
 use hot_reload::{Reload, ReloaderError};
 use ipnet::IpNet;
-use modoh_server_lib::{AccessConfig, ServiceConfig, ValidationConfig, ValidationConfigInner};
+use modoh_server_lib::{AccessConfig, HttpsigConfig, ServiceConfig, ValidationConfig, ValidationConfigInner};
 use std::{
   fs::read_to_string,
   net::{IpAddr, SocketAddr},
@@ -32,8 +32,8 @@ impl Reload<TargetConfig> for ConfigReloader {
   }
 
   async fn reload(&self) -> Result<Option<TargetConfig>, ReloaderError<TargetConfig>> {
-    let config_toml = ConfigToml::new(&self.config_path)
-      .map_err(|_e| ReloaderError::<TargetConfig>::Reload("Failed to reload config toml"))?;
+    let config_toml =
+      ConfigToml::new(&self.config_path).map_err(|_e| ReloaderError::<TargetConfig>::Reload("Failed to reload config toml"))?;
 
     Ok(Some(TargetConfig { config_toml }))
   }
@@ -190,11 +190,41 @@ impl TryInto<ServiceConfig> for &TargetConfig {
         }
       }
 
+      let httpsig = if let Some(httpsig) = access.httpsig.as_ref() {
+        let mut httpsig_config = HttpsigConfig::default();
+        if let Some(dh_kem_types) = &httpsig.dh_kem_types {
+          let dh_kem_types = dh_kem_types
+            .iter()
+            .map(|s| s.as_str().try_into())
+            .collect::<Result<Vec<_>, _>>()?;
+          httpsig_config.dh_kem_types = dh_kem_types;
+        }
+        if let Some(dh_key_rotation_period) = &httpsig.dh_key_rotation_period {
+          httpsig_config.dh_key_rotation_period = std::time::Duration::from_secs(*dh_key_rotation_period);
+        }
+        if let Some(enabled_domains) = &httpsig.enabled_domains {
+          let enabled_domains = enabled_domains
+            .iter()
+            .map(|s| {
+              url::Url::parse(&format!("https://{s}"))
+                .unwrap()
+                .authority()
+                .to_ascii_lowercase()
+            })
+            .collect();
+          httpsig_config.enabled_domains = enabled_domains;
+        }
+        Some(httpsig_config)
+      } else {
+        None
+      };
+
       service_conf.access = Some(AccessConfig {
         allowed_source_ip_addresses: inner_ip,
         allowed_destination_domains: inner_domain,
         trusted_cdn_ip_addresses: inner_cdn_ip,
         trust_previous_hop,
+        httpsig,
       });
     };
 

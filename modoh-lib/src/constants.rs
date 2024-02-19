@@ -54,6 +54,9 @@ pub const JWKS_REFETCH_TIMEOUT_SEC: u64 = 3;
 /// Expected maximum size of JWKS in bytes
 pub const EXPECTED_MAX_JWKS_SIZE: u64 = 1024 * 64;
 
+/// Httpsig constants
+pub const HTTPSIG_DH_KEM_ROTATION_PERIOD: u64 = 3600;
+
 #[cfg(feature = "evil-trace")]
 pub const EVIL_TRACE_HEADER_NAME: &str = "traceparent";
 #[cfg(feature = "evil-trace")]

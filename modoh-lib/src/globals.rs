@@ -1,4 +1,4 @@
-use crate::{constants::*, count::RequestCount};
+use crate::{constants::*, count::RequestCount, httpsig::DhKemTypes};
 use auth_validator::ValidationConfig;
 use ipnet::IpNet;
 use std::{
@@ -99,6 +99,33 @@ pub struct AccessConfig {
   pub trusted_cdn_ip_addresses: Vec<IpNet>,
   /// Whether to trust previous hop reverse proxy
   pub trust_previous_hop: bool,
+  /// Httpsig configuration
+  pub httpsig: Option<HttpsigConfig>,
+}
+
+#[derive(Clone)]
+/// Configuration for HTTP message signatures, which is used to
+/// - verify if the incoming request is from one of the httpsig-enabled domains,
+/// - sign outgoing (relayed) requests when the next node is one of the httpsig-enabled domains.
+/// Note that Source IP address is prioritized over the signature verification.
+/// When the destination domain is not in the list, it is not signed and dispatched without signature.
+pub struct HttpsigConfig {
+  /// Diffie-Hellman key exchange types
+  pub dh_kem_types: Vec<DhKemTypes>,
+  /// Public key rotation period for Diffie-Hellman key exchange, in seconds.
+  pub dh_key_rotation_period: Duration,
+  /// List of HTTP message signatures enabled domains, which exposes public keys to use Diffie-Hellman key exchange.
+  pub enabled_domains: Vec<String>,
+}
+
+impl Default for HttpsigConfig {
+  fn default() -> Self {
+    Self {
+      dh_kem_types: vec![DhKemTypes::default()],
+      dh_key_rotation_period: Duration::from_secs(HTTPSIG_DH_KEM_ROTATION_PERIOD),
+      enabled_domains: vec![],
+    }
+  }
 }
 
 impl Default for ServiceConfig {
