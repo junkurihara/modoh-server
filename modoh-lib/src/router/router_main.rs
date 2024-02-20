@@ -148,6 +148,8 @@ where
       .as_ref()
       .map(|_| Arc::new(RequestFilter::new(globals.service_config.access.as_ref().unwrap())));
 
+    // TODO: build httpsig rotation and verifier service struct
+
     let inner_relay = match &globals.service_config.relay {
       Some(_) => Some(InnerRelay::try_new(globals, http_client, request_filter.clone())?),
       None => None,

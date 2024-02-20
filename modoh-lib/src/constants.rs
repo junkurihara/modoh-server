@@ -3,6 +3,7 @@ pub const HOSTNAME: &str = "localhost";
 pub const RELAY_PATH: &str = "/proxy";
 pub const TARGET_PATH: &str = "/dns-query";
 pub const ODOH_CONFIGS_PATH: &str = "/.well-known/odohconfigs";
+pub const HTTPSIG_CONFIGS_PATH: &str = "/.well-known/httpsigconfigs";
 
 pub const TCP_LISTEN_BACKLOG: u32 = 1024;
 pub const MAX_CLIENTS: usize = 1024;
