@@ -366,33 +366,33 @@ pub fn derive_secret(
     DhP256HkdfSha256::KEM_ID => {
       assert_eq!(config_other.kem_id, key_pair_self.public_key.kem_id);
 
-      // let your_pk = p256::PublicKey::from_sec1_bytes(&destination_config.public_key).unwrap();
-      // let my_sk_bytes = hpke::generic_array::GenericArray::clone_from_slice(&source_key_pair.private_key);
-      // let my_sk = p256::SecretKey::from_bytes(&my_sk_bytes).unwrap();
-      // let kex_res = elliptic_curve::ecdh::diffie_hellman(my_sk.to_nonzero_scalar(), your_pk.as_affine());
+      let your_pk = p256::PublicKey::from_sec1_bytes(&config_other.public_key).unwrap();
+      let my_sk_bytes = hpke::generic_array::GenericArray::clone_from_slice(&key_pair_self.private_key);
+      let my_sk = p256::SecretKey::from_bytes(&my_sk_bytes).unwrap();
+      let kex_res = elliptic_curve::ecdh::diffie_hellman(my_sk.to_nonzero_scalar(), your_pk.as_affine());
 
-      // let mut buf = <hpke::kem::SharedSecret<DhP256HkdfSha256> as Default>::default();
-      // let _ = hpke::kdf::extract_and_expand::<HkdfSha256>(kex_res.raw_secret_bytes(), b"", b"", &mut buf.0);
-      // out_buf.copy_from_slice(&buf.0);
-      // // out_buf.copy_from_slice(&kex_res[..32]);
-      // Ok(()) as Result<(), HttpSigDhError>
-      // TODO: HPKEだとdecap内において、kem_contextにencapped keyを記録してkdfを通さなければならないが、今回は双方向になるのでencapped keyがsenderのpkと言えなくなる。そうなると、HPKEのkem_contextの仕様を変えないとKDFのsaltないのserializeが混乱する。
-      // あるいは、登り下りで別のshared secretを利用するのが無難か。。。？
-
-      let your_pk = <DhP256HkdfSha256 as Kem>::EncappedKey::from_bytes(&config_other.public_key).unwrap();
-      let my_sk = <DhP256HkdfSha256 as Kem>::PrivateKey::from_bytes(&key_pair_self.private_key).unwrap();
-      // let recv_ctx = hpke::setup_receiver::<hpke::aead::ExportOnlyAead, hpke::kdf::HkdfSha256, hpke::kem::DhP256HkdfSha256>(
-      //   &hpke::OpModeR::Base,
-      //   &my_sk,
-      //   &your_pk,
-      //   b"",
-      // )
-      // .unwrap();
-      // recv_ctx.export(b"", &mut out_buf)
-      let decapped = <DhP256HkdfSha256 as Kem>::decap(&my_sk, None, &your_pk).unwrap();
-      let decapped = decapped.0.to_vec();
-      out_buf.copy_from_slice(&decapped);
+      let mut buf = <hpke::kem::SharedSecret<DhP256HkdfSha256> as Default>::default();
+      let _ = hpke::kdf::extract_and_expand::<HkdfSha256>(kex_res.raw_secret_bytes(), b"", b"", &mut buf.0);
+      out_buf.copy_from_slice(&buf.0);
+      // out_buf.copy_from_slice(&kex_res[..32]);
       Ok(()) as Result<(), HttpSigDhError>
+      // TODO: HPKEだとdecap内において、kem_contextにencapped keyを記録してkdfを通さなければならないが、今回は双方向になるのでencapped keyがsenderのpkと言えなくなる。そうなると、HPKEのkem_contextの仕様を変えないとKDFのsaltないのserializeが混乱する。
+      // あるいは、登り下りで別のshared secretを利用するのが無難か。。。？Forward Secrecyが既に担保できていない状況でさらに頑張るかどうか。
+
+      // let your_pk = <DhP256HkdfSha256 as Kem>::EncappedKey::from_bytes(&config_other.public_key).unwrap();
+      // let my_sk = <DhP256HkdfSha256 as Kem>::PrivateKey::from_bytes(&key_pair_self.private_key).unwrap();
+      // // let recv_ctx = hpke::setup_receiver::<hpke::aead::ExportOnlyAead, hpke::kdf::HkdfSha256, hpke::kem::DhP256HkdfSha256>(
+      // //   &hpke::OpModeR::Base,
+      // //   &my_sk,
+      // //   &your_pk,
+      // //   b"",
+      // // )
+      // // .unwrap();
+      // // recv_ctx.export(b"", &mut out_buf)
+      // let decapped = <DhP256HkdfSha256 as Kem>::decap(&my_sk, None, &your_pk).unwrap();
+      // let decapped = decapped.0.to_vec();
+      // out_buf.copy_from_slice(&decapped);
+      // Ok(()) as Result<(), HttpSigDhError>
     }
     _ => unreachable!(),
   };
