@@ -1,7 +1,7 @@
 use super::odoh::ODoHPublicKey;
 use crate::{
   constants::{
-    HTTPSIG_CONFIGS_PATH, ODOH_CONFIGS_PATH, ODOH_KEY_ROTATION_SECS, STALE_IF_ERROR_SECS, STALE_WHILE_REVALIDATE_SECS,
+    HTTPSIG_DH_CONFIGS_PATH, ODOH_CONFIGS_PATH, ODOH_KEY_ROTATION_SECS, STALE_IF_ERROR_SECS, STALE_WHILE_REVALIDATE_SECS,
   },
   count::RequestCount,
   error::*,
@@ -146,7 +146,7 @@ impl InnerTarget {
     let min_ttl = target_config.min_ttl;
     let odoh_configs_path = ODOH_CONFIGS_PATH.to_string();
     let odoh_configs = Arc::new(RwLock::new(ODoHPublicKey::new()?));
-    let httpsig_config_path = HTTPSIG_CONFIGS_PATH.to_string();
+    let httpsig_config_path = HTTPSIG_DH_CONFIGS_PATH.to_string();
     let timeout = globals.service_config.timeout;
     let max_tcp_sessions = globals.service_config.max_clients;
     let request_count = globals.request_count.clone();

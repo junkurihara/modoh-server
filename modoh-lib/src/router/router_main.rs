@@ -27,7 +27,7 @@ where
   /// hyper client forwarding requests to upstream
   pub(crate) inner_relay: Option<Arc<InnerRelay<C>>>,
   /// dns client forwarding dns query to upstream
-  pub(crate) inner_target: Option<Arc<InnerTarget>>, // TODO: add httpsigconfigs endpoint to inner_target
+  pub(crate) inner_target: Option<Arc<InnerTarget>>, // TODO: add hsdhconfigs endpoint to inner_target
   /// validator for token validation
   pub(crate) inner_validator: Option<Arc<Validator<C>>>,
   /// request count

@@ -1,10 +1,18 @@
 use thiserror::Error;
 
-pub type HttpSigResult<T> = std::result::Result<T, HttpSigError>;
-
-/// Describes things that can go wrong in the relay
+/// Describes things that can go wrong in the Dh for HttpSig HMAC verification
 #[derive(Debug, Error)]
-pub enum HttpSigError {
+pub enum HttpSigDhError {
+  /// The input is too short
+  #[error("Input too short")]
+  ShortInput,
+  /// The input length is invalid
+  #[error("Invalid input length")]
+  InvalidInputLength,
+  /// The input is invalid
+  #[error("Invalid parameter")]
+  InvalidParameter,
+
   #[error(transparent)]
   Other(#[from] anyhow::Error),
 }

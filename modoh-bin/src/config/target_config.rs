@@ -192,16 +192,29 @@ impl TryInto<ServiceConfig> for &TargetConfig {
 
       let httpsig = if let Some(httpsig) = access.httpsig.as_ref() {
         let mut httpsig_config = HttpsigConfig::default();
-        if let Some(dh_kem_types) = &httpsig.dh_kem_types {
-          let dh_kem_types = dh_kem_types
+        if let Some(dh_types) = &httpsig.dh_types {
+          let dh_types = dh_types
             .iter()
             .map(|s| s.as_str().try_into())
             .collect::<Result<Vec<_>, _>>()?;
-          httpsig_config.dh_kem_types = dh_kem_types;
+          httpsig_config.dh_types = dh_types;
         }
+        info!(
+          "Set available DH types for HttpSig: {}",
+          httpsig_config
+            .dh_types
+            .iter()
+            .map(|t| t.to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+        );
         if let Some(dh_key_rotation_period) = &httpsig.dh_key_rotation_period {
           httpsig_config.dh_key_rotation_period = std::time::Duration::from_secs(*dh_key_rotation_period);
         }
+        info!(
+          "Set DH key rotation period for HttpSig: {}",
+          httpsig_config.dh_key_rotation_period.as_secs()
+        );
         if let Some(enabled_domains) = &httpsig.enabled_domains {
           let enabled_domains = enabled_domains
             .iter()
@@ -214,6 +227,7 @@ impl TryInto<ServiceConfig> for &TargetConfig {
             .collect();
           httpsig_config.enabled_domains = enabled_domains;
         }
+        info!("Set HttpSig-enabled targeted domains: {:#?}", httpsig_config.enabled_domains);
         Some(httpsig_config)
       } else {
         None

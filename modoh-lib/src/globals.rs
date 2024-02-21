@@ -1,4 +1,4 @@
-use crate::{constants::*, count::RequestCount, httpsig::DhKemTypes};
+use crate::{constants::*, count::RequestCount, httpsig::HttpSigDhTypes};
 use auth_validator::ValidationConfig;
 use ipnet::IpNet;
 use std::{
@@ -111,7 +111,7 @@ pub struct AccessConfig {
 /// When the destination domain is not in the list, it is not signed and dispatched without signature.
 pub struct HttpsigConfig {
   /// Diffie-Hellman key exchange types
-  pub dh_kem_types: Vec<DhKemTypes>,
+  pub dh_types: Vec<HttpSigDhTypes>,
   /// Public key rotation period for Diffie-Hellman key exchange, in seconds.
   pub dh_key_rotation_period: Duration,
   /// List of HTTP message signatures enabled domains, which exposes public keys to use Diffie-Hellman key exchange.
@@ -121,7 +121,7 @@ pub struct HttpsigConfig {
 impl Default for HttpsigConfig {
   fn default() -> Self {
     Self {
-      dh_kem_types: vec![DhKemTypes::default()],
+      dh_types: vec![HttpSigDhTypes::default()],
       dh_key_rotation_period: Duration::from_secs(HTTPSIG_DH_KEM_ROTATION_PERIOD),
       enabled_domains: vec![],
     }

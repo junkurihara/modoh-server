@@ -92,9 +92,9 @@ allowed_destination_domains = ["example.com", "example.net", "*.example.org"]
 ## If [access.httpsig] is not specified, the signature verification is not performed, and public key is not served at endpoint.
 [access.httpsig]
 ## Public key types used for Diffie-Hellman key exchange for hmac-sha256 signature.
-## These are automatically generated and exposed at `/.well-known/httpsigconfigs` endpoint.
-## (default = ["x25519-hkdf-sha256"], supported = "p256-hkdf-sha256" (ecdh), and "x25519-hkdf-sha256")
-dh_kem_types = ["p256-hkdf-sha256", "x25519-hkdf-sha256"]
+## These are automatically generated and exposed at `/.well-known/hsdhconfigs` endpoint.
+## (default = ["x25519-hkdf-sha256"], supported = "dhp256-hkdf-sha256" (ecdh), and "x25519-hkdf-sha256")
+dh_types = ["dhp256-hkdf-sha256", "x25519-hkdf-sha256"]
 
 ## Public key rotation period for Diffie-Hellman key exchange, in seconds.
 ## Keys are periodically rotated and exposed to mitigate the risk of key compromise.
@@ -102,7 +102,7 @@ dh_kem_types = ["p256-hkdf-sha256", "x25519-hkdf-sha256"]
 dh_key_rotation_period = 3600
 
 ## List of HTTP message signatures enabled domains, which exposes public keys to use Diffie-Hellman key exchange.
-## Keys are periodically refetched from `httpsigconfigs` endpoints of the domains.
+## Keys are periodically refetched from `hsdhconfigs` endpoints of the domains.
 ## (default = [])
 enabled_domains = [
   "modoh.example.com",
