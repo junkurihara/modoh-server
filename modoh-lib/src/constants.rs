@@ -3,7 +3,7 @@ pub const HOSTNAME: &str = "localhost";
 pub const RELAY_PATH: &str = "/proxy";
 pub const TARGET_PATH: &str = "/dns-query";
 pub const ODOH_CONFIGS_PATH: &str = "/.well-known/odohconfigs";
-pub const HTTPSIG_DH_CONFIGS_PATH: &str = "/.well-known/hsdhconfigs";
+pub const HTTPSIG_CONFIGS_PATH: &str = "/.well-known/httpsigconfigs";
 
 pub const TCP_LISTEN_BACKLOG: u32 = 1024;
 pub const MAX_CLIENTS: usize = 1024;
@@ -56,7 +56,7 @@ pub const JWKS_REFETCH_TIMEOUT_SEC: u64 = 3;
 pub const EXPECTED_MAX_JWKS_SIZE: u64 = 1024 * 64;
 
 /// Httpsig constants
-pub const HTTPSIG_DH_KEM_ROTATION_PERIOD: u64 = 3600;
+pub const HTTPSIG_KEY_ROTATION_PERIOD: u64 = 3600;
 
 #[cfg(feature = "evil-trace")]
 pub const EVIL_TRACE_HEADER_NAME: &str = "traceparent";

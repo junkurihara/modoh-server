@@ -1,4 +1,4 @@
-use super::error::HttpSigDhError;
+use super::{error::HttpSigDhError, HTTPSIG_PROTO_VERSION_DH};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use hpke::{
   kdf::{HkdfSha256, Kdf},
@@ -6,9 +6,6 @@ use hpke::{
   Serializable,
 };
 use rand::{CryptoRng, RngCore};
-
-/// HttpSigDh version supported by this library
-pub const HTTPSIG_DH_VERSION: u16 = 0x0001;
 
 /* ------------------------------------------- */
 // Imported from odoh-rs crate
@@ -108,27 +105,6 @@ impl HttpSigDhTypes {
     HttpSigDhKeyPair {
       private_key: sk_bytes.into(),
       public_key: contents,
-    }
-  }
-}
-
-impl TryFrom<&str> for HttpSigDhTypes {
-  type Error = anyhow::Error;
-
-  fn try_from(s: &str) -> Result<Self, Self::Error> {
-    match s {
-      "x25519-hkdf-sha256" => Ok(HttpSigDhTypes::X25519HkdfSha256),
-      "dhp256-hkdf-sha256" => Ok(HttpSigDhTypes::DhP256HkdfSha256),
-      _ => Err(anyhow::anyhow!("Invalid DhKemTypes: {}", s)),
-    }
-  }
-}
-
-impl std::fmt::Display for HttpSigDhTypes {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    match self {
-      HttpSigDhTypes::X25519HkdfSha256 => write!(f, "x25519-hkdf-sha256"),
-      HttpSigDhTypes::DhP256HkdfSha256 => write!(f, "dhp256-hkdf-sha256"),
     }
   }
 }
@@ -243,7 +219,7 @@ impl From<HttpSigDhConfig> for HttpSigDhConfigContents {
 impl From<HttpSigDhConfigContents> for HttpSigDhConfig {
   fn from(c: HttpSigDhConfigContents) -> Self {
     Self {
-      version: HTTPSIG_DH_VERSION,
+      version: HTTPSIG_PROTO_VERSION_DH,
       length: c.len() as u16,
       contents: c,
     }
@@ -270,7 +246,7 @@ impl IntoIterator for HttpSigDhConfigs {
   type IntoIter = std::iter::Filter<VecIter, fn(&Self::Item) -> bool>;
 
   fn into_iter(self) -> Self::IntoIter {
-    self.configs.into_iter().filter(|c| c.version == HTTPSIG_DH_VERSION)
+    self.configs.into_iter().filter(|c| c.version == HTTPSIG_PROTO_VERSION_DH)
   }
 }
 

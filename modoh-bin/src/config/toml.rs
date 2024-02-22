@@ -90,11 +90,13 @@ pub struct Access {
 #[derive(Deserialize, Debug, Default, PartialEq, Eq, Clone)]
 /// Configuration for HTTP message signatures
 pub struct Httpsig {
-  /// Public key, KEM and KDF types used for Diffie-Hellman key exchange for httpsig's hmac-sha256 signature.
-  pub dh_types: Option<Vec<String>>,
-  /// Public key rotation period for Diffie-Hellman key exchange, in seconds.
-  pub dh_key_rotation_period: Option<u64>,
-  /// List of HTTP message signatures enabled domains, which exposes public keys to use Diffie-Hellman key exchange.
+  /// Public key types exposed at the `httpsigconfigs` endpoint.
+  /// - Public key, KEM and KDF types used for Diffie-Hellman key exchange for httpsig's hmac-sha256 signature.
+  /// - Public key types used for direct signature verification.
+  pub key_types: Option<Vec<String>>,
+  /// Public key rotation period in seconds.
+  pub key_rotation_period: Option<u64>,
+  /// List of HTTP message signatures enabled domains, which exposes public keys for Diffie-Hellman key exchange or directly for signature verification.
   pub enabled_domains: Option<Vec<String>>,
 }
 

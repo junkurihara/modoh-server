@@ -1,4 +1,4 @@
-use crate::{constants::*, count::RequestCount, httpsig::HttpSigDhTypes};
+use crate::{constants::*, count::RequestCount, httpsig::HttpSigKeyTypes};
 use auth_validator::ValidationConfig;
 use ipnet::IpNet;
 use std::{
@@ -110,19 +110,21 @@ pub struct AccessConfig {
 /// Note that Source IP address is prioritized over the signature verification.
 /// When the destination domain is not in the list, it is not signed and dispatched without signature.
 pub struct HttpsigConfig {
-  /// Diffie-Hellman key exchange types
-  pub dh_types: Vec<HttpSigDhTypes>,
+  /// Public key types exposed at the `httpsigconfigs` endpoint.
+  /// - Public key, KEM and KDF types used for Diffie-Hellman key exchange for httpsig's hmac-sha256 signature.
+  /// - Public key types used for direct signature verification.
+  pub key_types: Vec<HttpSigKeyTypes>,
   /// Public key rotation period for Diffie-Hellman key exchange, in seconds.
-  pub dh_key_rotation_period: Duration,
-  /// List of HTTP message signatures enabled domains, which exposes public keys to use Diffie-Hellman key exchange.
+  pub key_rotation_period: Duration,
+  /// List of HTTP message signatures enabled domains, which expose public keys
   pub enabled_domains: Vec<String>,
 }
 
 impl Default for HttpsigConfig {
   fn default() -> Self {
     Self {
-      dh_types: vec![HttpSigDhTypes::default()],
-      dh_key_rotation_period: Duration::from_secs(HTTPSIG_DH_KEM_ROTATION_PERIOD),
+      key_types: vec![HttpSigKeyTypes::default()],
+      key_rotation_period: Duration::from_secs(HTTPSIG_KEY_ROTATION_PERIOD),
       enabled_domains: vec![],
     }
   }
