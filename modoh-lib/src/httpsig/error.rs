@@ -1,8 +1,8 @@
 use thiserror::Error;
 
-/// Describes things that can go wrong in the Dh for HttpSig HMAC verification
+/// Describes things that can go wrong in the Dh for HttpSig HMAC/Sig verification
 #[derive(Debug, Error)]
-pub enum HttpSigDhError {
+pub enum HttpSigError {
   /// The input is too short
   #[error("Input too short")]
   ShortInput,

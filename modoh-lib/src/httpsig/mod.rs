@@ -1,5 +1,7 @@
+mod common;
 mod dh;
 mod error;
+mod pk;
 
 /// HttpSig key version for MAC via DH supported by this library
 pub const HTTPSIG_PROTO_VERSION_DH: u16 = 0x0001;
@@ -10,7 +12,7 @@ pub const HTTPSIG_PROTO_VERSION_PK: u16 = 0x0002;
 #[derive(Clone, Default, Debug, PartialEq, Eq)]
 /// Key types used for httpsig verification
 /// - Asymmetric key for public-key-based signature like ed25519, ecdsa-p256-sha256 (es256).
-/// - Diffie-Hellman key exchange for hmac-sha256 (hs256) signature.
+/// - Asymmetric key to perform Diffie-Hellman key exchange for hmac-sha256 (hs256) signature.
 /// These are automatically generated and exposed at `/.well-known/httpsigconfigs` endpoint.
 ///   default = ["hs256-x25519-hkdf-sha256"],
 ///  supported = "hs256-p256-hkdf-sha256" (h256 via ecdh), "hs256-x25519-hkdf-sha256" (h256 via ecdh), "ed25519", and "es256"
@@ -35,7 +37,7 @@ impl TryFrom<&str> for HttpSigKeyTypes {
       "hs256-p256-hkdf-sha256" => Ok(HttpSigKeyTypes::Hs256P256HkdfSha256),
       "ed25519" => Ok(HttpSigKeyTypes::Ed25519),
       "es256" => Ok(HttpSigKeyTypes::Es256),
-      _ => Err(anyhow::anyhow!("Invalid DhKemTypes: {}", s)),
+      _ => Err(anyhow::anyhow!("Invalid KeyTypes: {}", s)),
     }
   }
 }

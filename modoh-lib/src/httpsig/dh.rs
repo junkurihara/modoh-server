@@ -1,61 +1,11 @@
-use super::{error::HttpSigDhError, HTTPSIG_PROTO_VERSION_DH};
-use bytes::{Buf, BufMut, Bytes, BytesMut};
+use super::{common::*, error::HttpSigError, HTTPSIG_PROTO_VERSION_DH};
+use bytes::{Buf, BufMut, Bytes};
 use hpke::{
   kdf::{HkdfSha256, Kdf},
   kem::{DhP256HkdfSha256, Kem, X25519HkdfSha256},
   Serializable,
 };
 use rand::{CryptoRng, RngCore};
-
-/* ------------------------------------------- */
-// Imported from odoh-rs crate
-
-/// Serialize to IETF wireformat that is similar to [XDR](https://tools.ietf.org/html/rfc1014)
-trait Serialize {
-  type Error;
-  /// Serialize the provided struct into the buf.
-  fn serialize<B: BufMut>(self, buf: &mut B) -> Result<(), Self::Error>;
-}
-
-/// Deserialize from IETF wireformat that is similar to [XDR](https://tools.ietf.org/html/rfc1014)
-trait Deserialize {
-  type Error;
-  /// Deserialize a struct from the buf.
-  fn deserialize<B: Buf>(buf: &mut B) -> Result<Self, Self::Error>
-  where
-    Self: Sized;
-}
-
-/// Convenient function to deserialize a structure from Bytes.
-fn parse<D: Deserialize, B: Buf>(buf: &mut B) -> Result<D, D::Error> {
-  D::deserialize(buf)
-}
-
-/// Convenient function to serialize a structure into a new BytesMut.
-fn compose<S: Serialize>(s: S) -> Result<BytesMut, S::Error> {
-  let mut buf = BytesMut::new();
-  s.serialize(&mut buf)?;
-  Ok(buf)
-}
-
-fn read_lengthed<B: Buf>(b: &mut B) -> Result<Bytes, HttpSigDhError> {
-  if b.remaining() < 2 {
-    return Err(HttpSigDhError::ShortInput);
-  }
-
-  let len = b.get_u16() as usize;
-
-  if len > b.remaining() {
-    return Err(HttpSigDhError::InvalidInputLength);
-  }
-
-  Ok(b.copy_to_bytes(len))
-}
-
-#[inline]
-fn to_u16(n: usize) -> Result<u16, HttpSigDhError> {
-  n.try_into().map_err(|_| HttpSigDhError::InvalidInputLength)
-}
 
 /* ------------------------------------------- */
 #[derive(Clone, Default, Debug, PartialEq, Eq)]
@@ -133,8 +83,8 @@ impl HttpSigDhConfigContents {
 }
 
 impl Serialize for &HttpSigDhConfigContents {
-  type Error = HttpSigDhError;
-  fn serialize<B: BufMut>(self, buf: &mut B) -> Result<(), HttpSigDhError> {
+  type Error = HttpSigError;
+  fn serialize<B: BufMut>(self, buf: &mut B) -> Result<(), HttpSigError> {
     buf.put_u16(self.kem_id);
     buf.put_u16(self.kdf_id);
 
@@ -145,22 +95,22 @@ impl Serialize for &HttpSigDhConfigContents {
 }
 
 impl Deserialize for HttpSigDhConfigContents {
-  type Error = HttpSigDhError;
-  fn deserialize<B: Buf>(mut buf: &mut B) -> Result<Self, HttpSigDhError> {
+  type Error = HttpSigError;
+  fn deserialize<B: Buf>(mut buf: &mut B) -> Result<Self, HttpSigError> {
     if buf.remaining() < 2 + 2 + 2 {
-      return Err(HttpSigDhError::ShortInput);
+      return Err(HttpSigError::ShortInput);
     }
 
     let kem_id = buf.get_u16();
     let kdf_id = buf.get_u16();
 
     if (kem_id != X25519HkdfSha256::KEM_ID && kem_id != DhP256HkdfSha256::KEM_ID) || kdf_id != HkdfSha256::KDF_ID {
-      return Err(HttpSigDhError::InvalidParameter);
+      return Err(HttpSigError::InvalidParameter);
     }
 
     let public_key = read_lengthed(&mut buf)?;
     if public_key.len() != 32 && public_key.len() != 65 {
-      return Err(HttpSigDhError::InvalidInputLength);
+      return Err(HttpSigError::InvalidInputLength);
     }
 
     Ok(Self {
@@ -184,8 +134,8 @@ pub(crate) struct HttpSigDhConfig {
 }
 
 impl Serialize for &HttpSigDhConfig {
-  type Error = HttpSigDhError;
-  fn serialize<B: BufMut>(self, buf: &mut B) -> Result<(), HttpSigDhError> {
+  type Error = HttpSigError;
+  fn serialize<B: BufMut>(self, buf: &mut B) -> Result<(), HttpSigError> {
     buf.put_u16(self.version);
     buf.put_u16(self.length);
     self.contents.serialize(buf)
@@ -193,10 +143,10 @@ impl Serialize for &HttpSigDhConfig {
 }
 
 impl Deserialize for HttpSigDhConfig {
-  type Error = HttpSigDhError;
+  type Error = HttpSigError;
   fn deserialize<B: Buf>(mut buf: &mut B) -> Result<Self, Self::Error> {
     if buf.remaining() < 2 {
-      return Err(HttpSigDhError::ShortInput);
+      return Err(HttpSigError::ShortInput);
     }
     let version = buf.get_u16();
     let mut contents = read_lengthed(&mut buf)?;
@@ -257,8 +207,8 @@ impl From<Vec<HttpSigDhConfig>> for HttpSigDhConfigs {
 }
 
 impl Serialize for &HttpSigDhConfigs {
-  type Error = HttpSigDhError;
-  fn serialize<B: BufMut>(self, buf: &mut B) -> Result<(), HttpSigDhError> {
+  type Error = HttpSigError;
+  fn serialize<B: BufMut>(self, buf: &mut B) -> Result<(), HttpSigError> {
     // calculate total length
     let mut len = 0;
     for c in self.configs.iter() {
@@ -276,8 +226,8 @@ impl Serialize for &HttpSigDhConfigs {
 }
 
 impl Deserialize for HttpSigDhConfigs {
-  type Error = HttpSigDhError;
-  fn deserialize<B: Buf>(buf: &mut B) -> Result<Self, HttpSigDhError> {
+  type Error = HttpSigError;
+  fn deserialize<B: Buf>(buf: &mut B) -> Result<Self, HttpSigError> {
     let mut buf = read_lengthed(buf)?;
 
     let mut configs = Vec::new();
@@ -303,7 +253,7 @@ pub struct HttpSigDhPublicKeys {
 
 impl HttpSigDhPublicKeys {
   /// Create a new Dh public keys for HttpSig HMAC verification
-  pub fn new(dh_types: &[HttpSigDhTypes]) -> Result<Self, HttpSigDhError> {
+  pub fn new(dh_types: &[HttpSigDhTypes]) -> Result<Self, HttpSigError> {
     let key_pairs = dh_types
       .iter()
       .map(|t| {
@@ -329,10 +279,7 @@ impl HttpSigDhPublicKeys {
 /* ------------------------------------------- */
 /// TODO:!
 /// TODO:!
-pub fn derive_secret(
-  config_other: &HttpSigDhConfigContents,
-  key_pair_self: &HttpSigDhKeyPair,
-) -> Result<Vec<u8>, HttpSigDhError> {
+pub fn derive_secret(config_other: &HttpSigDhConfigContents, key_pair_self: &HttpSigDhKeyPair) -> Result<Vec<u8>, HttpSigError> {
   use hpke::Deserializable;
   let mut out_buf = vec![0u8; 32];
   let res = match config_other.kem_id {
@@ -351,7 +298,7 @@ pub fn derive_secret(
       let _ = hpke::kdf::extract_and_expand::<HkdfSha256>(kex_res.raw_secret_bytes(), b"", b"", &mut buf.0);
       out_buf.copy_from_slice(&buf.0);
       // out_buf.copy_from_slice(&kex_res[..32]);
-      Ok(()) as Result<(), HttpSigDhError>
+      Ok(()) as Result<(), HttpSigError>
       // TODO: HPKEだとdecap内において、kem_contextにencapped keyを記録してkdfを通さなければならないが、今回は双方向になるのでencapped keyがsenderのpkと言えなくなる。そうなると、HPKEのkem_contextの仕様を変えないとKDFのsaltないのserializeが混乱する。
       // あるいは、登り下りで別のshared secretを利用するのが無難か。。。？Forward Secrecyが既に担保できていない状況でさらに頑張るかどうか。
 
