@@ -2,7 +2,6 @@ mod constants;
 mod count;
 mod error;
 mod globals;
-mod httpsig;
 mod hyper_body;
 mod hyper_client;
 mod hyper_executor;

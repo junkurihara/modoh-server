@@ -1,5 +1,6 @@
-use crate::{constants::*, count::RequestCount, httpsig::HttpSigKeyTypes};
+use crate::{constants::*, count::RequestCount};
 use auth_validator::ValidationConfig;
+use httpsig_proto::HttpSigKeyTypes;
 use ipnet::IpNet;
 use std::{
   net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6},
