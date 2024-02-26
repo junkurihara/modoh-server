@@ -17,6 +17,7 @@ pub trait MacKdf {
   const KDF_SALT_LEN: usize;
 }
 /* ---------------------------------- */
+#[derive(Clone, Debug, PartialEq, Eq)]
 /// HMAC-SHA256 Http signing with session key derivation using HKDF-SHA256 from master secret
 pub struct HmacSha256HkdfSha256 {}
 

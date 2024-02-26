@@ -2,7 +2,6 @@ use super::{
   common::*,
   error::HttpSigError,
   mac_kdf::{HmacSha256HkdfSha256, MacKdf},
-  HTTPSIG_PROTO_VERSION_DH,
 };
 use byteorder::{BigEndian, ByteOrder};
 use bytes::{Buf, BufMut, Bytes};
@@ -18,7 +17,7 @@ use rand::{CryptoRng, RngCore};
 /* ------------------------------------------- */
 #[derive(Clone, Default, Debug, PartialEq, Eq)]
 /// Public key, KEM, and KDF types used for Diffie-Hellman key exchange for httpsig's hmac-sha256 signature.
-pub enum HttpSigDhTypes {
+pub(crate) enum HttpSigDhTypes {
   #[default]
   /// x25519-hkdf-sha256
   Hs256X25519HkdfSha256,
@@ -76,9 +75,9 @@ impl HttpSigDhTypes {
 /* ------------------------------------------- */
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// Dh key pair for HttpSig HMAC verification
-pub(crate) struct HttpSigDhKeyPair<M: MacKdf> {
-  private_key: Bytes,
-  public_key: HttpSigDhConfigContents,
+pub struct HttpSigDhKeyPair<M: MacKdf> {
+  pub(super) private_key: Bytes,
+  pub(super) public_key: HttpSigDhConfigContents,
   _mac_kdf: std::marker::PhantomData<M>,
 }
 
@@ -95,7 +94,7 @@ where
 /* ------------------------------------------- */
 /// Dh configuration contents for HttpSig HMAC verification
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct HttpSigDhConfigContents {
+pub struct HttpSigDhConfigContents {
   pub(crate) kem_id: u16,
   pub(crate) kdf_id: u16,
   pub(crate) mac_kdf_id: u16,
@@ -103,7 +102,7 @@ pub(crate) struct HttpSigDhConfigContents {
 }
 impl HttpSigDhConfigContents {
   /// Get the length of the contents
-  fn len(&self) -> usize {
+  pub(crate) fn len(&self) -> usize {
     2 + 2 + 2 + 2 + self.public_key.len()
   }
   /// Derive hkdf-ed master secret
@@ -159,164 +158,6 @@ impl Deserialize for HttpSigDhConfigContents {
 }
 
 /* ------------------------------------------- */
-/// Individual Dh configuration for HttpSig HMAC verification
-/// Contains version and dh information. Based on the version specified,
-/// the contents can differ.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct HttpSigDhConfig {
-  version: u16,
-  length: u16,
-  contents: HttpSigDhConfigContents,
-}
-
-impl Serialize for &HttpSigDhConfig {
-  type Error = HttpSigError;
-  fn serialize<B: BufMut>(self, buf: &mut B) -> Result<(), HttpSigError> {
-    buf.put_u16(self.version);
-    buf.put_u16(self.length);
-    self.contents.serialize(buf)
-  }
-}
-
-impl Deserialize for HttpSigDhConfig {
-  type Error = HttpSigError;
-  fn deserialize<B: Buf>(mut buf: &mut B) -> Result<Self, Self::Error> {
-    if buf.remaining() < 2 {
-      return Err(HttpSigError::ShortInput);
-    }
-    let version = buf.get_u16();
-    let mut contents = read_lengthed(&mut buf)?;
-    let length = contents.len() as u16;
-
-    Ok(Self {
-      version,
-      length,
-      contents: parse(&mut contents)?,
-    })
-  }
-}
-
-impl From<HttpSigDhConfig> for HttpSigDhConfigContents {
-  fn from(c: HttpSigDhConfig) -> Self {
-    c.contents
-  }
-}
-
-impl From<HttpSigDhConfigContents> for HttpSigDhConfig {
-  fn from(c: HttpSigDhConfigContents) -> Self {
-    Self {
-      version: HTTPSIG_PROTO_VERSION_DH,
-      length: c.len() as u16,
-      contents: c,
-    }
-  }
-}
-
-// // TODO: これら以下は、DHとPKとを共通化して実装するように変更
-// /* ------------------------------------------- */
-// /// Current Dh configuration served at the endpoint
-// /// This is actually imported from odoh_rs::ObliviousDoHConfigs
-// pub(crate) struct HttpSigDhConfigs {
-//   configs: Vec<HttpSigDhConfig>,
-// }
-
-// impl HttpSigDhConfigs {
-//   /// Filter the list of configs, leave ones matches HTTPSIG_DH_VERSION.
-//   pub fn supported(self) -> Vec<HttpSigDhConfig> {
-//     self.into_iter().collect()
-//   }
-// }
-
-// type VecIter = std::vec::IntoIter<HttpSigDhConfig>;
-// impl IntoIterator for HttpSigDhConfigs {
-//   type Item = HttpSigDhConfig;
-//   type IntoIter = std::iter::Filter<VecIter, fn(&Self::Item) -> bool>;
-
-//   fn into_iter(self) -> Self::IntoIter {
-//     self.configs.into_iter().filter(|c| c.version == HTTPSIG_PROTO_VERSION_DH)
-//   }
-// }
-
-// impl From<Vec<HttpSigDhConfig>> for HttpSigDhConfigs {
-//   fn from(configs: Vec<HttpSigDhConfig>) -> Self {
-//     Self { configs }
-//   }
-// }
-
-// impl Serialize for &HttpSigDhConfigs {
-//   type Error = HttpSigError;
-//   fn serialize<B: BufMut>(self, buf: &mut B) -> Result<(), HttpSigError> {
-//     // calculate total length
-//     let mut len = 0;
-//     for c in self.configs.iter() {
-//       // 2 bytes of version and 2 bytes of length
-//       len += 2 + 2 + c.length;
-//     }
-
-//     buf.put_u16(len);
-//     for c in self.configs.iter() {
-//       c.serialize(buf)?;
-//     }
-
-//     Ok(())
-//   }
-// }
-
-// impl Deserialize for HttpSigDhConfigs {
-//   type Error = HttpSigError;
-//   fn deserialize<B: Buf>(buf: &mut B) -> Result<Self, HttpSigError> {
-//     let mut buf = read_lengthed(buf)?;
-
-//     let mut configs = Vec::new();
-//     loop {
-//       if buf.is_empty() {
-//         break;
-//       }
-//       let c = parse(&mut buf)?;
-//       configs.push(c);
-//     }
-
-//     Ok(Self { configs })
-//   }
-// }
-
-// /* ------------------------------------------- */
-// #[derive(Clone, Debug, PartialEq, Eq)]
-// /// Dh public keys for HttpSig HMAC verification
-// pub struct HttpSigDhPublicKeys<M: Mac> {
-//   key_pairs: Vec<HttpSigDhKeyPair<M>>,
-//   serialized_configs: Vec<u8>,
-// }
-
-// impl<M> HttpSigDhPublicKeys<M>
-// where
-//   M: Mac,
-// {
-//   /// Create a new Dh public keys for HttpSig HMAC verification
-//   pub fn new(dh_types: &[HttpSigDhTypes]) -> Result<Self, HttpSigError> {
-//     let key_pairs = dh_types
-//       .iter()
-//       .map(|t| {
-//         let mut rng = rand::thread_rng();
-//         t.generate_key_pair(&mut rng)
-//       })
-//       .collect::<Vec<_>>();
-
-//     let configs = key_pairs
-//       .iter()
-//       .map(|k| HttpSigDhConfig::from(k.public_key.clone()))
-//       .collect::<Vec<_>>();
-
-//     let mut serialized_configs = Vec::new();
-//     HttpSigDhConfigs::from(configs).serialize(&mut serialized_configs)?;
-//     Ok(Self {
-//       key_pairs,
-//       serialized_configs,
-//     })
-//   }
-// }
-
-/* ------------------------------------------- */
 /// Imported from `rust-hpke`
 /// Represents a ciphersuite context. That's "KEMXX", where `XX` is the KEM ID
 pub(crate) type KemSuiteId = [u8; 5];
@@ -331,7 +172,8 @@ pub(crate) fn kem_suite_id<Kem: hpke::Kem>() -> KemSuiteId {
 
   suite_id
 }
-pub(crate) struct KemKdfDerivedSecret<M>
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct KemKdfDerivedSecret<M>
 where
   M: MacKdf,
 {
@@ -417,24 +259,6 @@ mod tests {
     assert_eq!(dhp256.public_key.mac_kdf_id, HmacSha256HkdfSha256::MAC_KDF_ID);
     assert_eq!(dhp256.public_key.public_key.len(), 65);
   }
-
-  // #[test]
-  // fn test_generate_new_configs() {
-  //   let dh_types = vec![HttpSigDhTypes::Hs256X25519HkdfSha256, HttpSigDhTypes::Hs256DhP256HkdfSha256];
-
-  //   // let keys = HttpSigDhPublicKeys::new(&dh_types).unwrap();
-  //   // assert_eq!(keys.key_pairs.len(), 2);
-  //   // assert_eq!(
-  //   //   keys.serialized_configs.len(),
-  //   //   2 + (4 + 2 + 2 + 2 + 2 + 32) + (4 + 2 + 2 + 2 + 2 + 65)
-  //   // );
-
-  //   // let serialized = keys.serialized_configs.clone();
-  //   // let deserialized = HttpSigDhConfigs::deserialize(&mut Bytes::from(serialized)).unwrap();
-  //   // assert_eq!(keys.key_pairs.len(), deserialized.configs.len());
-  //   // assert_eq!(keys.key_pairs[0].public_key, deserialized.configs[0].contents);
-  //   // assert_eq!(keys.key_pairs[1].public_key, deserialized.configs[1].contents);
-  // }
 
   #[test]
   fn test_derive_secret() {
