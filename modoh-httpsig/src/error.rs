@@ -13,6 +13,15 @@ pub enum HttpSigError {
   #[error("Invalid parameter")]
   InvalidParameter,
 
+  #[error("Error in ec crypto library")]
+  EcError(#[from] elliptic_curve::Error),
+
+  #[error("Error in ed25519 crypto library")]
+  Ed25519Error(#[from] ed25519_compact::Error),
+
+  #[error("Invalid length for hkdf: {0}")]
+  InvalidHkdfLength(String),
+
   #[error(transparent)]
   Other(#[from] anyhow::Error),
 }
