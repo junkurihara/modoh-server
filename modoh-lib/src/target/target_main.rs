@@ -6,12 +6,14 @@ use crate::{
   count::RequestCount,
   error::*,
   globals::Globals,
+  httpsig_state::HttpsigServiceState,
   hyper_body::{full, BoxBody},
   message_util::inspect_host,
   trace::*,
 };
 use futures::{select, FutureExt};
 use http::{header, Method, Request, Response};
+use httpsig_proto::HttpSigPublicKeys;
 use hyper::body::Bytes;
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{
@@ -60,9 +62,9 @@ pub struct InnerTarget {
   /// ODoH configs periodically rotated
   pub(super) odoh_configs: Arc<RwLock<ODoHPublicKey>>,
   /// HTTP message signature config path
-  pub(crate) httpsig_config_path: String,
-  /// TODO: HTTP message signature config periodically rotated
-  pub(super) httpsig_configs: Arc<()>,
+  pub(crate) httpsig_configs_path: String,
+  /// HTTP message signature config which is periodically rotated
+  pub(super) httpsig_state: Arc<HttpsigServiceState>,
   /// timeout for dns query
   pub(super) timeout: Duration,
   /// Maximum number of TCP session including HTTP request from clients
@@ -94,6 +96,27 @@ impl InnerTarget {
     let configs = lock.as_config().to_owned();
     drop(lock);
     build_http_response(&configs, ODOH_KEY_ROTATION_SECS, "application/octet-stream", true)
+  }
+
+  /// Serve httpsig config via GET method
+  #[instrument(name = "target_serve_httpsig_configs", skip_all)]
+  pub async fn serve_httpsig_configs<B>(&self, req: Request<B>) -> HttpResult<Response<BoxBody>> {
+    // check host
+    inspect_host(&req, &self.target_host)?;
+    // check path
+    if req.uri().path() != self.httpsig_configs_path {
+      return Err(HttpError::InvalidPath);
+    };
+    // check method, only get method is allowed for odoh config
+    if req.method() != Method::GET {
+      return Err(HttpError::InvalidMethod);
+    };
+
+    let lock = self.httpsig_state.configs.read().await;
+    let configs = lock.as_config().to_owned();
+    let rotation_period = self.httpsig_state.rotation_period.as_secs();
+    drop(lock);
+    build_http_response(&configs, rotation_period, "application/octet-stream", true)
   }
 
   /// Start odoh config rotation service
@@ -134,6 +157,45 @@ impl InnerTarget {
     }
   }
 
+  /// Start httpsig config rotation service
+  async fn start_httpsig_rotation(&self, term_notify: Option<Arc<Notify>>) -> Result<()> {
+    info!("Start httpsig config rotation service");
+
+    match term_notify {
+      Some(term) => loop {
+        select! {
+          _ = self.update_httpsig_configs().fuse() => {
+            warn!("HTTP message signature config rotation service got down.");
+          }
+          _ = term.notified().fuse() => {
+            info!("HTTP message signature config rotation service receives term signal");
+            break;
+          }
+        }
+      },
+      None => {
+        self.update_httpsig_configs().await?;
+        warn!("HTTP message signature config rotation service got down.");
+      }
+    }
+    Ok(())
+  }
+
+  /// Update httpsig config
+  async fn update_httpsig_configs(&self) -> Result<()> {
+    loop {
+      sleep(self.httpsig_state.rotation_period).await;
+
+      let Ok(httpsig_configs) = HttpSigPublicKeys::new(&self.httpsig_state.key_types) else {
+        error!("Failed to generate httpsig configs. Keep current config unchanged.");
+        continue;
+      };
+      let mut lock = self.httpsig_state.configs.write().await;
+      *lock = httpsig_configs;
+      drop(lock);
+    }
+  }
+
   /// Build inner relay
   pub fn try_new(globals: &Arc<Globals>) -> Result<Arc<Self>> {
     let target_config = globals.service_config.target.as_ref().ok_or(MODoHError::BuildTargetError)?;
@@ -146,7 +208,8 @@ impl InnerTarget {
     let min_ttl = target_config.min_ttl;
     let odoh_configs_path = ODOH_CONFIGS_PATH.to_string();
     let odoh_configs = Arc::new(RwLock::new(ODoHPublicKey::new()?));
-    let httpsig_config_path = HTTPSIG_CONFIGS_PATH.to_string();
+    let httpsig_configs_path = HTTPSIG_CONFIGS_PATH.to_string();
+    let httpsig_state = globals.httpsig_state.clone();
     let timeout = globals.service_config.timeout;
     let max_tcp_sessions = globals.service_config.max_clients;
     let request_count = globals.request_count.clone();
@@ -161,8 +224,8 @@ impl InnerTarget {
       min_ttl,
       odoh_configs_path,
       odoh_configs,
-      httpsig_config_path,
-      httpsig_configs: Arc::new(()), // TODO: implement httpsig config
+      httpsig_configs_path,
+      httpsig_state,
       timeout,
       max_tcp_sessions,
       request_count,
@@ -176,6 +239,12 @@ impl InnerTarget {
     globals
       .runtime_handle
       .spawn(async move { target_clone.start_odoh_rotation(term_notify).await.ok() });
+
+    let target_clone = target.clone();
+    let term_notify = globals.term_notify.clone();
+    globals
+      .runtime_handle
+      .spawn(async move { target_clone.start_httpsig_rotation(term_notify).await.ok() });
 
     Ok(target)
   }

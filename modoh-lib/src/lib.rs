@@ -2,6 +2,7 @@ mod constants;
 mod count;
 mod error;
 mod globals;
+mod httpsig_state;
 mod hyper_body;
 mod hyper_client;
 mod hyper_executor;
@@ -19,7 +20,7 @@ mod metrics;
 #[cfg(feature = "evil-trace")]
 mod evil_trace;
 
-use crate::{count::RequestCount, error::*, globals::Globals, router::Router, trace::*};
+use crate::{count::RequestCount, error::*, globals::Globals, httpsig_state::HttpsigServiceState, router::Router, trace::*};
 use hyper_client::HttpClient;
 use hyper_executor::LocalExecutor;
 use hyper_util::server::{self, conn::auto::Builder as ConnectionBuilder};
@@ -42,11 +43,13 @@ pub async fn entrypoint(
   let meters = Arc::new(crate::metrics::Meters::new());
 
   // build globals
+  let httpsig_state = HttpsigServiceState::try_new(service_config)?;
   let globals = Arc::new(Globals {
     service_config: service_config.clone(),
     runtime_handle: runtime_handle.clone(),
     term_notify: term_notify.clone(),
     request_count: RequestCount::default(),
+    httpsig_state: httpsig_state.clone(),
     #[cfg(feature = "metrics")]
     meters,
   });

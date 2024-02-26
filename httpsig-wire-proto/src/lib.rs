@@ -2,7 +2,6 @@ use crate::{dh::HttpSigDhTypes, pk::HttpSigPkTypes};
 use bytes::{Buf, BufMut};
 use common::{parse, read_lengthed, Deserialize, Serialize};
 use dh::{HttpSigDhConfigContents, HttpSigDhKeyPair};
-use error::HttpSigError;
 use mac_kdf::HmacSha256HkdfSha256;
 use pk::{HttpSigPkConfigContents, HttpSigPkKeyPair};
 
@@ -11,6 +10,8 @@ mod dh;
 mod error;
 mod mac_kdf;
 mod pk;
+
+pub use error::HttpSigError;
 
 /// HttpSig key version for MAC via DH supported by this library
 pub const HTTPSIG_PROTO_VERSION_DH: u16 = 0x0010;
@@ -67,7 +68,7 @@ impl std::fmt::Display for HttpSigKeyTypes {
 /// Contains version and dh/pk information. Based on the version specified,
 /// the contents can differ.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct HttpSigConfig {
+pub struct HttpSigConfig {
   version: u16,
   length: u16,
   contents: HttpSigConfigContents,
@@ -140,7 +141,7 @@ impl From<HttpSigConfigContents> for HttpSigConfig {
 /* ------------------------------------------- */
 /// Current Dh configuration served at the endpoint
 /// This is actually imported from odoh_rs::ObliviousDoHConfigs
-pub(crate) struct HttpSigConfigs {
+pub struct HttpSigConfigs {
   configs: Vec<HttpSigConfig>,
 }
 
@@ -256,6 +257,11 @@ impl HttpSigPublicKeys {
       serialized_configs,
     })
   }
+
+  /// Get serialized configs
+  pub fn as_config(&self) -> &[u8] {
+    &self.serialized_configs
+  }
 }
 
 /* ------------------------------------------- */
@@ -288,6 +294,14 @@ mod tests {
     assert!(matches!(deserialized.configs[1].contents, HttpSigConfigContents::Dh(_)));
     assert!(matches!(deserialized.configs[2].contents, HttpSigConfigContents::Pk(_)));
     assert!(matches!(deserialized.configs[3].contents, HttpSigConfigContents::Pk(_)));
+  }
+
+  #[test]
+  fn test_generate_null_configs() {
+    let key_types = vec![];
+    let keys = HttpSigPublicKeys::new(&key_types).unwrap();
+    assert_eq!(keys.key_pairs.len(), 0);
+    assert_eq!(keys.serialized_configs.len(), 2);
   }
 
   #[test]

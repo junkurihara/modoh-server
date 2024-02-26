@@ -56,6 +56,7 @@ where
 
   // check path and route request
   let path = req.uri().path();
+
   // match odoh config, without checking allowed ip address
   // odoh config should be served without access control
   if target.as_ref().map(|t| t.odoh_configs_path == path).unwrap_or(false) {
@@ -70,6 +71,26 @@ where
 
         #[cfg(feature = "metrics")]
         count_with_http_status_code(&meters.query_odoh_configs_result_error, &status_code);
+
+        synthetic_error_response(status_code)
+      }
+    };
+  }
+
+  // match httpsig config, without checking allowed ip address
+  // httpsig config should be served without access control
+  if target.as_ref().map(|t| t.httpsig_configs_path == path).unwrap_or(false) {
+    #[cfg(feature = "metrics")]
+    meters.query_httpsig_configs.add(1_u64, &[]);
+
+    return match target.unwrap().serve_httpsig_configs(req).await {
+      Ok(res) => synthetic_response(res),
+      Err(e) => {
+        warn!("Http message signatures config service failed to serve: {}", e);
+        let status_code = StatusCode::from(e);
+
+        #[cfg(feature = "metrics")]
+        count_with_http_status_code(&meters.query_httpsig_configs_result_error, &status_code);
 
         synthetic_error_response(status_code)
       }

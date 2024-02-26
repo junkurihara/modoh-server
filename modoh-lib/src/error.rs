@@ -23,6 +23,8 @@ pub enum MODoHError {
   BuildTargetError,
   #[error("Failed to build odoh config")]
   ODoHConfigError(#[from] odoh_rs::Error),
+  #[error("Failed to build httpsig config")]
+  HttpSigConfigError(#[from] httpsig_proto::HttpSigError),
   #[error(transparent)]
   Other(#[from] anyhow::Error),
 }

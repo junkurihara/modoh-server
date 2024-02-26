@@ -1,4 +1,4 @@
-use crate::{constants::*, count::RequestCount};
+use crate::{constants::*, count::RequestCount, httpsig_state::HttpsigServiceState};
 use auth_validator::ValidationConfig;
 use httpsig_proto::HttpSigKeyTypes;
 use ipnet::IpNet;
@@ -21,6 +21,9 @@ pub struct Globals {
 
   /// Request count, i.e., TCP sessions
   pub request_count: RequestCount,
+
+  /// Http message signatures service state
+  pub httpsig_state: Arc<HttpsigServiceState>,
 
   #[cfg(feature = "metrics")]
   /// Metrics

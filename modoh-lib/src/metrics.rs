@@ -14,6 +14,10 @@ pub(crate) struct Meters {
   pub(crate) query_odoh_configs: Counter<u64>,
   /// counter for query odoh_configs error
   pub(crate) query_odoh_configs_result_error: Counter<u64>,
+  /// counter for query httpsig_configs
+  pub(crate) query_httpsig_configs: Counter<u64>,
+  /// counter for query httpsig_configs error
+  pub(crate) query_httpsig_configs_result_error: Counter<u64>,
   /// counter for source ip access control execution
   pub(crate) src_ip_access_control: Counter<u64>,
   /// counter for rejection by source ip access control
@@ -81,6 +85,16 @@ impl Meters {
       .u64_counter("query_odoh_configs_result_error")
       .with_description("Count of queries for odoh_configs error")
       .init();
+
+    let query_httpsig_configs = meter
+      .u64_counter("query_httpsig_configs")
+      .with_description("Count of queries for httpsig_configs")
+      .init();
+    let query_httpsig_configs_result_error = meter
+      .u64_counter("query_httpsig_configs_result_error")
+      .with_description("Count of queries for httpsig_configs error")
+      .init();
+
     let src_ip_access_control = meter
       .u64_counter("src_ip_access_control")
       .with_description("Count of source ip access control execution")
@@ -172,6 +186,9 @@ impl Meters {
 
       query_odoh_configs,
       query_odoh_configs_result_error,
+
+      query_httpsig_configs,
+      query_httpsig_configs_result_error,
 
       src_ip_access_control,
       src_ip_access_control_result_rejected,
