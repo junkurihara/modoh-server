@@ -34,6 +34,7 @@ pub struct SessionKeyNonce {
   session_key: Vec<u8>,
   nonce: Vec<u8>,
 }
+#[allow(unused)]
 impl SessionKeyNonce {
   /// Get session key
   pub fn session_key(&self) -> &[u8] {

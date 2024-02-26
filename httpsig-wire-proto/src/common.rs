@@ -25,6 +25,7 @@ pub(super) fn parse<D: Deserialize, B: Buf>(buf: &mut B) -> Result<D, D::Error> 
   D::deserialize(buf)
 }
 
+#[allow(unused)]
 /// Convenient function to serialize a structure into a new BytesMut.
 pub(super) fn compose<S: Serialize>(s: S) -> Result<BytesMut, S::Error> {
   let mut buf = BytesMut::new();

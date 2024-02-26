@@ -90,4 +90,4 @@ opentelemetry_sdk = { version = "0.21.2", features = [
 tracing-opentelemetry = { version = "0.22.0", optional = true }
 
 # httpsig
-httpsig-proto = { path = "../modoh-httpsig", default-features = false, package = "modoh-server-httpsig" }
+httpsig-proto = { path = "../httpsig-wire-proto", default-features = false, package = "httpsig-proto" }

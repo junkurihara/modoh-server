@@ -144,6 +144,7 @@ pub(crate) struct HttpSigConfigs {
   configs: Vec<HttpSigConfig>,
 }
 
+#[allow(unused)]
 impl HttpSigConfigs {
   /// Filter the list of configs, leave ones matches HTTPSIG_DH_VERSION.
   pub fn supported(self) -> Vec<HttpSigConfig> {
