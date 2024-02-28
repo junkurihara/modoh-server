@@ -1,4 +1,4 @@
-use super::HttpSigServiceState;
+use super::HttpSigSelfKeyState;
 use crate::{error::*, globals::Globals, trace::*};
 use futures::{select, FutureExt};
 use httpsig_proto::HttpSigPublicKeys;
@@ -10,13 +10,13 @@ use tokio::{sync::Notify, time::sleep};
 /// - periodically refetch configurations from other servers.
 pub(crate) struct HttpSigKeysHandler {
   /// Service state
-  state: Arc<HttpSigServiceState>,
+  state: Arc<HttpSigSelfKeyState>,
 }
 
 impl HttpSigKeysHandler {
   /// Create a new HttpSigKeysRotator
   /// Fetch other servers' keys here first.
-  pub(crate) async fn try_new(globals: &Arc<Globals>, state: &Arc<HttpSigServiceState>) -> Result<Arc<Self>> {
+  pub(crate) async fn try_new(globals: &Arc<Globals>, state: &Arc<HttpSigSelfKeyState>) -> Result<Arc<Self>> {
     let handler = Arc::new(Self { state: state.clone() });
 
     let handler_clone = handler.clone();
@@ -28,7 +28,8 @@ impl HttpSigKeysHandler {
     Ok(handler)
   }
 
-  /// Start the httpsig rotator
+  /// Start the rotator for httpsig key pairs,
+  /// where public keys are exposed at /.well-known/httpsigconfigs
   async fn start_httpsig_rotation(&self, term_notify: Option<Arc<Notify>>) -> Result<()> {
     info!("Start httpsig config rotation service");
 
