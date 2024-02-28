@@ -6,7 +6,7 @@ use crate::{
   count::RequestCount,
   error::*,
   globals::Globals,
-  httpsig_handler::HttpSigSelfKeyState,
+  httpsig_handler::HttpSigKeyRotationState,
   hyper_body::{full, BoxBody},
   message_util::inspect_host,
   trace::*,
@@ -63,7 +63,7 @@ pub struct InnerTarget {
   /// HTTP message signature config path
   pub(crate) httpsig_configs_path: String,
   /// HTTP message signature config which is periodically rotated
-  pub(super) httpsig_state: Option<Arc<HttpSigSelfKeyState>>,
+  pub(super) httpsig_key_rotation_state: Option<Arc<HttpSigKeyRotationState>>,
   /// timeout for dns query
   pub(super) timeout: Duration,
   /// Maximum number of TCP session including HTTP request from clients
@@ -111,7 +111,7 @@ impl InnerTarget {
       return Err(HttpError::InvalidMethod);
     };
 
-    let Some(httpsig_state) = &self.httpsig_state else {
+    let Some(httpsig_state) = &self.httpsig_key_rotation_state else {
       return Err(HttpError::InvalidPath);
     };
 
@@ -161,7 +161,7 @@ impl InnerTarget {
   }
 
   /// Build inner relay
-  pub fn try_new(globals: &Arc<Globals>) -> Result<Arc<Self>> {
+  pub fn try_new(globals: &Arc<Globals>, httpsig_key_rotation_state: &Option<Arc<HttpSigKeyRotationState>>) -> Result<Arc<Self>> {
     let target_config = globals.service_config.target.as_ref().ok_or(MODoHError::BuildTargetError)?;
     let target_host = globals.service_config.hostname.clone();
     let target_path = target_config.path.clone();
@@ -173,7 +173,6 @@ impl InnerTarget {
     let odoh_configs_path = ODOH_CONFIGS_PATH.to_string();
     let odoh_configs = Arc::new(RwLock::new(ODoHPublicKey::new()?));
     let httpsig_configs_path = HTTPSIG_CONFIGS_PATH.to_string();
-    let httpsig_state = globals.httpsig_state.clone();
     let timeout = globals.service_config.timeout;
     let max_tcp_sessions = globals.service_config.max_clients;
     let request_count = globals.request_count.clone();
@@ -189,7 +188,7 @@ impl InnerTarget {
       odoh_configs_path,
       odoh_configs,
       httpsig_configs_path,
-      httpsig_state,
+      httpsig_key_rotation_state: httpsig_key_rotation_state.clone(),
       timeout,
       max_tcp_sessions,
       request_count,

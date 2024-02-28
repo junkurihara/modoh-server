@@ -1,4 +1,4 @@
-use super::HttpSigSelfKeyState;
+use super::HttpSigKeyRotationState;
 use crate::{
   constants::{HTTPSIG_KEY_REFETCH_TIMEOUT_SEC, HTTPSIG_REFETCH_USER_AGENT},
   error::*,
@@ -29,11 +29,12 @@ where
   /// hyper client
   pub http_client: Arc<HttpClient<C, B>>,
   /// Service state for exposed httpsig public keys
-  state: Arc<HttpSigSelfKeyState>,
+  key_rotation_state: Arc<HttpSigKeyRotationState>,
 
   /// Public key fetcher target domains
   targets_info: Vec<HttpSigDomainInfo>,
   // TODO: add inner state and data structure updated by fetcher and used by router, target, relay
+  // key_management_state: Arc<HttpSigKeyManagementState>,
   /// Public key refetch period
   refetch_period: Duration,
 }
@@ -47,7 +48,7 @@ where
   pub(crate) async fn try_new(
     globals: &Arc<Globals>,
     http_client: &Arc<HttpClient<C>>,
-    state: &Arc<HttpSigSelfKeyState>,
+    state: &Arc<HttpSigKeyRotationState>,
   ) -> Result<Arc<Self>> {
     let httpsig_config = globals
       .service_config
@@ -61,7 +62,7 @@ where
     let refetch_period = httpsig_config.refetch_period;
 
     let handler = Arc::new(Self {
-      state: state.clone(),
+      key_rotation_state: state.clone(),
       refetch_period,
       targets_info,
       http_client: http_client.clone(),
@@ -112,13 +113,13 @@ where
   /// Update httpsig config
   async fn update_httpsig_configs(&self) -> Result<()> {
     loop {
-      sleep(self.state.rotation_period).await;
+      sleep(self.key_rotation_state.rotation_period).await;
 
-      let Ok(httpsig_configs) = HttpSigPublicKeys::new(&self.state.key_types) else {
+      let Ok(httpsig_configs) = HttpSigPublicKeys::new(&self.key_rotation_state.key_types) else {
         error!("Failed to generate httpsig configs. Keep current config unchanged.");
         continue;
       };
-      let mut lock = self.state.configs.write().await;
+      let mut lock = self.key_rotation_state.configs.write().await;
       *lock = httpsig_configs;
       drop(lock);
     }

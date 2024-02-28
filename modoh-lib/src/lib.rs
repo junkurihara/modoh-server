@@ -20,7 +20,7 @@ mod metrics;
 #[cfg(feature = "evil-trace")]
 mod evil_trace;
 
-use crate::{count::RequestCount, error::*, globals::Globals, httpsig_handler::HttpSigSelfKeyState, router::Router, trace::*};
+use crate::{count::RequestCount, error::*, globals::Globals, router::Router, trace::*};
 use hyper_client::HttpClient;
 use hyper_executor::LocalExecutor;
 use hyper_util::server::{self, conn::auto::Builder as ConnectionBuilder};
@@ -48,7 +48,6 @@ pub async fn entrypoint(
     runtime_handle: runtime_handle.clone(),
     term_notify: term_notify.clone(),
     request_count: RequestCount::default(),
-    httpsig_state: HttpSigSelfKeyState::try_new(service_config)?,
     #[cfg(feature = "metrics")]
     meters,
   });

@@ -1,7 +1,15 @@
 use super::{router_serve_req::serve_request_with_validation, socket::bind_tcp_socket};
 use crate::{
-  count::RequestCount, error::*, globals::Globals, httpsig_handler::HttpSigKeysHandler, hyper_client::HttpClient,
-  hyper_executor::LocalExecutor, relay::InnerRelay, request_filter::RequestFilter, target::InnerTarget, trace::*,
+  count::RequestCount,
+  error::*,
+  globals::Globals,
+  httpsig_handler::{HttpSigKeyRotationState, HttpSigKeysHandler},
+  hyper_client::HttpClient,
+  hyper_executor::LocalExecutor,
+  relay::InnerRelay,
+  request_filter::RequestFilter,
+  target::InnerTarget,
+  trace::*,
   validator::Validator,
 };
 use hyper::{
@@ -150,18 +158,19 @@ where
       .as_ref()
       .map(|_| Arc::new(RequestFilter::new(globals.service_config.access.as_ref().unwrap())));
 
+    // build httpsig rotation and verifier service struct
+    let httpsig_key_rotation_state = HttpSigKeyRotationState::try_new(&globals.service_config)?;
+    let httpsig_handler = match &httpsig_key_rotation_state {
+      Some(state) => Some(HttpSigKeysHandler::try_new(globals, http_client, state).await?),
+      None => None,
+    };
+
     let inner_relay = match &globals.service_config.relay {
       Some(_) => Some(InnerRelay::try_new(globals, http_client, request_filter.clone())?),
       None => None,
     };
     let inner_target = match &globals.service_config.target {
-      Some(_) => Some(InnerTarget::try_new(globals)?),
-      None => None,
-    };
-
-    // build httpsig rotation and verifier service struct
-    let httpsig_handler = match &globals.httpsig_state {
-      Some(httpsig_state) => Some(HttpSigKeysHandler::try_new(globals, http_client, httpsig_state).await?),
+      Some(_) => Some(InnerTarget::try_new(globals, &httpsig_key_rotation_state)?),
       None => None,
     };
 
