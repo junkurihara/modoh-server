@@ -6,7 +6,7 @@ use crate::{
   count::RequestCount,
   error::*,
   globals::Globals,
-  httpsig_state::HttpsigServiceState,
+  httpsig_state::HttpSigServiceState,
   hyper_body::{full, BoxBody},
   message_util::inspect_host,
   trace::*,
@@ -64,7 +64,7 @@ pub struct InnerTarget {
   /// HTTP message signature config path
   pub(crate) httpsig_configs_path: String,
   /// HTTP message signature config which is periodically rotated
-  pub(super) httpsig_state: Arc<HttpsigServiceState>,
+  pub(super) httpsig_state: Arc<HttpSigServiceState>,
   /// timeout for dns query
   pub(super) timeout: Duration,
   /// Maximum number of TCP session including HTTP request from clients

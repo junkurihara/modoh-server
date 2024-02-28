@@ -4,7 +4,7 @@ use std::{sync::Arc, time::Duration};
 use tokio::sync::RwLock;
 
 /// Http message signature service state
-pub(crate) struct HttpsigServiceState {
+pub(crate) struct HttpSigServiceState {
   /// key types
   pub(crate) key_types: Vec<HttpSigKeyTypes>,
   /// httpsig configs including key pairs and serialized public keys
@@ -19,9 +19,9 @@ pub(crate) struct HttpsigServiceState {
   // TODO: key id maps
 }
 
-impl HttpsigServiceState {
+impl HttpSigServiceState {
   /// Create a new HttpsigServiceState
-  pub fn try_new(service_config: &ServiceConfig) -> Result<Arc<HttpsigServiceState>> {
+  pub fn try_new(service_config: &ServiceConfig) -> Result<Arc<HttpSigServiceState>> {
     let httpsig_key_types = service_config
       .access
       .clone()
@@ -34,7 +34,7 @@ impl HttpsigServiceState {
       .clone()
       .map(|v| v.httpsig.map(|t| t.key_rotation_period).unwrap_or_default())
       .unwrap_or_default();
-    Ok(Arc::new(HttpsigServiceState {
+    Ok(Arc::new(HttpSigServiceState {
       key_types: httpsig_key_types,
       configs: httpsig_configs,
       rotation_period,

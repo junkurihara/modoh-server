@@ -75,6 +75,20 @@ jobs:
           cache-to: type=gha,mode=max,scope=modoh-server-nightly
           labels: ${{ steps.meta.outputs.labels }}
 
+      - name: Unstable build and push x86_64 for 'feat/*' branches (for development purposes)
+        if: ${{ startsWith(github.ref_name, 'feat/') && (github.event_name == 'push') }}
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.GHCR }}/${{ env.GHCR_IMAGE_NAME }}:unstable
+            ${{ env.DH_REGISTRY_NAME }}:unstable
+          file: ./docker/Dockerfile
+          cache-from: type=gha,scope=modoh-server-unstable
+          cache-to: type=gha,mode=max,scope=modoh-server-unstable
+          labels: ${{ steps.meta.outputs.labels }}
+
   dispatch_release:
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'develop' && github.event.pull_request.base.ref == 'main' && github.event.pull_request.merged == true }}

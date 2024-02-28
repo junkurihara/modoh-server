@@ -3,7 +3,7 @@ use crate::{error::*, trace::*};
 use async_trait::async_trait;
 use hot_reload::{Reload, ReloaderError};
 use ipnet::IpNet;
-use modoh_server_lib::{AccessConfig, HttpsigConfig, ServiceConfig, ValidationConfig, ValidationConfigInner};
+use modoh_server_lib::{AccessConfig, HttpSigConfig, ServiceConfig, ValidationConfig, ValidationConfigInner};
 use std::{
   fs::read_to_string,
   net::{IpAddr, SocketAddr},
@@ -191,7 +191,7 @@ impl TryInto<ServiceConfig> for &TargetConfig {
       }
 
       let httpsig = if let Some(httpsig) = access.httpsig.as_ref() {
-        let mut httpsig_config = HttpsigConfig::default();
+        let mut httpsig_config = HttpSigConfig::default();
         if let Some(key_types) = &httpsig.key_types {
           let key_types = key_types
             .iter()

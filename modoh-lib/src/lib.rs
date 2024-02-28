@@ -20,14 +20,14 @@ mod metrics;
 #[cfg(feature = "evil-trace")]
 mod evil_trace;
 
-use crate::{count::RequestCount, error::*, globals::Globals, httpsig_state::HttpsigServiceState, router::Router, trace::*};
+use crate::{count::RequestCount, error::*, globals::Globals, httpsig_state::HttpSigServiceState, router::Router, trace::*};
 use hyper_client::HttpClient;
 use hyper_executor::LocalExecutor;
 use hyper_util::server::{self, conn::auto::Builder as ConnectionBuilder};
 use std::sync::Arc;
 
 pub use auth_validator::{ValidationConfig, ValidationConfigInner};
-pub use globals::{AccessConfig, HttpsigConfig, ServiceConfig};
+pub use globals::{AccessConfig, HttpSigConfig, ServiceConfig};
 
 /// Entry point of the relay
 pub async fn entrypoint(
@@ -43,7 +43,7 @@ pub async fn entrypoint(
   let meters = Arc::new(crate::metrics::Meters::new());
 
   // build globals
-  let httpsig_state = HttpsigServiceState::try_new(service_config)?;
+  let httpsig_state = HttpSigServiceState::try_new(service_config)?;
   let globals = Arc::new(Globals {
     service_config: service_config.clone(),
     runtime_handle: runtime_handle.clone(),

@@ -1,4 +1,4 @@
-use crate::{constants::*, count::RequestCount, httpsig_state::HttpsigServiceState};
+use crate::{constants::*, count::RequestCount, httpsig_state::HttpSigServiceState};
 use auth_validator::ValidationConfig;
 use httpsig_proto::HttpSigKeyTypes;
 use ipnet::IpNet;
@@ -23,7 +23,7 @@ pub struct Globals {
   pub request_count: RequestCount,
 
   /// Http message signatures service state
-  pub httpsig_state: Arc<HttpsigServiceState>,
+  pub httpsig_state: Arc<HttpSigServiceState>,
 
   #[cfg(feature = "metrics")]
   /// Metrics
@@ -104,7 +104,7 @@ pub struct AccessConfig {
   /// Whether to trust previous hop reverse proxy
   pub trust_previous_hop: bool,
   /// Httpsig configuration
-  pub httpsig: Option<HttpsigConfig>,
+  pub httpsig: Option<HttpSigConfig>,
 }
 
 #[derive(Clone)]
@@ -113,7 +113,7 @@ pub struct AccessConfig {
 /// - sign outgoing (relayed) requests when the next node is one of the httpsig-enabled domains.
 /// Note that Source IP address is prioritized over the signature verification.
 /// When the destination domain is not in the list, it is not signed and dispatched without signature.
-pub struct HttpsigConfig {
+pub struct HttpSigConfig {
   /// Public key types exposed at the `httpsigconfigs` endpoint.
   /// - Public key, KEM and KDF types used for Diffie-Hellman key exchange for httpsig's hmac-sha256 signature.
   /// - Public key types used for direct signature verification.
@@ -124,7 +124,7 @@ pub struct HttpsigConfig {
   pub enabled_domains: Vec<String>,
 }
 
-impl Default for HttpsigConfig {
+impl Default for HttpSigConfig {
   fn default() -> Self {
     Self {
       key_types: vec![HttpSigKeyTypes::default()],
