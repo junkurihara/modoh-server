@@ -3,7 +3,7 @@ use crate::{error::*, trace::*};
 use async_trait::async_trait;
 use hot_reload::{Reload, ReloaderError};
 use ipnet::IpNet;
-use modoh_server_lib::{AccessConfig, HttpSigConfig, ServiceConfig, ValidationConfig, ValidationConfigInner};
+use modoh_server_lib::{AccessConfig, HttpSigConfig, HttpSigDomainInfo, ServiceConfig, ValidationConfig, ValidationConfigInner};
 use std::{
   fs::read_to_string,
   net::{IpAddr, SocketAddr},
@@ -218,11 +218,11 @@ impl TryInto<ServiceConfig> for &TargetConfig {
         if let Some(enabled_domains) = &httpsig.enabled_domains {
           let enabled_domains = enabled_domains
             .iter()
-            .map(|s| {
-              url::Url::parse(&format!("https://{s}"))
-                .unwrap()
-                .authority()
-                .to_ascii_lowercase()
+            .map(|domain| {
+              HttpSigDomainInfo::new(
+                domain.configs_endpoint_domain.clone(),
+                domain.dh_signing_target_domain.clone(),
+              )
             })
             .collect();
           httpsig_config.enabled_domains = enabled_domains;

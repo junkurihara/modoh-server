@@ -121,7 +121,7 @@ pub struct HttpSigConfig {
   /// Public key rotation period for Diffie-Hellman key exchange, in seconds.
   pub key_rotation_period: Duration,
   /// List of HTTP message signatures enabled domains, which expose public keys
-  pub enabled_domains: Vec<String>,
+  pub enabled_domains: Vec<HttpSigDomainInfo>,
 }
 
 impl Default for HttpSigConfig {
@@ -130,6 +130,30 @@ impl Default for HttpSigConfig {
       key_types: vec![HttpSigKeyTypes::default()],
       key_rotation_period: Duration::from_secs(HTTPSIG_KEY_ROTATION_PERIOD),
       enabled_domains: vec![],
+    }
+  }
+}
+
+#[derive(Clone, Debug)]
+/// HTTP message signatures enabled domain information
+pub struct HttpSigDomainInfo {
+  /// Configs endpoint
+  pub configs_endpoint_uri: http::Uri,
+  /// Domain name
+  pub dh_signing_target_domain: String,
+}
+
+impl HttpSigDomainInfo {
+  /// Create a new HttpSigDomainInfo
+  pub fn new(configs_endpoint_domain: String, dh_signing_target_domain: Option<String>) -> Self {
+    let configs_endpoint_uri: http::Uri = format!("https://{}{}", configs_endpoint_domain, HTTPSIG_CONFIGS_PATH)
+      .parse()
+      .unwrap();
+    let dh_signing_target_domain =
+      dh_signing_target_domain.unwrap_or_else(|| configs_endpoint_uri.authority().unwrap().to_string());
+    Self {
+      configs_endpoint_uri,
+      dh_signing_target_domain,
     }
   }
 }

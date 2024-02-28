@@ -104,12 +104,17 @@ key_types = ["dhp256-hkdf-sha256", "x25519-hkdf-sha256"]
 ## (default = 3600)
 key_rotation_period = 3600
 
-## List of HTTP message signatures enabled domains, which exposes public keys
-## to directly verify sigs or to use Diffie-Hellman key exchange for hmac.
-## Keys are periodically refetched from `httpsigconfigs` endpoints of the domains.
+## List of HTTP message signatures enabled domains, which expose public keys
+## to directly verify public key signatures or to use Diffie-Hellman key exchange for hmac signature.
+## Keys are periodically refetched from `/.well-known/httpsigconfigs` endpoints of the domains.
 ## (default = [])
 enabled_domains = [
-  "modoh.example.com",
-  "modoh.example.net",
-  "modoh.example.org",
+  ## In this example, httpsig configs are fetched from `https://httpsig.example.com/.well-known/httpsigconfigs` endpoint.
+  ## Then, if the fetched configs contains ones for DH based signature, requests dispatched to `*.example.com` are signed with DH based signature.
+  ## For public key based signature, the fetched configs are used only to verify the incoming requests, `dh_signing_target_domain` is not used.
+  { configs_endpoint_domain = "httpsig.example.com", dh_signing_target_domain = "*.example.com" },
+  ## If only configs_endpoint_domain is specified, it is used for both fetching and DH signing target.
+  ## Namely the below is equivalent to `{ configs_endpoint_domain = "modoh.example.net", dh_signing_target_domain = "modoh.example.net" }`.
+  { configs_endpoint_domain = "modoh.example.net" },
+  { configs_endpoint_domain = "modoh.example.org" },
 ]

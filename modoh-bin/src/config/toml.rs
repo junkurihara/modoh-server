@@ -84,12 +84,12 @@ pub struct Access {
   pub allowed_destination_domains: Option<Vec<String>>,
 
   /// Configuration for HTTP message signatures
-  pub httpsig: Option<Httpsig>,
+  pub httpsig: Option<HttpSig>,
 }
 
 #[derive(Deserialize, Debug, Default, PartialEq, Eq, Clone)]
 /// Configuration for HTTP message signatures
-pub struct Httpsig {
+pub struct HttpSig {
   /// Public key types exposed at the `httpsigconfigs` endpoint.
   /// - Public key, KEM and KDF types used for Diffie-Hellman key exchange for httpsig's hmac-sha256 signature.
   /// - Public key types used for direct signature verification.
@@ -97,7 +97,16 @@ pub struct Httpsig {
   /// Public key rotation period in seconds.
   pub key_rotation_period: Option<u64>,
   /// List of HTTP message signatures enabled domains, which exposes public keys for Diffie-Hellman key exchange or directly for signature verification.
-  pub enabled_domains: Option<Vec<String>>,
+  pub enabled_domains: Option<Vec<HttpSigEnabledDomains>>,
+}
+
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
+/// Object with configs_endpoint_domain and dh_signing_target_domain
+pub struct HttpSigEnabledDomains {
+  /// Configs endpoint domain
+  pub configs_endpoint_domain: String,
+  /// DH signing target domain
+  pub dh_signing_target_domain: Option<String>,
 }
 
 impl ConfigToml {
