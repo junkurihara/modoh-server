@@ -6,7 +6,7 @@ use crate::{
   count::RequestCount,
   error::*,
   globals::Globals,
-  httpsig_state::HttpSigSelfKeyState,
+  httpsig_handler::HttpSigSelfKeyState,
   hyper_body::{full, BoxBody},
   message_util::inspect_host,
   trace::*,

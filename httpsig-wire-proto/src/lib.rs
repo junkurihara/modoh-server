@@ -1,6 +1,6 @@
 use crate::{dh::HttpSigDhTypes, pk::HttpSigPkTypes};
 use bytes::{Buf, BufMut};
-use common::{parse, read_lengthed, Deserialize, Serialize};
+use common::{parse, read_lengthed};
 use dh::{HttpSigDhConfigContents, HttpSigDhKeyPair};
 use mac_kdf::HmacSha256HkdfSha256;
 use pk::{HttpSigPkConfigContents, HttpSigPkKeyPair};
@@ -11,6 +11,7 @@ mod error;
 mod mac_kdf;
 mod pk;
 
+pub use common::{Deserialize, Serialize};
 pub use error::HttpSigError;
 
 /// HttpSig key version for MAC via DH supported by this library
@@ -71,11 +72,11 @@ impl std::fmt::Display for HttpSigKeyTypes {
 pub struct HttpSigConfig {
   version: u16,
   length: u16,
-  contents: HttpSigConfigContents,
+  pub contents: HttpSigConfigContents,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum HttpSigConfigContents {
+pub enum HttpSigConfigContents {
   Dh(HttpSigDhConfigContents),
   Pk(HttpSigPkConfigContents),
 }
@@ -139,6 +140,7 @@ impl From<HttpSigConfigContents> for HttpSigConfig {
 }
 
 /* ------------------------------------------- */
+#[derive(Clone, Debug, PartialEq, Eq)]
 /// Current Dh configuration served at the endpoint
 /// This is actually imported from odoh_rs::ObliviousDoHConfigs
 pub struct HttpSigConfigs {

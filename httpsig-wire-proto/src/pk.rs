@@ -69,7 +69,7 @@ pub struct HttpSigPkKeyPair {
 /* ------------------------------------------- */
 /// Configuration contents for HttpSig public key signature verification
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct HttpSigPkConfigContents {
+pub struct HttpSigPkConfigContents {
   pub(crate) alg_id: u16,
   pub(crate) public_key: Bytes,
 }

@@ -1,4 +1,4 @@
-use crate::{constants::*, count::RequestCount, httpsig_state::HttpSigSelfKeyState};
+use crate::{constants::*, count::RequestCount, httpsig_handler::HttpSigSelfKeyState};
 use auth_validator::ValidationConfig;
 use httpsig_proto::HttpSigKeyTypes;
 use ipnet::IpNet;
@@ -122,6 +122,9 @@ pub struct HttpSigConfig {
   pub key_rotation_period: Duration,
   /// List of HTTP message signatures enabled domains, which expose public keys
   pub enabled_domains: Vec<HttpSigDomainInfo>,
+
+  /// Refetch period for public keys
+  pub refetch_period: Duration,
 }
 
 impl Default for HttpSigConfig {
@@ -130,6 +133,7 @@ impl Default for HttpSigConfig {
       key_types: vec![HttpSigKeyTypes::default()],
       key_rotation_period: Duration::from_secs(HTTPSIG_KEY_ROTATION_PERIOD),
       enabled_domains: vec![],
+      refetch_period: Duration::from_secs(HTTPSIG_KEY_REFETCH_PERIOD),
     }
   }
 }

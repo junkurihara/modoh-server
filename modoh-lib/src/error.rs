@@ -21,6 +21,10 @@ pub enum MODoHError {
   BuildRelayError,
   #[error("Failed to build target")]
   BuildTargetError,
+  #[error("Failed to build httpsig handler")]
+  BuildHttpSigHandlerError,
+  #[error("Fialed to fetch httpsig public keys: {0}")]
+  FetchHttpsigConfigsError(String),
   #[error("Failed to build odoh config")]
   ODoHConfigError(#[from] odoh_rs::Error),
   #[error("Failed to build httpsig config")]

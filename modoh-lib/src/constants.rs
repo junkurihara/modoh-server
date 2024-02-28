@@ -55,8 +55,15 @@ pub const JWKS_REFETCH_TIMEOUT_SEC: u64 = 3;
 /// Expected maximum size of JWKS in bytes
 pub const EXPECTED_MAX_JWKS_SIZE: u64 = 1024 * 64;
 
-/// Httpsig constants
+// Httpsig constants
+/// HTTP message signature key rotation period in seconds
 pub const HTTPSIG_KEY_ROTATION_PERIOD: u64 = 3600;
+/// HTTP message signature key refetch period in seconds
+pub const HTTPSIG_KEY_REFETCH_PERIOD: u64 = 60;
+/// HTTP request timeout for refetching httpsig configs
+pub const HTTPSIG_KEY_REFETCH_TIMEOUT_SEC: u64 = 3;
+/// User agent for refetching HTTP message signature keys
+pub const HTTPSIG_REFETCH_USER_AGENT: &str = "modoh-server";
 
 #[cfg(feature = "evil-trace")]
 pub const EVIL_TRACE_HEADER_NAME: &str = "traceparent";

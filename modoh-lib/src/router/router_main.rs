@@ -1,6 +1,6 @@
 use super::{router_serve_req::serve_request_with_validation, socket::bind_tcp_socket};
 use crate::{
-  count::RequestCount, error::*, globals::Globals, httpsig_state::HttpSigKeysHandler, hyper_client::HttpClient,
+  count::RequestCount, error::*, globals::Globals, httpsig_handler::HttpSigKeysHandler, hyper_client::HttpClient,
   hyper_executor::LocalExecutor, relay::InnerRelay, request_filter::RequestFilter, target::InnerTarget, trace::*,
   validator::Validator,
 };
@@ -36,7 +36,7 @@ where
   /// request filter
   pub(crate) request_filter: Option<Arc<RequestFilter>>,
   /// httpsig_handler
-  pub(crate) httpsig_handler: Option<Arc<HttpSigKeysHandler>>,
+  pub(crate) httpsig_handler: Option<Arc<HttpSigKeysHandler<C>>>,
 }
 
 impl<C> Router<C>
@@ -161,7 +161,7 @@ where
 
     // build httpsig rotation and verifier service struct
     let httpsig_handler = match &globals.httpsig_state {
-      Some(httpsig_state) => Some(HttpSigKeysHandler::try_new(globals, httpsig_state).await?),
+      Some(httpsig_state) => Some(HttpSigKeysHandler::try_new(globals, http_client, httpsig_state).await?),
       None => None,
     };
 

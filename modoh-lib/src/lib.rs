@@ -2,7 +2,7 @@ mod constants;
 mod count;
 mod error;
 mod globals;
-mod httpsig_state;
+mod httpsig_handler;
 mod hyper_body;
 mod hyper_client;
 mod hyper_executor;
@@ -20,7 +20,7 @@ mod metrics;
 #[cfg(feature = "evil-trace")]
 mod evil_trace;
 
-use crate::{count::RequestCount, error::*, globals::Globals, httpsig_state::HttpSigSelfKeyState, router::Router, trace::*};
+use crate::{count::RequestCount, error::*, globals::Globals, httpsig_handler::HttpSigSelfKeyState, router::Router, trace::*};
 use hyper_client::HttpClient;
 use hyper_executor::LocalExecutor;
 use hyper_util::server::{self, conn::auto::Builder as ConnectionBuilder};

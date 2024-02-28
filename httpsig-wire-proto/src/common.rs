@@ -5,14 +5,14 @@ use bytes::{Buf, BufMut, Bytes, BytesMut};
 // Imported from odoh-rs crate
 
 /// Serialize to IETF wireformat that is similar to [XDR](https://tools.ietf.org/html/rfc1014)
-pub(super) trait Serialize {
+pub trait Serialize {
   type Error;
   /// Serialize the provided struct into the buf.
   fn serialize<B: BufMut>(self, buf: &mut B) -> Result<(), Self::Error>;
 }
 
 /// Deserialize from IETF wireformat that is similar to [XDR](https://tools.ietf.org/html/rfc1014)
-pub(super) trait Deserialize {
+pub trait Deserialize {
   type Error;
   /// Deserialize a struct from the buf.
   fn deserialize<B: Buf>(buf: &mut B) -> Result<Self, Self::Error>
