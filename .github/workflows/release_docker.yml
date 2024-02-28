@@ -3,6 +3,7 @@ name: Nightly and release build
 on:
   push:
     branches:
+      - "feat/*"
       - "develop"
   pull_request:
     types: [closed]
