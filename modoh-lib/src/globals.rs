@@ -23,7 +23,7 @@ pub struct Globals {
   pub request_count: RequestCount,
 
   /// Http message signatures service state
-  pub httpsig_state: Arc<HttpSigServiceState>,
+  pub httpsig_state: Option<Arc<HttpSigServiceState>>,
 
   #[cfg(feature = "metrics")]
   /// Metrics

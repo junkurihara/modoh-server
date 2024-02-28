@@ -43,13 +43,12 @@ pub async fn entrypoint(
   let meters = Arc::new(crate::metrics::Meters::new());
 
   // build globals
-  let httpsig_state = HttpSigServiceState::try_new(service_config)?;
   let globals = Arc::new(Globals {
     service_config: service_config.clone(),
     runtime_handle: runtime_handle.clone(),
     term_notify: term_notify.clone(),
     request_count: RequestCount::default(),
-    httpsig_state: httpsig_state.clone(),
+    httpsig_state: HttpSigServiceState::try_new(service_config)?,
     #[cfg(feature = "metrics")]
     meters,
   });

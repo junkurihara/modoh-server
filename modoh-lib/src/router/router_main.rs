@@ -1,7 +1,8 @@
 use super::{router_serve_req::serve_request_with_validation, socket::bind_tcp_socket};
 use crate::{
-  count::RequestCount, error::*, globals::Globals, hyper_client::HttpClient, hyper_executor::LocalExecutor, relay::InnerRelay,
-  request_filter::RequestFilter, target::InnerTarget, trace::*, validator::Validator,
+  count::RequestCount, error::*, globals::Globals, httpsig_state::HttpSigKeysHandler, hyper_client::HttpClient,
+  hyper_executor::LocalExecutor, relay::InnerRelay, request_filter::RequestFilter, target::InnerTarget, trace::*,
+  validator::Validator,
 };
 use hyper::{
   body::Incoming,
@@ -27,14 +28,15 @@ where
   /// hyper client forwarding requests to upstream
   pub(crate) inner_relay: Option<Arc<InnerRelay<C>>>,
   /// dns client forwarding dns query to upstream
-  pub(crate) inner_target: Option<Arc<InnerTarget>>, // TODO: add httpsigconfigs endpoint to inner_target
+  pub(crate) inner_target: Option<Arc<InnerTarget>>,
   /// validator for token validation
   pub(crate) inner_validator: Option<Arc<Validator<C>>>,
   /// request count
   pub(crate) request_count: RequestCount,
   /// request filter
   pub(crate) request_filter: Option<Arc<RequestFilter>>,
-  // TODO: httpsig_verifier
+  /// httpsig_handler
+  pub(crate) httpsig_handler: Option<Arc<HttpSigKeysHandler>>,
 }
 
 impl<C> Router<C>
@@ -148,14 +150,18 @@ where
       .as_ref()
       .map(|_| Arc::new(RequestFilter::new(globals.service_config.access.as_ref().unwrap())));
 
-    // TODO: build httpsig rotation and verifier service struct
-
     let inner_relay = match &globals.service_config.relay {
       Some(_) => Some(InnerRelay::try_new(globals, http_client, request_filter.clone())?),
       None => None,
     };
     let inner_target = match &globals.service_config.target {
       Some(_) => Some(InnerTarget::try_new(globals)?),
+      None => None,
+    };
+
+    // build httpsig rotation and verifier service struct
+    let httpsig_handler = match &globals.httpsig_state {
+      Some(httpsig_state) => Some(HttpSigKeysHandler::try_new(globals, httpsig_state).await?),
       None => None,
     };
 
@@ -167,6 +173,7 @@ where
       inner_validator,
       request_count,
       request_filter,
+      httpsig_handler,
     })
   }
 }

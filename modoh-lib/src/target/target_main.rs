@@ -13,7 +13,6 @@ use crate::{
 };
 use futures::{select, FutureExt};
 use http::{header, Method, Request, Response};
-use httpsig_proto::HttpSigPublicKeys;
 use hyper::body::Bytes;
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{
@@ -64,7 +63,7 @@ pub struct InnerTarget {
   /// HTTP message signature config path
   pub(crate) httpsig_configs_path: String,
   /// HTTP message signature config which is periodically rotated
-  pub(super) httpsig_state: Arc<HttpSigServiceState>,
+  pub(super) httpsig_state: Option<Arc<HttpSigServiceState>>,
   /// timeout for dns query
   pub(super) timeout: Duration,
   /// Maximum number of TCP session including HTTP request from clients
@@ -112,9 +111,13 @@ impl InnerTarget {
       return Err(HttpError::InvalidMethod);
     };
 
-    let lock = self.httpsig_state.configs.read().await;
+    let Some(httpsig_state) = &self.httpsig_state else {
+      return Err(HttpError::InvalidPath);
+    };
+
+    let lock = httpsig_state.configs.read().await;
     let configs = lock.as_config().to_owned();
-    let rotation_period = self.httpsig_state.rotation_period.as_secs();
+    let rotation_period = httpsig_state.rotation_period.as_secs();
     drop(lock);
     build_http_response(&configs, rotation_period, "application/octet-stream", true)
   }
@@ -153,45 +156,6 @@ impl InnerTarget {
       };
       let mut lock = self.odoh_configs.write().await;
       *lock = odoh_configs;
-      drop(lock);
-    }
-  }
-
-  /// Start httpsig config rotation service
-  async fn start_httpsig_rotation(&self, term_notify: Option<Arc<Notify>>) -> Result<()> {
-    info!("Start httpsig config rotation service");
-
-    match term_notify {
-      Some(term) => loop {
-        select! {
-          _ = self.update_httpsig_configs().fuse() => {
-            warn!("HTTP message signature config rotation service got down.");
-          }
-          _ = term.notified().fuse() => {
-            info!("HTTP message signature config rotation service receives term signal");
-            break;
-          }
-        }
-      },
-      None => {
-        self.update_httpsig_configs().await?;
-        warn!("HTTP message signature config rotation service got down.");
-      }
-    }
-    Ok(())
-  }
-
-  /// Update httpsig config
-  async fn update_httpsig_configs(&self) -> Result<()> {
-    loop {
-      sleep(self.httpsig_state.rotation_period).await;
-
-      let Ok(httpsig_configs) = HttpSigPublicKeys::new(&self.httpsig_state.key_types) else {
-        error!("Failed to generate httpsig configs. Keep current config unchanged.");
-        continue;
-      };
-      let mut lock = self.httpsig_state.configs.write().await;
-      *lock = httpsig_configs;
       drop(lock);
     }
   }
@@ -239,12 +203,6 @@ impl InnerTarget {
     globals
       .runtime_handle
       .spawn(async move { target_clone.start_odoh_rotation(term_notify).await.ok() });
-
-    let target_clone = target.clone();
-    let term_notify = globals.term_notify.clone();
-    globals
-      .runtime_handle
-      .spawn(async move { target_clone.start_httpsig_rotation(term_notify).await.ok() });
 
     Ok(target)
   }

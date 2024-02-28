@@ -1,3 +1,7 @@
+mod handler;
+
+pub(crate) use handler::HttpSigKeysHandler;
+
 use crate::{error::*, ServiceConfig};
 use httpsig_proto::{HttpSigKeyTypes, HttpSigPublicKeys};
 use std::{sync::Arc, time::Duration};
@@ -21,12 +25,16 @@ pub(crate) struct HttpSigServiceState {
 
 impl HttpSigServiceState {
   /// Create a new HttpsigServiceState
-  pub fn try_new(service_config: &ServiceConfig) -> Result<Arc<HttpSigServiceState>> {
+  pub fn try_new(service_config: &ServiceConfig) -> Result<Option<Arc<HttpSigServiceState>>> {
     let httpsig_key_types = service_config
       .access
       .clone()
       .map(|v| v.httpsig.map(|t| t.key_types).unwrap_or_default())
       .unwrap_or_default();
+    if httpsig_key_types.is_empty() {
+      return Ok(None);
+    }
+
     let httpsig_configs = HttpSigPublicKeys::new(&httpsig_key_types).map_err(MODoHError::HttpSigConfigError)?;
     let httpsig_configs = RwLock::new(httpsig_configs);
     let rotation_period = service_config
@@ -34,10 +42,10 @@ impl HttpSigServiceState {
       .clone()
       .map(|v| v.httpsig.map(|t| t.key_rotation_period).unwrap_or_default())
       .unwrap_or_default();
-    Ok(Arc::new(HttpSigServiceState {
+    Ok(Some(Arc::new(HttpSigServiceState {
       key_types: httpsig_key_types,
       configs: httpsig_configs,
       rotation_period,
-    }))
+    })))
   }
 }
