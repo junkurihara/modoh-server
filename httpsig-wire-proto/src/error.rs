@@ -22,6 +22,9 @@ pub enum HttpSigError {
   #[error("Invalid length for hkdf: {0}")]
   InvalidHkdfLength(String),
 
+  #[error("Error in httpsig crate: {0}")]
+  HttpSigError(#[from] httpsig::prelude::HttpSigError),
+
   #[error(transparent)]
   Other(#[from] anyhow::Error),
 }

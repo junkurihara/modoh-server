@@ -45,6 +45,20 @@ impl SessionKeyNonce {
     &self.nonce
   }
 }
+
+/* ---------------------------------- */
+pub trait DeriveKeyId {
+  fn key_id(&self) -> String;
+}
+impl DeriveKeyId for KemKdfDerivedSecret<HmacSha256HkdfSha256> {
+  /// Derive key id for httpsig
+  fn key_id(&self) -> String {
+    use httpsig::prelude::{SharedKey, VerifyingKey};
+    let shared_key = SharedKey::HmacSha256(self.secret.clone());
+    shared_key.key_id()
+  }
+}
+
 /* ---------------------------------- */
 pub trait DeriveSessionKey {
   fn derive_session_key_with_random_nonce<R>(&self, rng: &mut R) -> Result<SessionKeyNonce, HttpSigError>

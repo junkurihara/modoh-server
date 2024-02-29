@@ -17,7 +17,7 @@ use rand::{CryptoRng, RngCore};
 /* ------------------------------------------- */
 #[derive(Clone, Default, Debug, PartialEq, Eq)]
 /// Public key, KEM, and KDF types used for Diffie-Hellman key exchange for httpsig's hmac-sha256 signature.
-pub(crate) enum HttpSigDhTypes {
+pub enum HttpSigDhTypes {
   #[default]
   /// x25519-hkdf-sha256
   Hs256X25519HkdfSha256,
@@ -88,6 +88,12 @@ where
   /// Derive hkdf-ed master secret
   pub fn derive_secret(&self, config_other: &HttpSigDhConfigContents) -> Result<KemKdfDerivedSecret<M>, HttpSigError> {
     derive_secret::<M>(config_other, self)
+  }
+  /// Check if the same kem-kdf-mac is used
+  pub fn is_same_kem_kdf_mac(&self, other: &HttpSigDhConfigContents) -> bool {
+    self.public_key.kem_id == other.kem_id
+      && self.public_key.kdf_id == other.kdf_id
+      && self.public_key.mac_kdf_id == other.mac_kdf_id
   }
 }
 
@@ -222,7 +228,7 @@ pub fn derive_secret<M: MacKdf>(
       let kex_res = ecdh::diffie_hellman(my_sk.to_nonzero_scalar(), your_pk.as_affine());
 
       let mut buf = <SharedSecret<DhP256HkdfSha256> as Default>::default();
-      let _ = extract_and_expand::<HkdfSha256>(kex_res.raw_secret_bytes(), &suite_id, &kem_context, &mut buf.0);
+      let _ = extract_and_expand::<HkdfSha256>(kex_res.raw_secret_bytes().as_slice(), &suite_id, &kem_context, &mut buf.0);
       buf.0.to_vec()
     }
     _ => unreachable!(),

@@ -1,14 +1,14 @@
+use crate::{
+  common::{read_lengthed, to_u16, Deserialize, Serialize},
+  error::HttpSigError,
+};
 use bytes::{Buf, BufMut, Bytes};
 use hpke::{
   kem::{DhP256HkdfSha256, X25519HkdfSha256},
   Kem, Serializable,
 };
+use httpsig::prelude::{AlgorithmName, PublicKey, SecretKey};
 use rand::{CryptoRng, RngCore};
-
-use crate::{
-  common::{read_lengthed, to_u16, Deserialize, Serialize},
-  error::HttpSigError,
-};
 
 /* ------------------------------------------- */
 #[derive(Clone, Default, Debug, PartialEq, Eq)]
@@ -37,8 +37,10 @@ impl HttpSigPkTypes {
   {
     let (sk_bytes, pk_bytes) = match self {
       HttpSigPkTypes::Ed25519 => {
-        let (sk, pk) = X25519HkdfSha256::gen_keypair(&mut rng);
-        (sk.to_bytes().to_vec(), pk.to_bytes().to_vec())
+        let mut buf = [0u8; 32];
+        rng.fill_bytes(&mut buf);
+        let kp = ed25519_compact::KeyPair::from_seed(ed25519_compact::Seed::from_slice(&buf).unwrap());
+        (kp.sk.seed().to_vec(), kp.pk.as_slice().to_vec())
       }
       HttpSigPkTypes::EcdsaP256Sha256 => {
         let (sk, pk) = DhP256HkdfSha256::gen_keypair(&mut rng);
@@ -66,6 +68,19 @@ pub struct HttpSigPkKeyPair {
   pub(crate) public_key: HttpSigPkConfigContents,
 }
 
+impl HttpSigPkKeyPair {
+  /// export public key as `httpsig` crate's `PublicKey`
+  pub fn try_export_pk(&self) -> Result<PublicKey, HttpSigError> {
+    self.public_key.try_export()
+  }
+  /// export private key as `httpsig` crate's `SecretKey`
+  pub fn try_export_sk(&self) -> Result<SecretKey, HttpSigError> {
+    let alg_name = self.public_key.alg_name();
+    let res = SecretKey::from_bytes(alg_name, self.private_key.to_vec().as_slice())?;
+    Ok(res)
+  }
+}
+
 /* ------------------------------------------- */
 /// Configuration contents for HttpSig public key signature verification
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -74,6 +89,20 @@ pub struct HttpSigPkConfigContents {
   pub(crate) public_key: Bytes,
 }
 impl HttpSigPkConfigContents {
+  /// export public key as `httpsig` crate's `PublicKey`
+  pub fn try_export(&self) -> Result<PublicKey, HttpSigError> {
+    let alg_name = self.alg_name();
+    let res = PublicKey::from_bytes(alg_name, self.public_key.to_vec().as_slice())?;
+    Ok(res)
+  }
+  /// Get the algorithm name in `httpsig` crate
+  pub(crate) fn alg_name(&self) -> AlgorithmName {
+    match self.alg_id {
+      X25519HkdfSha256::KEM_ID => AlgorithmName::Ed25519,
+      DhP256HkdfSha256::KEM_ID => AlgorithmName::EcdsaP256Sha256,
+      _ => unreachable!(),
+    }
+  }
   /// Get the length of the contents
   pub(crate) fn len(&self) -> usize {
     2 + 2 + self.public_key.len()

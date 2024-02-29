@@ -140,6 +140,8 @@ mod tests {
       "*.yahoo.com".to_string(),
       "google.com".to_string(),
       "yahoo.com".to_string(),
+      "msn.*".to_string(),
+      "www.yahoo.co.jp".to_string(),
     ];
     let domain_filter = DomainFilter::new(allowed_domains);
 
@@ -157,5 +159,11 @@ mod tests {
 
     let query = "googlee.com";
     assert!(!domain_filter.in_domain_list(query));
+
+    let query = "wwww.yahoo.co.jp";
+    assert!(!domain_filter.in_domain_list(query));
+
+    let query = "msn.com";
+    assert!(domain_filter.in_domain_list(query));
   }
 }

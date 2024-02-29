@@ -1,9 +1,5 @@
-use crate::{dh::HttpSigDhTypes, pk::HttpSigPkTypes};
 use bytes::{Buf, BufMut};
 use common::{parse, read_lengthed};
-use dh::{HttpSigDhConfigContents, HttpSigDhKeyPair};
-use mac_kdf::HmacSha256HkdfSha256;
-use pk::{HttpSigPkConfigContents, HttpSigPkKeyPair};
 
 mod common;
 mod dh;
@@ -12,7 +8,10 @@ mod mac_kdf;
 mod pk;
 
 pub use common::{Deserialize, Serialize};
+pub use dh::{HttpSigDhConfigContents, HttpSigDhKeyPair, HttpSigDhTypes, KemKdfDerivedSecret};
 pub use error::HttpSigError;
+pub use mac_kdf::{DeriveKeyId, DeriveSessionKey, HmacSha256HkdfSha256, SessionKeyNonce};
+pub use pk::{HttpSigPkConfigContents, HttpSigPkKeyPair, HttpSigPkTypes};
 
 /// HttpSig key version for MAC via DH supported by this library
 pub const HTTPSIG_PROTO_VERSION_DH: u16 = 0x0010;
@@ -263,6 +262,10 @@ impl HttpSigPublicKeys {
   /// Get serialized configs
   pub fn as_config(&self) -> &[u8] {
     &self.serialized_configs
+  }
+  /// Get serialized configs
+  pub fn as_key_pairs(&self) -> &[HttpSigKeyPair] {
+    &self.key_pairs
   }
 }
 

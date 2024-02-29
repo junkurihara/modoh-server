@@ -1,4 +1,7 @@
-use super::HttpSigKeyRotationState;
+use super::{
+  keymap::{HttpSigKeyMapState, TypedKey},
+  HttpSigKeyRotationState,
+};
 use crate::{
   constants::{HTTPSIG_KEY_REFETCH_TIMEOUT_SEC, HTTPSIG_REFETCH_USER_AGENT},
   error::*,
@@ -7,14 +10,17 @@ use crate::{
   hyper_client::HttpClient,
   trace::*,
 };
+use base64::{engine::general_purpose, Engine as _};
 use futures::{select, FutureExt};
 use http::{header, Method, Request};
 use http_body_util::{BodyExt, Empty};
-use httpsig_proto::{Deserialize, HttpSigConfigContents, HttpSigConfigs, HttpSigPublicKeys};
+use httpsig::prelude::{PublicKey, SecretKey};
+use httpsig_proto::{DeriveSessionKey, Deserialize, HttpSigConfigContents, HttpSigConfigs, HttpSigPublicKeys, SessionKeyNonce};
 use hyper::body::{Body, Bytes};
 use hyper_util::client::legacy::connect::Connect;
 use std::{sync::Arc, time::Duration};
 use tokio::{sync::Notify, time::sleep};
+use tracing::instrument;
 
 /// HttpSig keys handler service that
 /// - periodically refresh keys;
@@ -28,13 +34,16 @@ where
 {
   /// hyper client
   pub http_client: Arc<HttpClient<C, B>>,
+
   /// Service state for exposed httpsig public keys
   key_rotation_state: Arc<HttpSigKeyRotationState>,
 
   /// Public key fetcher target domains
   targets_info: Vec<HttpSigDomainInfo>,
-  // TODO: add inner state and data structure updated by fetcher and used by router, target, relay
-  // key_management_state: Arc<HttpSigKeyManagementState>,
+
+  // inner state and data structure updated by fetcher and used by router, target, relay
+  key_map_state: Arc<HttpSigKeyMapState>,
+
   /// Public key refetch period
   refetch_period: Duration,
 }
@@ -66,6 +75,7 @@ where
       refetch_period,
       targets_info,
       http_client: http_client.clone(),
+      key_map_state: Arc::new(HttpSigKeyMapState::new()),
     });
 
     // rotator for httpsig key pairs
@@ -83,6 +93,73 @@ where
       .spawn(async move { handler_clone.start_httpsig_pk_fetcher_service(term_notify).await.ok() });
 
     Ok(handler)
+  }
+
+  #[instrument(name = "get_hmac_signing_key_by_domain", skip_all)]
+  /// **SigningAPI**: Get a hmac key for the given domain for signing
+  /// If found, derive the session key with random nonce
+  pub(crate) async fn get_hmac_signing_key_by_domain(&self, domain: &str) -> Option<SessionKeyNonce> {
+    let available_key_ids = self.key_map_state.get_key_ids(domain).await;
+    if available_key_ids.is_empty() {
+      return None;
+    }
+    let key_id = available_key_ids.first().unwrap();
+    let Some(typed_key) = self.key_map_state.get_typed_key(key_id).await else {
+      return None;
+    };
+    let session_key_with_random_nonce = match typed_key {
+      TypedKey::Dh(dh_key) => dh_key.derive_session_key_with_random_nonce(&mut rand::thread_rng()),
+      _ => return None,
+    };
+    if session_key_with_random_nonce.is_err() {
+      warn!("Failed to derive session key with random nonce for domain {}", domain);
+      return None;
+    }
+    session_key_with_random_nonce.ok()
+  }
+
+  #[instrument(name = "get_pk_signing_key", skip_all)]
+  /// **SigningAPI**: Get a secret key for signing (case if no hmac key is found)
+  pub(crate) async fn get_pk_signing_key(&self) -> Option<SecretKey> {
+    let available_secret_keys = self.key_map_state.get_pk_type_key_pairs().await;
+    if available_secret_keys.is_empty() {
+      return None;
+    }
+    available_secret_keys.first().map(|v| v.to_owned())
+  }
+
+  #[instrument(name = "get_hmac_verification_key_by_key_id", skip_all)]
+  /// **VerificationAPI**: Search a hmac master key for the given key id
+  /// If found, derive the session key for given nonce from the master key
+  pub(crate) async fn get_hmac_verification_key_by_key_id(&self, key_id: &str, base64_nonce: &str) -> Option<SessionKeyNonce> {
+    let typed_key = self.key_map_state.get_typed_key(key_id).await?;
+    let master = match typed_key {
+      TypedKey::Dh(dh_key) => dh_key.clone(),
+      _ => return None,
+    };
+
+    let Ok(nonce) = general_purpose::URL_SAFE_NO_PAD.decode(base64_nonce) else {
+      warn!("Failed to decode base64 nonce for key id {}", key_id);
+      return None;
+    };
+
+    let Ok(session_key) = master.derive_session_key_with_nonce(nonce.as_slice()) else {
+      warn!("Failed to derive session key with nonce for key id {}", key_id);
+      return None;
+    };
+
+    Some(session_key)
+  }
+
+  #[instrument(name = "get_pk_verification_key_by_key_id", skip_all)]
+  /// **VerificationAPI**: Get a public key for the given key id for verification (case if no hmac key is found)
+  pub(crate) async fn get_pk_verification_key_by_key_id(&self, key_id: &str) -> Option<PublicKey> {
+    let typed_key = self.key_map_state.get_typed_key(key_id).await?;
+    let public_key = match typed_key {
+      TypedKey::Pk(pk) => pk,
+      _ => return None,
+    };
+    Some(public_key)
   }
 
   /// Start the rotator for httpsig key pairs,
@@ -154,65 +231,83 @@ where
     loop {
       let futures = self.targets_info.iter().map(|info| async {
         let config_endpoint_uri = info.configs_endpoint_uri.clone();
-        let deserialized_configs = self.fetch_and_deserialize(&config_endpoint_uri).await?;
+        let deserialized_configs = fetch_and_deserialize(&self.http_client, &config_endpoint_uri).await?;
         Ok(deserialized_configs) as Result<_>
       });
       let all_deserialized_configs = futures::future::join_all(futures).await;
-      let _with_info = all_deserialized_configs
+
+      let config_with_info = all_deserialized_configs
         .iter()
         .zip(self.targets_info.iter())
         .collect::<Vec<_>>();
-      // TODO: Analyze and store the fetched configs
-      // TODO:
-      // TODO:
+      config_with_info.iter().for_each(|(deserialized, info)| {
+        if deserialized.is_err() {
+          error!(
+            "Failed to fetch httpsig public keys from {}: {}",
+            info.configs_endpoint_uri,
+            deserialized.as_ref().err().unwrap()
+          );
+        }
+      });
+      let config_with_info = config_with_info
+        .iter()
+        .filter(|(deserialized, _)| deserialized.is_ok())
+        .map(|(deserialized, info)| (deserialized.as_ref().unwrap(), info.to_owned()))
+        .collect::<Vec<_>>();
+      self.key_map_state.update(&self.key_rotation_state, &config_with_info).await;
 
       sleep(self.refetch_period).await;
     }
   }
+}
 
-  /// Fetch and deserialize httpsig public keys from a given endpoint uri,
-  /// Vec<HttpSigConfigContents> object is retrieved for the endpoint
-  async fn fetch_and_deserialize(&self, uri: &http::Uri) -> Result<Vec<HttpSigConfigContents>> {
-    debug!("Fetching httpsig public keys from {}", uri);
+/* ------------------------------------------------ */
+/// Fetch and deserialize httpsig public keys from a given endpoint uri,
+/// Vec<HttpSigConfigContents> object is retrieved for the endpoint
+async fn fetch_and_deserialize<C>(http_client: &Arc<HttpClient<C>>, uri: &http::Uri) -> Result<Vec<HttpSigConfigContents>>
+where
+  C: Send + Sync + Connect + Clone + 'static,
+{
+  debug!("Fetching httpsig public keys from {}", uri);
 
-    let request = Request::builder()
-      .uri(uri)
-      .method(Method::GET)
-      .header(
-        header::USER_AGENT,
-        header::HeaderValue::from_static(HTTPSIG_REFETCH_USER_AGENT),
-      )
-      .body(Empty::<Bytes>::new().map_err(|never| match never {}).boxed())
-      .map_err(|e| {
-        error!("Failed to build request for fetching httpsig public keys: {}", e);
-        MODoHError::FetchHttpsigConfigsError(e.to_string())
-      })?;
-    let response_future = tokio::time::timeout(
-      Duration::from_secs(HTTPSIG_KEY_REFETCH_TIMEOUT_SEC),
-      self.http_client.request(request.map(IncomingOr::Right)),
-    );
-    let response = response_future
-      .await
-      .map_err(|e| {
-        error!("Timeout to fetch httpsig public keys: {}", e);
-        MODoHError::FetchHttpsigConfigsError(e.to_string())
-      })?
-      .map_err(|e| {
-        error!("Failed to fetch httpsig public keys: {}", e);
-        MODoHError::FetchHttpsigConfigsError(e.to_string())
-      })?;
-    let body_bytes = response
-      .into_body()
-      .collect()
-      .await
-      .map_err(|e| {
-        error!("Failed to read httpsig public keys response body: {}", e);
-        MODoHError::FetchHttpsigConfigsError(e.to_string())
-      })?
-      .to_bytes();
-    let deserialized_configs = HttpSigConfigs::deserialize(&mut body_bytes.as_ref())?;
-    let deserialized_configs = deserialized_configs.into_iter().map(|config| config.contents).collect();
-    info!("Fetched httpsig public keys from {}:\n{:#?}", uri, deserialized_configs);
-    Ok(deserialized_configs)
-  }
+  let request = Request::builder()
+    .uri(uri)
+    .method(Method::GET)
+    .header(
+      header::USER_AGENT,
+      header::HeaderValue::from_static(HTTPSIG_REFETCH_USER_AGENT),
+    )
+    .body(Empty::<Bytes>::new().map_err(|never| match never {}).boxed())
+    .map_err(|e| {
+      error!("Failed to build request for fetching httpsig public keys: {}", e);
+      MODoHError::FetchHttpsigConfigsError(e.to_string())
+    })?;
+  let response_future = tokio::time::timeout(
+    Duration::from_secs(HTTPSIG_KEY_REFETCH_TIMEOUT_SEC),
+    http_client.request(request.map(IncomingOr::Right)),
+  );
+  let response = response_future
+    .await
+    .map_err(|e| {
+      error!("Timeout to fetch httpsig public keys: {}", e);
+      MODoHError::FetchHttpsigConfigsError(e.to_string())
+    })?
+    .map_err(|e| {
+      error!("Failed to fetch httpsig public keys: {}", e);
+      MODoHError::FetchHttpsigConfigsError(e.to_string())
+    })?;
+  let body_bytes = response
+    .into_body()
+    .collect()
+    .await
+    .map_err(|e| {
+      error!("Failed to read httpsig public keys response body: {}", e);
+      MODoHError::FetchHttpsigConfigsError(e.to_string())
+    })?
+    .to_bytes();
+  let deserialized_configs = HttpSigConfigs::deserialize(&mut body_bytes.as_ref())?;
+  let deserialized_configs = deserialized_configs.into_iter().map(|config| config.contents).collect();
+  info!("Fetched httpsig public keys from {}", uri);
+  debug!("Fetched keys: {:#?}", deserialized_configs);
+  Ok(deserialized_configs)
 }

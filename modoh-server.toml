@@ -97,6 +97,8 @@ allowed_destination_domains = ["example.com", "example.net", "*.example.org"]
 ## These are automatically generated and exposed at `/.well-known/httpsigconfigs` endpoint.
 ##   default = ["hs256-x25519-hkdf-sha256"],
 ##   supported = "hs256-p256-hkdf-sha256" (h256 via ecdh), "hs256-x25519-hkdf-sha256" (h256 via ecdh), "ed25519", and "es256"
+## The DH key type is first used for signing only if available according to the target domain.
+## If not available for the domain, the public key type is used for signing if the type exists in the list.
 key_types = ["dhp256-hkdf-sha256", "x25519-hkdf-sha256"]
 
 ## Public key rotation period in seconds.
