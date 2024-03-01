@@ -40,18 +40,23 @@ where
   pub(super) max_subseq_nodes: usize,
   /// request filter for destination domain name
   pub(super) request_filter: Option<Arc<RequestFilter>>,
+  /// httpsig keys handler
+  pub(super) httpsig_handler: Option<Arc<HttpSigKeysHandler<C>>>,
 
   #[cfg(feature = "metrics")]
   /// metrics
   pub(super) meters: Arc<crate::metrics::Meters>,
 }
 
-impl<C, B> InnerRelay<C, B>
+// impl<C, B> InnerRelay<C, B>
+// where
+//   C: Send + Sync + Connect + Clone + 'static,
+//   B: Body + Send + Sync + Unpin + 'static,
+//   <B as Body>::Data: Send,
+//   <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
+impl<C> InnerRelay<C>
 where
   C: Send + Sync + Connect + Clone + 'static,
-  B: Body + Send + Unpin + 'static,
-  <B as Body>::Data: Send,
-  <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
 {
   #[instrument(name = "relay_serve", skip_all)]
   /// Serve request as relay
@@ -59,15 +64,11 @@ where
   /// 2. check content type: only "application/oblivious-dns-message" is allowed.
   /// 3-a. retrieve query and build new target url
   /// 3-b. retrieve query and check if it is a valid odoh query
-  /// TODO: 3-c. [HttpSigHandler is Some] sign with DHKex-HMAC key if next hop supports it, otherwise generate public key based signature
+  /// 3-c. [HttpSigHandler is Some] sign with DHKex-HMAC key if next hop supports it, otherwise generate public key based signature
   /// 4. forward request to next hop
   /// 5. return response after appending "Proxy-Status" header with a received-status param as described in [RFC9230, Section 4.3](https://datatracker.ietf.org/doc/rfc9230/).
   /// c.f., "Proxy-Status" [RFC9209](https://datatracker.ietf.org/doc/rfc9209).
-  pub async fn serve(
-    &self,
-    req: Request<B>,
-    httpsig_handler: &Option<Arc<HttpSigKeysHandler<C>>>, // TODO: implement signing operation
-  ) -> HttpResult<Response<Incoming>> {
+  pub async fn serve(&self, req: Request<IncomingOr<BoxBody>>) -> HttpResult<Response<Incoming>> {
     // check host
     inspect_host(&req, &self.relay_host)?;
 
@@ -137,6 +138,17 @@ where
     // Forward request to next hop: Only post method is allowed in ODoH
     self.update_request_parts(&nexthop_url, &mut parts)?;
     let updated_request = Request::from_parts(parts, body);
+
+    /* ---------------------- */
+    // sign request if httpsig_handler is Some
+    let updated_request = match &self.httpsig_handler {
+      Some(handler) => handler.generate_request_with_signature(updated_request).await.map_err(|e| {
+        error!("(M)ODoH request signing error: {e}");
+        HttpError::HttpSigSigningError(e.to_string())
+      })?,
+      None => updated_request,
+    };
+    /* ---------------------- */
 
     #[cfg(feature = "metrics")]
     let start = tokio::time::Instant::now();
@@ -220,8 +232,9 @@ where
   /// Build inner relay
   pub fn try_new(
     globals: &Arc<Globals>,
-    http_client: &Arc<HttpClient<C, B>>,
+    http_client: &Arc<HttpClient<C, IncomingOr<BoxBody>>>,
     request_filter: Option<Arc<RequestFilter>>,
+    httpsig_handler: Option<Arc<HttpSigKeysHandler<C>>>,
   ) -> Result<Arc<Self>> {
     let relay_config = globals.service_config.relay.as_ref().ok_or(MODoHError::BuildRelayError)?;
     // default headers for request
@@ -246,6 +259,7 @@ where
       relay_path,
       max_subseq_nodes,
       request_filter: request_filter.clone(),
+      httpsig_handler,
 
       #[cfg(feature = "metrics")]
       meters: globals.meters.clone(),

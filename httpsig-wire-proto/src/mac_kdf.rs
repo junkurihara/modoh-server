@@ -31,11 +31,16 @@ impl MacKdf for HmacSha256HkdfSha256 {
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// Session key and nonce derived from master secret
 pub struct SessionKeyNonce {
+  kem_kdf_derived_key_id: String,
   session_key: Vec<u8>,
   nonce: Vec<u8>,
 }
 #[allow(unused)]
 impl SessionKeyNonce {
+  /// Get the key id of the original kem kdf derived secret
+  pub fn kem_kdf_derived_key_id(&self) -> &str {
+    &self.kem_kdf_derived_key_id
+  }
   /// Get session key
   pub fn session_key(&self) -> &[u8] {
     &self.session_key
@@ -73,22 +78,29 @@ impl DeriveSessionKey for KemKdfDerivedSecret<HmacSha256HkdfSha256> {
   where
     R: RngCore + CryptoRng,
   {
+    let kem_kdf_derived_key_id = self.key_id();
     let mut nonce = vec![0u8; HmacSha256HkdfSha256::KDF_SALT_LEN];
     rng.fill_bytes(&mut nonce);
     let mut session_key = vec![0u8; HmacSha256HkdfSha256::KDF_OUTPUT_LEN];
     Hkdf::<Sha256>::new(Some(&nonce), &self.secret)
       .expand(KDF_INFO, &mut session_key)
       .map_err(|e| HttpSigError::InvalidHkdfLength(e.to_string()))?;
-    Ok(SessionKeyNonce { session_key, nonce })
+    Ok(SessionKeyNonce {
+      kem_kdf_derived_key_id,
+      session_key,
+      nonce,
+    })
   }
 
   /// Derive session key with provided nonce
   fn derive_session_key_with_nonce(&self, nonce: &[u8]) -> Result<SessionKeyNonce, HttpSigError> {
+    let kem_kdf_derived_key_id = self.key_id();
     let mut session_key = vec![0u8; HmacSha256HkdfSha256::KDF_OUTPUT_LEN];
     Hkdf::<Sha256>::new(Some(nonce), &self.secret)
       .expand(KDF_INFO, &mut session_key)
       .map_err(|e| HttpSigError::InvalidHkdfLength(e.to_string()))?;
     Ok(SessionKeyNonce {
+      kem_kdf_derived_key_id,
       session_key,
       nonce: nonce.to_vec(),
     })

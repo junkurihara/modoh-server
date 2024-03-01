@@ -166,7 +166,12 @@ where
     };
 
     let inner_relay = match &globals.service_config.relay {
-      Some(_) => Some(InnerRelay::try_new(globals, http_client, request_filter.clone())?),
+      Some(_) => Some(InnerRelay::try_new(
+        globals,
+        http_client,
+        request_filter.clone(),
+        httpsig_handler.clone(),
+      )?),
       None => None,
     };
     let inner_target = match &globals.service_config.target {

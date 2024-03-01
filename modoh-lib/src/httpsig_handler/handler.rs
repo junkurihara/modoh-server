@@ -3,10 +3,12 @@ use super::{
   HttpSigKeyRotationState,
 };
 use crate::{
-  constants::{HTTPSIG_KEY_REFETCH_TIMEOUT_SEC, HTTPSIG_REFETCH_USER_AGENT},
+  constants::{
+    HTTPSIG_COVERED_COMPONENTS, HTTPSIG_CUSTOM_SIGNATURE_NAME, HTTPSIG_KEY_REFETCH_TIMEOUT_SEC, HTTPSIG_REFETCH_USER_AGENT,
+  },
   error::*,
   globals::{Globals, HttpSigDomainInfo},
-  hyper_body::{BoxBody, IncomingOr},
+  hyper_body::{full, BoxBody, IncomingOr},
   hyper_client::HttpClient,
   trace::*,
 };
@@ -14,7 +16,8 @@ use base64::{engine::general_purpose, Engine as _};
 use futures::{select, FutureExt};
 use http::{header, Method, Request};
 use http_body_util::{BodyExt, Empty};
-use httpsig::prelude::{PublicKey, SecretKey};
+use httpsig::prelude::*;
+use httpsig_hyper::*;
 use httpsig_proto::{DeriveSessionKey, Deserialize, HttpSigConfigContents, HttpSigConfigs, HttpSigPublicKeys, SessionKeyNonce};
 use hyper::body::{Body, Bytes};
 use hyper_util::client::legacy::connect::Connect;
@@ -95,9 +98,58 @@ where
     Ok(handler)
   }
 
+  #[instrument(name = "generate_request_with_signature", skip_all)]
+  /// Append signature to request if available
+  pub(crate) async fn generate_request_with_signature<T>(&self, request: Request<T>) -> Result<Request<IncomingOr<BoxBody>>>
+  where
+    T: Body + Sync + Send,
+    <T as Body>::Data: Send,
+  {
+    // compute digest first
+    let (parts, body) = request
+      .set_content_digest(&ContentDigestType::Sha256)
+      .await
+      .map_err(|e| MODoHError::HttpSigComputeError(e.to_string()))?
+      .into_parts();
+    let body = IncomingOr::Right(full(body.into_bytes().await.unwrap()));
+    let mut updated_request = Request::from_parts(parts, body);
+
+    // signature params
+    let covered_components = HTTPSIG_COVERED_COMPONENTS
+      .iter()
+      .map(|v| message_component::HttpMessageComponentId::try_from(*v))
+      .collect::<std::result::Result<Vec<_>, _>>()
+      .unwrap();
+    let mut signature_params = HttpSignatureParams::try_new(&covered_components).unwrap();
+
+    // find appropriate keys and add signature to the header
+    let nexthop_host = updated_request.uri().host().unwrap_or_default();
+    if let Some(hmac_key) = self.get_hmac_signing_key_by_domain(nexthop_host).await {
+      debug!("sign request with hmac key: {nexthop_host}");
+      let base64_url_nopad_nonce = general_purpose::URL_SAFE_NO_PAD.encode(hmac_key.nonce());
+      let shared_key = SharedKey::HmacSha256(hmac_key.session_key().to_owned());
+      signature_params.set_nonce(&base64_url_nopad_nonce);
+      signature_params.set_alg(&AlgorithmName::HmacSha256);
+      // key id must be the one of the shared master key via DHKex+HKDF
+      signature_params.set_keyid(hmac_key.kem_kdf_derived_key_id());
+
+      updated_request
+        .set_message_signature(&signature_params, &shared_key, Some(HTTPSIG_CUSTOM_SIGNATURE_NAME))
+        .await?;
+      debug!("updated header with HMAC signature:\n{:#?}", updated_request.headers());
+    } else {
+      debug!("sign request with public key: {nexthop_host}");
+      // TODO:
+      warn!("not yet implemented for public key based signature. Skip signature for now.");
+      // TODO:
+    }
+
+    Ok(updated_request)
+  }
+
   #[instrument(name = "get_hmac_signing_key_by_domain", skip_all)]
   /// **SigningAPI**: Get a hmac key for the given domain for signing
-  /// If found, derive the session key with random nonce
+  /// If found, derive the session key with random nonce.
   pub(crate) async fn get_hmac_signing_key_by_domain(&self, domain: &str) -> Option<SessionKeyNonce> {
     let available_key_ids = self.key_map_state.get_key_ids(domain).await;
     if available_key_ids.is_empty() {

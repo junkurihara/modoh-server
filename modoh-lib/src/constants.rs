@@ -64,6 +64,10 @@ pub const HTTPSIG_KEY_REFETCH_PERIOD: u64 = 60;
 pub const HTTPSIG_KEY_REFETCH_TIMEOUT_SEC: u64 = 3;
 /// User agent for refetching HTTP message signature keys
 pub const HTTPSIG_REFETCH_USER_AGENT: &str = "modoh-server";
+/// Default covered components for HTTP message signature
+pub const HTTPSIG_COVERED_COMPONENTS: &[&str] = &["@method", "content-type", "content-digest", "cache-control"];
+/// Custom signature name for HTTP message signature
+pub const HTTPSIG_CUSTOM_SIGNATURE_NAME: &str = "modohsig";
 
 #[cfg(feature = "evil-trace")]
 pub const EVIL_TRACE_HEADER_NAME: &str = "traceparent";
