@@ -2,6 +2,7 @@ use crate::{
   constants::*,
   error::*,
   globals::Globals,
+  httpsig_handler::HttpSigKeysHandler,
   hyper_body::{BoxBody, IncomingOr},
   hyper_client::HttpClient,
   message_util::{check_content_type, inspect_host, inspect_request_body, RequestType},
@@ -58,10 +59,15 @@ where
   /// 2. check content type: only "application/oblivious-dns-message" is allowed.
   /// 3-a. retrieve query and build new target url
   /// 3-b. retrieve query and check if it is a valid odoh query
+  /// TODO: 3-c. [HttpSigHandler is Some] sign with DHKex-HMAC key if next hop supports it, otherwise generate public key based signature
   /// 4. forward request to next hop
   /// 5. return response after appending "Proxy-Status" header with a received-status param as described in [RFC9230, Section 4.3](https://datatracker.ietf.org/doc/rfc9230/).
   /// c.f., "Proxy-Status" [RFC9209](https://datatracker.ietf.org/doc/rfc9209).
-  pub async fn serve(&self, req: Request<B>) -> HttpResult<Response<Incoming>> {
+  pub async fn serve(
+    &self,
+    req: Request<B>,
+    httpsig_handler: &Option<Arc<HttpSigKeysHandler<C>>>, // TODO: implement signing operation
+  ) -> HttpResult<Response<Incoming>> {
     // check host
     inspect_host(&req, &self.relay_host)?;
 
@@ -112,10 +118,10 @@ where
         debug!("Nexthop domain is filtered: {}", nexthop_domain);
 
         #[cfg(feature = "metrics")]
-        self.meters.dst_domain_access_control_result_rejected.add(
-          1_u64,
-          &[opentelemetry::KeyValue::new("domain", nexthop_domain.to_string())],
-        );
+        self
+          .meters
+          .dst_domain_access_control_result_rejected
+          .add(1_u64, &[opentelemetry::KeyValue::new("domain", nexthop_domain.to_string())]);
 
         return Err(HttpError::ForbiddenDomain(nexthop_domain.to_string()));
       }
@@ -147,20 +153,13 @@ where
     {
       let elapsed = start.elapsed().as_millis() as u64;
       let subseq_relay_num = if nexthop_url.query_pairs().count() > 0 {
-        nexthop_url
-          .query_pairs()
-          .filter(|(k, _)| k.contains("relayhost"))
-          .count()
-          + 1
+        nexthop_url.query_pairs().filter(|(k, _)| k.contains("relayhost")).count() + 1
       } else {
         0 // direct query to target
       };
       self.meters.latency_relay_upstream.record(
         elapsed,
-        &[opentelemetry::KeyValue::new(
-          "subseq_relay",
-          subseq_relay_num.to_string(),
-        )],
+        &[opentelemetry::KeyValue::new("subseq_relay", subseq_relay_num.to_string())],
       );
       self.meters.subsequent_relay_num.record(subseq_relay_num as u64, &[])
     }
@@ -224,11 +223,7 @@ where
     http_client: &Arc<HttpClient<C, B>>,
     request_filter: Option<Arc<RequestFilter>>,
   ) -> Result<Arc<Self>> {
-    let relay_config = globals
-      .service_config
-      .relay
-      .as_ref()
-      .ok_or(MODoHError::BuildRelayError)?;
+    let relay_config = globals.service_config.relay.as_ref().ok_or(MODoHError::BuildRelayError)?;
     // default headers for request
     let mut request_headers = HeaderMap::new();
     let user_agent = HeaderValue::from_str(relay_config.http_user_agent.as_str()).map_err(|e| {

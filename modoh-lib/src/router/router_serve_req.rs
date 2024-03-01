@@ -139,7 +139,8 @@ where
       }
     }
 
-    return match relay.unwrap().serve(req.map(IncomingOr::Left)).await {
+    let httpsig_handler = router.httpsig_handler;
+    return match relay.unwrap().serve(req.map(IncomingOr::Left), &httpsig_handler).await {
       Ok(res) => {
         #[cfg(feature = "metrics")]
         count_with_http_status_code(&meters.query_relaying_result_responded, &res.status());
