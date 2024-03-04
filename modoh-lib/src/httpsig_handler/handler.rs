@@ -125,7 +125,8 @@ where
     // find appropriate keys and add signature to the header
     let nexthop_host = updated_request.uri().host().unwrap_or_default();
     if let Some(hmac_key) = self.get_hmac_signing_key_by_domain(nexthop_host).await {
-      debug!("sign request with hmac key: {nexthop_host}");
+      // First checks DHKex+HKDF derived hmac key
+      debug!(nexthop_host, "Request will be signed with hmac key");
       let base64_url_nopad_nonce = general_purpose::URL_SAFE_NO_PAD.encode(hmac_key.nonce());
       let shared_key = SharedKey::HmacSha256(hmac_key.session_key().to_owned());
       signature_params.set_nonce(&base64_url_nopad_nonce);
@@ -137,11 +138,21 @@ where
         .set_message_signature(&signature_params, &shared_key, Some(HTTPSIG_CUSTOM_SIGNATURE_NAME))
         .await?;
       debug!("updated header with HMAC signature:\n{:#?}", updated_request.headers());
+    } else if let Some(pk_signing_key) = self.get_pk_signing_key().await {
+      // If no hmac key is found, try use public key based signature
+      debug!(nexthop_host, "Request will be signed with public key");
+      signature_params.set_key_info(&pk_signing_key);
+      signature_params.set_random_nonce();
+
+      updated_request
+        .set_message_signature(&signature_params, &pk_signing_key, Some(HTTPSIG_CUSTOM_SIGNATURE_NAME))
+        .await?;
+      debug!(
+        "updated header with public-key based signature:\n{:#?}",
+        updated_request.headers()
+      );
     } else {
-      debug!("sign request with public key: {nexthop_host}");
-      // TODO:
-      warn!("not yet implemented for public key based signature. Skip signature for now.");
-      // TODO:
+      debug!(nexthop_host, "No key found for signing the request");
     }
 
     Ok(updated_request)
