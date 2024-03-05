@@ -21,7 +21,7 @@ use httpsig_hyper::*;
 use httpsig_proto::{DeriveSessionKey, Deserialize, HttpSigConfigContents, HttpSigConfigs, HttpSigPublicKeys, SessionKeyNonce};
 use hyper::body::{Body, Bytes};
 use hyper_util::client::legacy::connect::Connect;
-use std::{sync::Arc, time::Duration};
+use std::{f64::consts::E, sync::Arc, time::Duration};
 use tokio::{sync::Notify, time::sleep};
 use tracing::instrument;
 
@@ -98,9 +98,9 @@ where
     Ok(handler)
   }
 
-  #[instrument(name = "generate_request_with_signature", skip_all)]
-  /// Append signature to request if available
-  pub(crate) async fn generate_request_with_signature<T>(&self, request: Request<T>) -> Result<Request<IncomingOr<BoxBody>>>
+  #[instrument(name = "generate_request_with_digest", skip_all)]
+  /// Compute content digest for the request body
+  async fn generate_request_with_digest<T>(&self, request: Request<T>) -> Result<Request<IncomingOr<BoxBody>>>
   where
     T: Body + Sync + Send,
     <T as Body>::Data: Send,
@@ -112,7 +112,105 @@ where
       .map_err(|e| MODoHError::HttpSigComputeError(e.to_string()))?
       .into_parts();
     let body = IncomingOr::Right(full(body.into_bytes().await.unwrap()));
-    let mut updated_request = Request::from_parts(parts, body);
+    let updated_request = Request::from_parts(parts, body);
+    Ok(updated_request)
+  }
+
+  #[instrument(name = "verify_request_with_signature", skip_all)]
+  /// Verify signature of the request if available
+  pub(crate) async fn verify_signed_request<T>(&self, request: Request<T>) -> Result<Request<IncomingOr<BoxBody>>>
+  where
+    T: Body + Sync + Send,
+    <T as Body>::Data: Send,
+  {
+    // get key ids with nonce
+    let contained_key_ids_with_nonce = request
+      .get_signature_params()?
+      .iter()
+      .filter_map(|params| params.keyid.as_ref().map(|k| (k.to_owned(), params.nonce.clone())))
+      .collect::<Vec<_>>();
+    // find available keys
+    let available_keys_future = contained_key_ids_with_nonce.iter().map(|(key_id, nonce)| async {
+      self
+        .key_map_state
+        .get_typed_key(key_id)
+        .await
+        .map(|typed_key| (key_id.to_owned(), nonce.clone(), typed_key))
+    });
+    let available_keys = futures::future::join_all(available_keys_future)
+      .await
+      .into_iter()
+      .flatten()
+      .collect::<Vec<_>>();
+
+    // TODO: validate covered-component!
+    /* ---------- */
+    // verify signatures with available keys
+    // first try dhkex+hkdf derived hmac key
+    let dh_available_keys = available_keys
+      .iter()
+      .filter_map(|(key_id, nonce, typed_key)| match typed_key {
+        TypedKey::Dh(dh_key) => match nonce {
+          Some(nonce) => {
+            let nonce_bytes = general_purpose::STANDARD.decode(nonce).ok()?;
+            let session_key = dh_key.derive_session_key_with_nonce(nonce_bytes.as_slice()).ok()?;
+            let shared_key = SharedKey::HmacSha256(session_key.session_key().to_owned());
+            Some((key_id, shared_key))
+          }
+          _ => None,
+        },
+        _ => None,
+      })
+      .collect::<Vec<_>>();
+    if !dh_available_keys.is_empty() {
+      let dh_verify_res_future = dh_available_keys
+        .iter()
+        .map(|(key_id, shared_key)| request.verify_message_signature(shared_key, Some(key_id)));
+      let dh_verify_res = futures::future::join_all(dh_verify_res_future)
+        .await
+        .iter()
+        .any(|v| v.is_ok());
+      // if dh_verify_res is true, then the signature itself is ok. validate content-digest
+      if dh_verify_res {
+        return self.verify_content_digest(request).await;
+      }
+      // Even if dh available key is found, if the signature is invalid, then it is invalid. skip the pk verification.
+      return Err(MODoHError::HttpSigVerificationError(
+        "Failed to verify signature with DH key".to_string(),
+      ));
+    }
+    /* ---------- */
+    // TODO: pk verification
+    todo!()
+  }
+
+  /// Verify content digest of the request body
+  async fn verify_content_digest<T>(&self, request: Request<T>) -> Result<Request<IncomingOr<BoxBody>>>
+  where
+    T: Body + Sync + Send,
+    <T as Body>::Data: Send,
+  {
+    let (parts, body) = request
+      .verify_content_digest()
+      .await
+      .map_err(|e| MODoHError::HttpSigVerificationError(format!("Failed to verify content-digest header: {e}")))?
+      .into_parts();
+
+    let body = IncomingOr::Right(full(body.into_bytes().await.unwrap()));
+    let updated_request = Request::from_parts(parts, body);
+
+    Ok(updated_request)
+  }
+
+  #[instrument(name = "generate_request_with_signature", skip_all)]
+  /// Append signature to request if available
+  pub(crate) async fn generate_signed_request<T>(&self, request: Request<T>) -> Result<Request<IncomingOr<BoxBody>>>
+  where
+    T: Body + Sync + Send,
+    <T as Body>::Data: Send,
+  {
+    // compute digest first
+    let mut updated_request = self.generate_request_with_digest(request).await?;
 
     // signature params
     let covered_components = HTTPSIG_COVERED_COMPONENTS

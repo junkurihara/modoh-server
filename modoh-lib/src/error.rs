@@ -33,6 +33,8 @@ pub enum MODoHError {
   HyperHttpSigError(#[from] httpsig_hyper::HyperSigError),
   #[error("Failed to compute HTTP message signature: {0}")]
   HttpSigComputeError(String),
+  #[error("Failed to verify HTTP message signature: {0}")]
+  HttpSigVerificationError(String),
   #[error(transparent)]
   Other(#[from] anyhow::Error),
 }

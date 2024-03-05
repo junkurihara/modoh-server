@@ -142,7 +142,7 @@ where
     /* ---------------------- */
     // sign request if httpsig_handler is Some
     let updated_request = match &self.httpsig_handler {
-      Some(handler) => handler.generate_request_with_signature(updated_request).await.map_err(|e| {
+      Some(handler) => handler.generate_signed_request(updated_request).await.map_err(|e| {
         error!("(M)ODoH request signing error: {e}");
         HttpError::HttpSigSigningError(e.to_string())
       })?,
