@@ -228,6 +228,19 @@ impl TryInto<ServiceConfig> for &TargetConfig {
           httpsig_config.enabled_domains = enabled_domains;
         }
         info!("Set HttpSig-enabled targeted domains: {:#?}", httpsig_config.enabled_domains);
+
+        if let Some(force_verification) = httpsig.force_verification {
+          httpsig_config.force_verification = force_verification;
+          if force_verification {
+            info!("Force httpsig verification for all requests regardless of the source ip validation result");
+          }
+        }
+        if let Some(ignore_verification_result) = httpsig.ignore_verification_result {
+          httpsig_config.ignore_verification_result = ignore_verification_result;
+          if ignore_verification_result {
+            warn!("Ignore httpsig verification result and continue to serve the request.");
+          }
+        }
         Some(httpsig_config)
       } else {
         None

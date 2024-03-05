@@ -21,7 +21,7 @@ use httpsig_hyper::*;
 use httpsig_proto::{DeriveSessionKey, Deserialize, HttpSigConfigContents, HttpSigConfigs, HttpSigPublicKeys, SessionKeyNonce};
 use hyper::body::{Body, Bytes};
 use hyper_util::client::legacy::connect::Connect;
-use std::{f64::consts::E, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 use tokio::{sync::Notify, time::sleep};
 use tracing::instrument;
 
@@ -49,6 +49,12 @@ where
 
   /// Public key refetch period
   refetch_period: Duration,
+
+  /// Force httpsig verification for all requests regardless of the source ip validation result.
+  pub(crate) force_verification: bool,
+
+  /// Ignore httpsig verification result and continue to serve the request.
+  pub(crate) ignore_verification_result: bool,
 }
 
 impl<C> HttpSigKeysHandler<C>
@@ -72,6 +78,8 @@ where
       .ok_or(MODoHError::BuildHttpSigHandlerError)?;
     let targets_info = httpsig_config.enabled_domains.clone();
     let refetch_period = httpsig_config.refetch_period;
+    let force_verification = httpsig_config.force_verification;
+    let ignore_verification_result = httpsig_config.ignore_verification_result;
 
     let handler = Arc::new(Self {
       key_rotation_state: state.clone(),
@@ -79,6 +87,8 @@ where
       targets_info,
       http_client: http_client.clone(),
       key_map_state: Arc::new(HttpSigKeyMapState::new()),
+      force_verification,
+      ignore_verification_result,
     });
 
     // rotator for httpsig key pairs
@@ -118,7 +128,7 @@ where
 
   #[instrument(name = "verify_request_with_signature", skip_all)]
   /// Verify signature of the request if available
-  pub(crate) async fn verify_signed_request<T>(&self, request: Request<T>) -> Result<Request<IncomingOr<BoxBody>>>
+  pub(crate) async fn verify_signed_request<T>(&self, request: &Request<T>) -> Result<()>
   where
     T: Body + Sync + Send,
     <T as Body>::Data: Send,
@@ -170,9 +180,9 @@ where
         .await
         .iter()
         .any(|v| v.is_ok());
-      // if dh_verify_res is true, then the signature itself is ok. validate content-digest
+      // if dh_verify_res is true, then the signature itself is ok.
       if dh_verify_res {
-        return self.verify_content_digest(request).await;
+        return Ok(());
       }
       // Even if dh available key is found, if the signature is invalid, then it is invalid. skip the pk verification.
       return Err(MODoHError::HttpSigVerificationError(
@@ -180,12 +190,36 @@ where
       ));
     }
     /* ---------- */
-    // TODO: pk verification
-    todo!()
+    // if no dh key is found, try public key based signature
+    let pk_available_keys = available_keys
+      .iter()
+      .filter_map(|(key_id, _, typed_key)| match typed_key {
+        TypedKey::Pk(pk_key) => Some((key_id, pk_key)),
+        _ => None,
+      })
+      .collect::<Vec<_>>();
+    if pk_available_keys.is_empty() {
+      return Err(MODoHError::HttpSigVerificationError(
+        "No public key found for verification".to_string(),
+      ));
+    }
+    let pk_verify_res_future = pk_available_keys
+      .iter()
+      .map(|(key_id, pk_key)| request.verify_message_signature(*pk_key, Some(key_id)));
+    let pk_verify_res = futures::future::join_all(pk_verify_res_future)
+      .await
+      .iter()
+      .any(|v| v.is_ok());
+    if pk_verify_res {
+      return Ok(());
+    }
+    return Err(MODoHError::HttpSigVerificationError(
+      "Failed to verify signature with public key".to_string(),
+    ));
   }
 
   /// Verify content digest of the request body
-  async fn verify_content_digest<T>(&self, request: Request<T>) -> Result<Request<IncomingOr<BoxBody>>>
+  pub(crate) async fn verify_content_digest<T>(&self, request: Request<T>) -> Result<Request<IncomingOr<BoxBody>>>
   where
     T: Body + Sync + Send,
     <T as Body>::Data: Send,

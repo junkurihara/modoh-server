@@ -22,6 +22,10 @@ pub(crate) struct Meters {
   pub(crate) src_ip_access_control: Counter<u64>,
   /// counter for rejection by source ip access control
   pub(crate) src_ip_access_control_result_rejected: Counter<u64>,
+  /// counter for httpsig verification
+  pub(crate) httpsig_verification: Counter<u64>,
+  /// counter for httpsig verification error
+  pub(crate) httpsig_verification_rejected: Counter<u64>,
   /// counter for anonymized/relaying query
   pub(crate) query_relaying: Counter<u64>,
   /// counter for token-validated anonymized/relaying query
@@ -103,6 +107,16 @@ impl Meters {
       .u64_counter("src_ip_access_control_result_rejected")
       .with_description("Count of rejection by source ip access control")
       .init();
+
+    let httpsig_verification = meter
+      .u64_counter("httpsig_verification")
+      .with_description("Count of httpsig verification")
+      .init();
+    let httpsig_verification_rejected = meter
+      .u64_counter("httpsig_verification_rejected")
+      .with_description("Count of rejection by httpsig verification")
+      .init();
+
     let query_relaying = meter
       .u64_counter("query_relaying")
       .with_description("Count of anonymized/relaying query")
@@ -192,6 +206,9 @@ impl Meters {
 
       src_ip_access_control,
       src_ip_access_control_result_rejected,
+
+      httpsig_verification,
+      httpsig_verification_rejected,
 
       query_relaying,
       query_token_validated_relaying,

@@ -120,3 +120,13 @@ enabled_domains = [
   { configs_endpoint_domain = "modoh.example.net" },
   { configs_endpoint_domain = "modoh.example.org" },
 ]
+
+## Force HTTP Signature verification for all requests unless the ID token is given in the http header (default = false)
+## By default (false), the signature verification is performed only when the source ip address is not in the allowed_source_ips list.
+force_verification = false
+
+## Always ignore the result of signature verification. (default = false)
+## By default (false), if the signature verification is failed for given key id, the request is immediately rejected.
+## If set to true, the signature verification is performed, but the request is always processed regardless of the result.
+## Usefull for debugging or testing.
+ignore_verification_result = false

@@ -21,6 +21,7 @@ where
   let target = router.inner_target.clone();
   let validator = router.inner_validator.clone();
   let request_filter = router.request_filter.clone();
+  let httpsig_handler = router.httpsig_handler.clone();
 
   #[cfg(feature = "metrics")]
   let meters = router.globals.meters.clone();
@@ -55,7 +56,7 @@ where
   }
 
   // check path and route request
-  let path = req.uri().path();
+  let path = req.uri().path().to_string();
 
   // match odoh config, without checking allowed ip address
   // odoh config should be served without access control
@@ -100,7 +101,10 @@ where
   // Source ip access control here when we didn't have a chance to validate token.
   // For authorized ip addresses, maintain blacklist (error metrics) at each relay for given requests.
   // Domain check should be done in forwarder.
-  if !token_validated {
+  let mut src_ip_validated = false;
+  if token_validated {
+    debug!("skip source ip access control since token was validated.");
+  } else {
     #[cfg(feature = "metrics")]
     meters.src_ip_access_control.add(1_u64, &[]);
 
@@ -113,20 +117,78 @@ where
         .map(|inbound| inbound.is_allowed_request(&peer_ip_adder, req_header))
     });
     if let Some(res) = filter_result {
-      if let Err(e) = res {
-        debug!("rejected source ip address {}: {}", peer_ip_adder, e);
-        let status_code = StatusCode::from(e);
+      match res {
+        Ok(_) => {
+          src_ip_validated = true;
+          debug!("passed source ip address access control");
+        }
+        Err(e) => {
+          debug!("rejected source ip address {peer_ip_adder}: {e}");
 
-        #[cfg(feature = "metrics")]
-        count_with_http_status_code(&meters.src_ip_access_control_result_rejected, &status_code);
+          if httpsig_handler.is_none() {
+            let status_code = StatusCode::from(e);
 
-        return synthetic_error_response(status_code);
+            #[cfg(feature = "metrics")]
+            count_with_http_status_code(&meters.src_ip_access_control_result_rejected, &status_code);
+
+            return synthetic_error_response(status_code);
+          }
+          debug!("src ip is not in the allow list, try to perform httpsig verification.")
+        }
       }
-      debug!("passed source ip address access control");
+    }
+  }
+
+  // httpsig verification
+  let mut httpsig_validated = false;
+  if token_validated {
+    debug!("skip httpsig verification since token was validated.");
+  } else if let Some(handler) = httpsig_handler.as_ref() {
+    if !src_ip_validated || handler.force_verification {
+      debug!("execute httpsig verification");
+
+      #[cfg(feature = "metrics")]
+      meters.httpsig_verification.add(1_u64, &[]);
+
+      // httpsig verification itself can be skipped
+      match handler.verify_signed_request(&req).await {
+        Ok(_) => {
+          httpsig_validated = true;
+          debug!("passed httpsig verification");
+        }
+        Err(e) => {
+          warn!("httpsig validation failed: {e}");
+          if !handler.ignore_verification_result {
+            #[cfg(feature = "metrics")]
+            count_with_http_status_code(&meters.httpsig_verification_rejected, &StatusCode::UNAUTHORIZED);
+
+            return synthetic_error_response(StatusCode::UNAUTHORIZED);
+          }
+          warn!("ignore httpsig verification error! (ignore_verification_result)");
+        }
+      }
     }
   } else {
-    debug!("skip source ip access control since token was validated.");
-  }
+    debug!("skip httpsig validation since no handler was set.");
+  };
+
+  // then try to compute content digest for request that passed httpsig verification
+  let req = if httpsig_validated {
+    // content digest verification is not skipped if httpsig_handler verified the signature successfully
+    let handler = httpsig_handler.as_ref().unwrap();
+    match handler.verify_content_digest(req).await {
+      Ok(req) => {
+        debug!("passed content digest verification");
+        req
+      }
+      Err(e) => {
+        warn!("content digest verification failed: {e}");
+        return synthetic_error_response(StatusCode::UNAUTHORIZED);
+      }
+    }
+  } else {
+    req.map(IncomingOr::Left)
+  };
 
   // match modoh relay
   if relay.as_ref().map(|r| r.relay_path == path).unwrap_or(false) {
@@ -139,7 +201,7 @@ where
       }
     }
 
-    return match relay.unwrap().serve(req.map(IncomingOr::Left)).await {
+    return match relay.unwrap().serve(req).await {
       Ok(res) => {
         #[cfg(feature = "metrics")]
         count_with_http_status_code(&meters.query_relaying_result_responded, &res.status());

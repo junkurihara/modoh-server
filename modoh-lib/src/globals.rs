@@ -122,6 +122,11 @@ pub struct HttpSigConfig {
 
   /// Refetch period for public keys
   pub refetch_period: Duration,
+
+  /// Force httpsig verification for all requests regardless of the source ip validation result.
+  pub force_verification: bool,
+  /// Ignore httpsig verification result and continue to serve the request. Useful for debugging.
+  pub ignore_verification_result: bool,
 }
 
 impl Default for HttpSigConfig {
@@ -131,6 +136,8 @@ impl Default for HttpSigConfig {
       key_rotation_period: Duration::from_secs(HTTPSIG_KEY_ROTATION_PERIOD),
       enabled_domains: vec![],
       refetch_period: Duration::from_secs(HTTPSIG_KEY_REFETCH_PERIOD),
+      force_verification: false,
+      ignore_verification_result: false,
     }
   }
 }
