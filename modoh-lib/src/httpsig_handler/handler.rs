@@ -23,7 +23,7 @@ use hyper::body::{Body, Bytes};
 use hyper_util::client::legacy::connect::Connect;
 use std::{sync::Arc, time::Duration};
 use tokio::{sync::Notify, time::sleep};
-use tracing::instrument;
+use tracing::{instrument, Instrument};
 
 /// HttpSig keys handler service that
 /// - periodically refresh keys;
@@ -118,6 +118,7 @@ where
     // compute digest first
     let (parts, body) = request
       .set_content_digest(&ContentDigestType::Sha256)
+      .instrument(tracing::info_span!("set_content_digest"))
       .await
       .map_err(|e| MODoHError::HttpSigComputeError(e.to_string()))?
       .into_parts();
@@ -126,7 +127,7 @@ where
     Ok(updated_request)
   }
 
-  #[instrument(name = "verify_request_with_signature", skip_all)]
+  #[instrument(name = "verify_signed_request", skip_all)]
   /// Verify signature of the request if available
   pub(crate) async fn verify_signed_request<T>(&self, request: &Request<T>) -> Result<()>
   where
@@ -180,6 +181,7 @@ where
         .iter()
         .map(|(key_id, shared_key)| request.verify_message_signature(shared_key, Some(key_id)));
       let dh_verify_res = futures::future::join_all(dh_verify_res_future)
+        .instrument(tracing::info_span!("dh_verify_res"))
         .await
         .iter()
         .any(|v| v.is_ok());
@@ -214,6 +216,7 @@ where
       .iter()
       .map(|(key_id, pk_key)| request.verify_message_signature(*pk_key, Some(key_id)));
     let pk_verify_res = futures::future::join_all(pk_verify_res_future)
+      .instrument(tracing::info_span!("pk_verify_res"))
       .await
       .iter()
       .any(|v| v.is_ok());
@@ -233,6 +236,7 @@ where
   {
     let (parts, body) = request
       .verify_content_digest()
+      .instrument(tracing::info_span!("verify_content_digest"))
       .await
       .map_err(|e| MODoHError::HttpSigVerificationError(format!("Failed to verify content-digest header: {e}")))?
       .into_parts();
@@ -243,7 +247,7 @@ where
     Ok(updated_request)
   }
 
-  #[instrument(name = "generate_request_with_signature", skip_all)]
+  #[instrument(name = "generate_signed_request", skip_all)]
   /// Append signature to request if available
   pub(crate) async fn generate_signed_request<T>(&self, request: Request<T>) -> Result<Request<IncomingOr<BoxBody>>>
   where
@@ -275,6 +279,7 @@ where
 
       updated_request
         .set_message_signature(&signature_params, &shared_key, Some(HTTPSIG_CUSTOM_SIGNATURE_NAME))
+        .instrument(tracing::info_span!("set_message_signature_dh"))
         .await?;
       debug!("updated header with HMAC signature:\n{:#?}", updated_request.headers());
     } else if let Some(pk_signing_key) = self.get_pk_signing_key().await {
@@ -285,6 +290,7 @@ where
 
       updated_request
         .set_message_signature(&signature_params, &pk_signing_key, Some(HTTPSIG_CUSTOM_SIGNATURE_NAME))
+        .instrument(tracing::info_span!("set_message_signature_pk"))
         .await?;
       debug!(
         "updated header with public-key based signature:\n{:#?}",
