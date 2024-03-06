@@ -139,6 +139,7 @@ where
       .iter()
       .filter_map(|params| params.keyid.as_ref().map(|k| (k.to_owned(), params.nonce.clone())))
       .collect::<Vec<_>>();
+    debug!("key ids with nonce: {:?}", contained_key_ids_with_nonce);
     // find available keys
     let available_keys_future = contained_key_ids_with_nonce.iter().map(|(key_id, nonce)| async {
       self
@@ -152,6 +153,7 @@ where
       .into_iter()
       .flatten()
       .collect::<Vec<_>>();
+    debug!("available keys: {:?}", available_keys);
 
     // TODO: validate covered-component!
     /* ---------- */
