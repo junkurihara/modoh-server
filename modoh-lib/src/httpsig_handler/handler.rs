@@ -514,7 +514,10 @@ where
     })?
     .to_bytes();
   let deserialized_configs = HttpSigConfigs::deserialize(&mut body_bytes.as_ref())?;
-  let deserialized_configs = deserialized_configs.into_iter().map(|config| config.contents).collect();
+  let deserialized_configs = deserialized_configs
+    .into_iter()
+    .map(|config| config.contents)
+    .collect::<Vec<_>>();
   info!("Fetched httpsig public keys from {}", uri);
   debug!("Fetched keys: {:#?}", deserialized_configs);
   Ok(deserialized_configs)

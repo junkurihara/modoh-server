@@ -160,7 +160,10 @@ impl IntoIterator for HttpSigConfigs {
   type IntoIter = std::iter::Filter<VecIter, fn(&Self::Item) -> bool>;
 
   fn into_iter(self) -> Self::IntoIter {
-    self.configs.into_iter().filter(|c| c.version == HTTPSIG_PROTO_VERSION_DH)
+    self
+      .configs
+      .into_iter()
+      .filter(|c| c.version == HTTPSIG_PROTO_VERSION_DH || c.version == HTTPSIG_PROTO_VERSION_PK)
   }
 }
 
