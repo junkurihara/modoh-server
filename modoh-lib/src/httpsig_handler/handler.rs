@@ -139,7 +139,7 @@ where
       .iter()
       .filter_map(|params| params.keyid.as_ref().map(|k| (k.to_owned(), params.nonce.clone())))
       .collect::<Vec<_>>();
-    debug!("key ids with nonce: {:?}", contained_key_ids_with_nonce);
+    debug!("Key ids contained in a request: {:?}", contained_key_ids_with_nonce);
     // find available keys
     let available_keys_future = contained_key_ids_with_nonce.iter().map(|(key_id, nonce)| async {
       self
@@ -153,7 +153,7 @@ where
       .into_iter()
       .flatten()
       .collect::<Vec<_>>();
-    debug!("available keys: {:?}", available_keys);
+    debug!("available keys: {} keys found", available_keys.len());
 
     // TODO: validate covered-component!
     /* ---------- */
@@ -175,6 +175,7 @@ where
       })
       .collect::<Vec<_>>();
     if !dh_available_keys.is_empty() {
+      debug!("Found {} keys for DHKex+HKDF derived hmac key", dh_available_keys.len());
       let dh_verify_res_future = dh_available_keys
         .iter()
         .map(|(key_id, shared_key)| request.verify_message_signature(shared_key, Some(key_id)));
@@ -205,6 +206,10 @@ where
         "No public key found for verification".to_string(),
       ));
     }
+    debug!(
+      "No available DHKex+HKDF key. Found {} keys for public key based signature",
+      pk_available_keys.len()
+    );
     let pk_verify_res_future = pk_available_keys
       .iter()
       .map(|(key_id, pk_key)| request.verify_message_signature(*pk_key, Some(key_id)));
@@ -261,7 +266,7 @@ where
     if let Some(hmac_key) = self.get_hmac_signing_key_by_domain(nexthop_host).await {
       // First checks DHKex+HKDF derived hmac key
       debug!(nexthop_host, "Request will be signed with hmac key");
-      let base64_url_nopad_nonce = general_purpose::URL_SAFE_NO_PAD.encode(hmac_key.nonce());
+      let base64_url_nopad_nonce = general_purpose::STANDARD.encode(hmac_key.nonce());
       let shared_key = SharedKey::HmacSha256(hmac_key.session_key().to_owned());
       signature_params.set_nonce(&base64_url_nopad_nonce);
       signature_params.set_alg(&AlgorithmName::HmacSha256);
@@ -335,7 +340,7 @@ where
       _ => return None,
     };
 
-    let Ok(nonce) = general_purpose::URL_SAFE_NO_PAD.decode(base64_nonce) else {
+    let Ok(nonce) = general_purpose::STANDARD.decode(base64_nonce) else {
       warn!("Failed to decode base64 nonce for key id {}", key_id);
       return None;
     };
