@@ -24,9 +24,11 @@ pub(crate) enum TypedKey {
 
 /// Http message signature key management state
 pub(crate) struct HttpSigKeyMapState {
-  /// key id maps
+  /// key id to verification key maps, which includes public key and dh master key.
+  /// key_ids for DH keys included in this map are ones of keys generated with the latest and previous self states
   pub(crate) key_id_maps: RwLock<KeyIdToVerificationKeyMap>,
-  /// domain to id map using trie in order to select appropriate hmac master key to destination domain
+  /// domain to key id map using trie in order to select appropriate hmac master key to destination domain
+  /// key_ids included in this map are ones of keys generated with the latest self state
   pub(crate) domain_maps: RwLock<TargetDomainToKeyIdMap>,
   /// my secret keys for public key based signature
   pub(crate) owned_pk_type_key_pairs: RwLock<OwnedPkTypeKeyPairs>,
@@ -151,15 +153,18 @@ async fn derive_and_set_dh(
 
   let my_dh_key_pairs = my_dh_key_pairs
     .iter()
-    .flat_map(|v| {
-      v.as_key_pairs().iter().filter_map(|v| match v {
-        HttpSigKeyPair::Dh(c) => Some(c.to_owned()),
+    .enumerate()
+    .flat_map(|(idx, v)| {
+      // idx 0 is the current config
+      let is_latest = idx == 0;
+      v.as_key_pairs().iter().filter_map(move |v| match v {
+        HttpSigKeyPair::Dh(c) => Some((c.to_owned(), is_latest)),
         _ => None,
       })
     })
     .collect::<Vec<_>>();
 
-  let dhkex_master_key_id_target = config_with_info
+  let dhkex_master_keyid_target_latest = config_with_info
     .iter()
     .flat_map(|(configs, info)| configs.iter().map(|c| (c, info.dh_signing_target_domain.to_owned())))
     .filter_map(|(c, target_domain)| match c {
@@ -167,14 +172,14 @@ async fn derive_and_set_dh(
       _ => None,
     })
     .flat_map(|(c, target_domain)| {
-      my_dh_key_pairs.iter().filter_map(move |mine| {
+      my_dh_key_pairs.iter().filter_map(move |(mine, is_latest)| {
         if mine.is_same_kem_kdf_mac(c) {
           mine.derive_secret(c).ok().map(|derived| {
             let key_id = derived.key_id();
             info!(
               "Generated DHKex master key available for hmac based httpsig signing and verification: {target_domain} id = {key_id}"
             );
-            (derived, key_id, target_domain.clone())
+            (derived, key_id, target_domain.clone(), is_latest.to_owned())
           })
         } else {
           None
@@ -183,16 +188,18 @@ async fn derive_and_set_dh(
     })
     .collect::<Vec<_>>();
 
-  let key_id_to_dhkex_master = dhkex_master_key_id_target
+  // update key_id_map and domain_map
+  // key id map includes all the keys generated with the latest and previous self states
+  let key_id_to_dhkex_master = dhkex_master_keyid_target_latest
     .iter()
-    .map(|(master, key_id, _)| (key_id.clone(), master.clone()));
+    .map(|(master, key_id, _target, _is_latest)| (key_id.clone(), master.clone()));
   key_id_map.set_dh_inner(key_id_to_dhkex_master);
-  domain_map.set_trie(
-    &dhkex_master_key_id_target
-      .iter()
-      .map(|(_, key_id, target_domain)| (key_id.to_owned(), target_domain.to_owned()))
-      .collect::<Vec<_>>(),
-  );
+  // domain map includes only the keys generated with the latest self state
+  let latest_master_id_to_domain = dhkex_master_keyid_target_latest
+    .iter()
+    .filter(|(_, _, _, is_latest)| *is_latest)
+    .map(|(_, key_id, target_domain, _)| (key_id, target_domain));
+  domain_map.set_trie(latest_master_id_to_domain);
 }
 
 /// Derive key_ids from key pair for pk based signature and set them to the map
@@ -320,7 +327,7 @@ impl TargetDomainToKeyIdMap {
     }
   }
   /// Update map, this clears existing suffix_idx_cedar and idx_key_ids_map and recreate them.
-  pub(super) fn set_trie(&mut self, master_id_domain: &[(KeyId, DomainName)]) {
+  pub(super) fn set_trie<'a>(&mut self, master_id_domain: impl Iterator<Item = (&'a KeyId, &'a DomainName)>) {
     let start_with_star = Regex::new(r"^\*\..+").unwrap();
     let re = Regex::new(&format!("{}{}{}", r"^", REGEXP_DOMAIN_OR_PREFIX, r"$")).unwrap();
     let mut hashmap: HashMap<DomainName, Vec<KeyId>> = HashMap::default();
@@ -416,7 +423,7 @@ mod tests {
     ];
 
     let mut target_domain_key_ids_map = TargetDomainToKeyIdMap::new();
-    target_domain_key_ids_map.set_trie(&key_ids_map);
+    target_domain_key_ids_map.set_trie(key_ids_map.iter().map(|(k, v)| (k, v)));
 
     // testing
     let target_domain = "test.example.com";
