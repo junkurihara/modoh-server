@@ -60,6 +60,9 @@ pub const EXPECTED_MAX_JWKS_SIZE: u64 = 1024 * 64;
 pub const HTTPSIG_KEY_ROTATION_PERIOD: u64 = 3600;
 /// HTTP message signature key refetch period in seconds
 pub const HTTPSIG_KEY_REFETCH_PERIOD: u64 = 60;
+/// Maximum number of previous keys to store for HTTP message signature
+/// This is just for handling the gap between the new key and the old keys for DHKex
+pub const HTTPSIG_KEYS_STORE_PREVIOUS_COUNT: usize = 1;
 /// HTTP request timeout for refetching httpsig configs
 pub const HTTPSIG_KEY_REFETCH_TIMEOUT_SEC: u64 = 3;
 /// User agent for refetching HTTP message signature keys

@@ -98,6 +98,8 @@ pub struct HttpSig {
   pub key_rotation_period: Option<u64>,
   /// List of HTTP message signatures enabled domains, which exposes public keys for Diffie-Hellman key exchange or directly for signature verification.
   pub enabled_domains: Option<Vec<HttpSigEnabledDomains>>,
+  /// Accept previous DH public keys to fill the gap of the key rotation period.
+  pub accept_previous_dh_public_keys: Option<bool>,
   /// Force httpsig verification for all requests regardless of the source ip validation result.
   pub force_verification: Option<bool>,
   /// Ignore the result of httpsig verification (verification itself is performed), and continue to serve the request.

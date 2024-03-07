@@ -50,6 +50,9 @@ where
   /// Public key refetch period
   refetch_period: Duration,
 
+  /// Generations of accepted previous DH public keys to fill the gap of the key rotation period.
+  count_previous_dh_public_keys: usize,
+
   /// Force httpsig verification for all requests regardless of the source ip validation result.
   pub(crate) force_verification: bool,
 
@@ -78,6 +81,7 @@ where
       .ok_or(MODoHError::BuildHttpSigHandlerError)?;
     let targets_info = httpsig_config.enabled_domains.clone();
     let refetch_period = httpsig_config.refetch_period;
+    let count_previous_dh_public_keys = httpsig_config.count_previous_dh_public_keys;
     let force_verification = httpsig_config.force_verification;
     let ignore_verification_result = httpsig_config.ignore_verification_result;
 
@@ -87,6 +91,7 @@ where
       targets_info,
       http_client: http_client.clone(),
       key_map_state: Arc::new(HttpSigKeyMapState::new()),
+      count_previous_dh_public_keys,
       force_verification,
       ignore_verification_result,
     });
@@ -404,9 +409,22 @@ where
         error!("Failed to generate httpsig configs. Keep current config unchanged.");
         continue;
       };
+      // generate new configs
       let mut lock = self.key_rotation_state.configs.write().await;
+      let previous = lock.clone();
       *lock = httpsig_configs;
       drop(lock);
+      // store previous configs to fill the gap between the new key and the old keys
+      if self.count_previous_dh_public_keys > 0 {
+        let mut lock = self.key_rotation_state.previous_configs.write().await;
+        lock.push_back(previous);
+        if lock.len() > self.count_previous_dh_public_keys {
+          lock.pop_front();
+        }
+        drop(lock);
+      }
+      // update key map state with new self state
+      self.key_map_state.update_with_new_self_state(&self.key_rotation_state).await;
     }
   }
 
@@ -462,7 +480,12 @@ where
         .filter(|(deserialized, _)| deserialized.is_ok())
         .map(|(deserialized, info)| (deserialized.as_ref().unwrap(), info.to_owned()))
         .collect::<Vec<_>>();
-      self.key_map_state.update(&self.key_rotation_state, &config_with_info).await;
+
+      // update key map state with new external configs fetched
+      self
+        .key_map_state
+        .update_with_new_external_configs(&self.key_rotation_state, &config_with_info)
+        .await;
 
       sleep(self.refetch_period).await;
     }

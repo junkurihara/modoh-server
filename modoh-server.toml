@@ -121,6 +121,12 @@ enabled_domains = [
   { configs_endpoint_domain = "modoh.example.org" },
 ]
 
+## Accept signatures generated with previously exposed public keys for DHKex+HKDF+HMAC. (default = true)
+## Considering the key rotation period, there exist a gap between the time when a new key is exposed and the time when other nodes fetch the new key.
+## The new exposed key is not used at the external node for signing until the time when the new key is fetched.
+## This option accepts the signature generated with the previous key for the time gap.
+accept_previous_dh_public_keys = true
+
 ## Force HTTP Signature verification for all requests unless the ID token is given in the http header (default = false)
 ## By default (false), the signature verification is performed only when the source ip address is not in the allowed_source_ips list.
 force_verification = false

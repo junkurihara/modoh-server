@@ -30,6 +30,8 @@ pub(crate) struct HttpSigKeyMapState {
   pub(crate) domain_maps: RwLock<TargetDomainToKeyIdMap>,
   /// my secret keys for public key based signature
   pub(crate) owned_pk_type_key_pairs: RwLock<OwnedPkTypeKeyPairs>,
+  /// configurations fetched from specified nodes
+  config_with_info: RwLock<Vec<(Vec<HttpSigConfigContents>, HttpSigDomainInfo)>>,
 }
 
 impl HttpSigKeyMapState {
@@ -39,25 +41,28 @@ impl HttpSigKeyMapState {
       key_id_maps: RwLock::new(KeyIdToVerificationKeyMap::new()),
       domain_maps: RwLock::new(TargetDomainToKeyIdMap::new()),
       owned_pk_type_key_pairs: RwLock::new(OwnedPkTypeKeyPairs::new()),
+      config_with_info: RwLock::new(Vec::new()),
     }
   }
 
   /// Update state, this clears existing key_id_maps and recreate it.
-  pub(crate) async fn update(
-    &self,
-    self_state: &Arc<HttpSigKeyRotationState>,
-    config_with_info: &[(&Vec<HttpSigConfigContents>, &HttpSigDomainInfo)],
-  ) {
+  pub(crate) async fn update_with_new_self_state(&self, self_state: &Arc<HttpSigKeyRotationState>) {
+    debug!("Update HttpSigKeyMapState");
     let mut key_id_map = KeyIdToVerificationKeyMap::new();
-    let mut domain_map = TargetDomainToKeyIdMap::new();
+    let mut domain_map: TargetDomainToKeyIdMap = TargetDomainToKeyIdMap::new();
     let mut owned_pk_type_key_pairs = OwnedPkTypeKeyPairs::new();
 
+    let lock = self.config_with_info.read().await;
+    let config_with_info = lock.clone();
+    drop(lock);
+    let config_with_info = config_with_info.iter().map(|(c, i)| (c, i)).collect::<Vec<_>>();
+
     // verification key for standard public key based signature. easy to handle
-    derive_and_set_pk(&mut key_id_map, config_with_info);
+    derive_and_set_pk(&mut key_id_map, &config_with_info);
 
     // dhkex public key for hmac signature. need to handle with care
     // update domain to key id map too
-    derive_and_set_dh(&mut key_id_map, &mut domain_map, self_state, config_with_info).await;
+    derive_and_set_dh(&mut key_id_map, &mut domain_map, self_state, &config_with_info).await;
 
     // secret key for public key based signature
     owned_pk_type_key_pairs.set_key_pairs(self_state).await;
@@ -73,8 +78,23 @@ impl HttpSigKeyMapState {
     let mut lock = self.owned_pk_type_key_pairs.write().await;
     *lock = owned_pk_type_key_pairs;
     drop(lock);
+  }
 
-    debug!("HttpSigKeyMapState updated");
+  /// Update state with fetched external configs, this clears existing key_id_maps and recreate it.
+  pub(crate) async fn update_with_new_external_configs(
+    &self,
+    self_state: &Arc<HttpSigKeyRotationState>,
+    config_with_info: &[(&Vec<HttpSigConfigContents>, &HttpSigDomainInfo)],
+  ) {
+    debug!("Update HttpSigKeyMapState with new fetched configurations");
+    let mut lock = self.config_with_info.write().await;
+    *lock = config_with_info
+      .iter()
+      .map(|(c, i)| (c.to_vec(), i.to_owned().to_owned()))
+      .collect::<Vec<_>>();
+    drop(lock);
+
+    self.update_with_new_self_state(self_state).await;
   }
 
   /// Get key_ids for the domain
@@ -91,7 +111,7 @@ impl HttpSigKeyMapState {
       KeyType::Dh => self.get_dh(key_id).await.map(TypedKey::Dh),
     }
   }
-  /// Get public key type sining key
+  /// Get public key type signing key
   pub(crate) async fn get_pk_type_key_pairs(&self) -> Vec<SecretKey> {
     self.owned_pk_type_key_pairs.read().await.secret_keys.to_owned()
   }
@@ -118,16 +138,26 @@ async fn derive_and_set_dh(
   self_state: &Arc<HttpSigKeyRotationState>,
   config_with_info: &[(&Vec<HttpSigConfigContents>, &HttpSigDomainInfo)],
 ) {
+  let mut my_dh_key_pairs = Vec::new();
+  // current config
   let lock = self_state.configs.read().await;
-  let my_dh_key_pairs = lock
-    .as_key_pairs()
+  my_dh_key_pairs.push(lock.clone());
+  drop(lock);
+
+  // previous configs
+  let lock = self_state.previous_configs.read().await;
+  my_dh_key_pairs.extend(lock.iter().cloned());
+  drop(lock);
+
+  let my_dh_key_pairs = my_dh_key_pairs
     .iter()
-    .filter_map(|v| match v {
-      HttpSigKeyPair::Dh(c) => Some(c.to_owned()),
-      _ => None,
+    .flat_map(|v| {
+      v.as_key_pairs().iter().filter_map(|v| match v {
+        HttpSigKeyPair::Dh(c) => Some(c.to_owned()),
+        _ => None,
+      })
     })
     .collect::<Vec<_>>();
-  drop(lock);
 
   let dhkex_master_key_id_target = config_with_info
     .iter()

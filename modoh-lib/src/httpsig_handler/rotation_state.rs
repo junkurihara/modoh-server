@@ -1,6 +1,6 @@
 use crate::{error::*, ServiceConfig};
 use httpsig_proto::{HttpSigKeyTypes, HttpSigPublicKeys};
-use std::{sync::Arc, time::Duration};
+use std::{collections::VecDeque, sync::Arc, time::Duration};
 use tokio::sync::RwLock;
 
 /// Http message signature key rotation service state
@@ -9,6 +9,8 @@ pub(crate) struct HttpSigKeyRotationState {
   pub(crate) key_types: Vec<HttpSigKeyTypes>,
   /// httpsig configs including key pairs and serialized public keys
   pub(crate) configs: RwLock<HttpSigPublicKeys>,
+  /// previous httpsig configs
+  pub(crate) previous_configs: RwLock<VecDeque<HttpSigPublicKeys>>,
   /// rotation period
   pub(crate) rotation_period: Duration,
 }
@@ -35,6 +37,7 @@ impl HttpSigKeyRotationState {
     Ok(Some(Arc::new(HttpSigKeyRotationState {
       key_types: httpsig_key_types,
       configs: httpsig_configs,
+      previous_configs: RwLock::new(VecDeque::new()),
       rotation_period,
     })))
   }
