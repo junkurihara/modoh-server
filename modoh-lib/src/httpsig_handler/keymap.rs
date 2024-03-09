@@ -28,7 +28,8 @@ pub(crate) struct HttpSigKeyMapState {
   /// key_ids for DH keys included in this map are ones of keys generated with the latest and previous self states
   pub(crate) key_id_maps: RwLock<KeyIdToVerificationKeyMap>,
   /// domain to key id map using trie in order to select appropriate hmac master key to destination domain
-  /// key_ids included in this map are ones of keys generated with the latest self state
+  /// key_ids included in this map are ones of keys generated with each generation of self state,
+  /// where the first one is the latest self state
   pub(crate) domain_maps: RwLock<TargetDomainToKeyIdMap>,
   /// my secret keys for public key based signature
   pub(crate) owned_pk_type_key_pairs: RwLock<OwnedPkTypeKeyPairs>,
@@ -99,10 +100,10 @@ impl HttpSigKeyMapState {
     self.update_with_new_self_state(self_state).await;
   }
 
-  /// Get key_ids for the domain
+  /// Get key_ids for the domain for the generation of key rotation.
   /// If empty, it means no key to generate the hmac signature for the domain.
-  /// Then try to generate the public key based signature by checking .
-  pub(crate) async fn get_key_ids(&self, domain: &str) -> Vec<KeyId> {
+  /// Then try to generate the public key based signature by checking.
+  pub(crate) async fn get_key_ids(&self, domain: &str) -> IndexMap<usize, Vec<KeyId>> {
     self.domain_maps.read().await.get_key_ids(domain)
   }
   /// Key typed key for the key_id if exists
@@ -140,66 +141,88 @@ async fn derive_and_set_dh(
   self_state: &Arc<HttpSigKeyRotationState>,
   config_with_info: &[(&Vec<HttpSigConfigContents>, &HttpSigDomainInfo)],
 ) {
-  let mut my_dh_key_pairs = Vec::new();
+  let mut my_key_pairs = Vec::new();
   // current config
   let lock = self_state.configs.read().await;
-  my_dh_key_pairs.push(lock.clone());
+  my_key_pairs.push(lock.clone());
   drop(lock);
 
   // previous configs
   let lock = self_state.previous_configs.read().await;
-  my_dh_key_pairs.extend(lock.iter().cloned());
+  my_key_pairs.extend(lock.iter().cloned());
   drop(lock);
 
-  let my_dh_key_pairs = my_dh_key_pairs
+  let my_dh_key_pairs_for_generation = my_key_pairs
     .iter()
-    .enumerate()
-    .flat_map(|(idx, v)| {
-      // idx 0 is the current config
-      let is_latest = idx == 0;
-      v.as_key_pairs().iter().filter_map(move |v| match v {
-        HttpSigKeyPair::Dh(c) => Some((c.to_owned(), is_latest)),
-        _ => None,
-      })
+    .map(|v| {
+      // generation 0 is the current config
+      v.as_key_pairs()
+        .iter()
+        .filter_map(move |v| match v {
+          HttpSigKeyPair::Dh(c) => Some(c.to_owned()),
+          _ => None,
+        })
+        .collect::<Vec<_>>()
     })
     .collect::<Vec<_>>();
 
-  let dhkex_master_keyid_target_latest = config_with_info
+  let other_dh_key_pairs = config_with_info
     .iter()
     .flat_map(|(configs, info)| configs.iter().map(|c| (c, info.dh_signing_target_domain.to_owned())))
     .filter_map(|(c, target_domain)| match c {
-      HttpSigConfigContents::Dh(c) => Some((c, target_domain)),
+      HttpSigConfigContents::Dh(c) => Some((c.to_owned(), target_domain)),
       _ => None,
     })
-    .flat_map(|(c, target_domain)| {
-      my_dh_key_pairs.iter().filter_map(move |(mine, is_latest)| {
-        if mine.is_same_kem_kdf_mac(c) {
-          mine.derive_secret(c).ok().map(|derived| {
-            let key_id = derived.key_id();
-            info!(
-              "Generated DHKex master key available for hmac based httpsig signing and verification: {target_domain} id = {key_id}"
-            );
-            (derived, key_id, target_domain.clone(), is_latest.to_owned())
-          })
-        } else {
-          None
-        }
-      })
+    .collect::<Vec<_>>();
+
+  let dhkex_res_for_generation = my_dh_key_pairs_for_generation
+    .iter()
+    .enumerate()
+    .map(|(generation, mine)| {
+      // calculate dhkex at a specific generation
+      let maps = mine
+        .iter()
+        .flat_map(|my_key_pair| {
+          other_dh_key_pairs
+            .iter()
+            .map(move |(other, target_domain)| (my_key_pair, other, target_domain))
+        })
+        .collect::<Vec<_>>();
+
+      maps
+        .iter()
+        .filter_map(|(my_key_pair, other, target_domain)| {
+          if my_key_pair.is_same_kem_kdf_mac(other) {
+            my_key_pair.derive_secret(other).ok().map(|derived| {
+              let key_id = derived.key_id();
+              info!("DHKex for HTTPSig: {target_domain} id = {key_id} (generation {generation})",);
+              (derived, key_id, target_domain.to_owned())
+            })
+          } else {
+            None
+          }
+        })
+        .collect::<Vec<_>>()
     })
     .collect::<Vec<_>>();
 
   // update key_id_map and domain_map
   // key id map includes all the keys generated with the latest and previous self states
-  let key_id_to_dhkex_master = dhkex_master_keyid_target_latest
+  let key_id_to_dhkex_master = dhkex_res_for_generation
     .iter()
-    .map(|(master, key_id, _target, _is_latest)| (key_id.clone(), master.clone()));
+    .flatten()
+    .map(|(derived, key_id, _)| (key_id.to_owned(), derived.to_owned()));
   key_id_map.set_dh_inner(key_id_to_dhkex_master);
-  // domain map includes only the keys generated with the latest self state
-  let latest_master_id_to_domain = dhkex_master_keyid_target_latest
+  // domain map includes only the keys generated with with self state for each generation
+  let latest_master_id_to_domain = dhkex_res_for_generation
     .iter()
-    .filter(|(_, _, _, is_latest)| *is_latest)
-    .map(|(_, key_id, target_domain, _)| (key_id, target_domain));
-  domain_map.set_trie(latest_master_id_to_domain);
+    .map(|v| {
+      v.iter()
+        .map(|(_, key_id, domain)| (key_id.to_owned(), domain.to_owned().to_owned()))
+        .collect::<Vec<_>>()
+    })
+    .collect::<Vec<_>>();
+  domain_map.set_trie(latest_master_id_to_domain.iter());
 }
 
 /// Derive key_ids from key pair for pk based signature and set them to the map
@@ -311,7 +334,7 @@ impl KeyIdToVerificationKeyMap {
 pub(super) struct TargetDomainToKeyIdMap {
   suffix_idx_cedar: Cedar,
   suffix_idx_map: IndexMap<usize, String>,
-  idx_key_ids_map: IndexMap<usize, Vec<KeyId>>,
+  idx_key_ids_map: IndexMap<usize, IndexMap<usize, Vec<KeyId>>>,
 }
 
 /// Regex for domain or prefix matching
@@ -327,11 +350,14 @@ impl TargetDomainToKeyIdMap {
     }
   }
   /// Update map, this clears existing suffix_idx_cedar and idx_key_ids_map and recreate them.
-  pub(super) fn set_trie<'a>(&mut self, master_id_domain: impl Iterator<Item = (&'a KeyId, &'a DomainName)>) {
+  pub(super) fn set_trie<'a>(&mut self, master_id_domain: impl Iterator<Item = &'a Vec<(KeyId, DomainName)>>) {
     let start_with_star = Regex::new(r"^\*\..+").unwrap();
     let re = Regex::new(&format!("{}{}{}", r"^", REGEXP_DOMAIN_OR_PREFIX, r"$")).unwrap();
-    let mut hashmap: HashMap<DomainName, Vec<KeyId>> = HashMap::default();
-    for (key_id, domain) in master_id_domain {
+    let mut hashmap: HashMap<DomainName, IndexMap<usize, Vec<KeyId>>> = HashMap::default();
+    for (generation, key_id, domain) in master_id_domain
+      .enumerate()
+      .flat_map(|(generation, v)| v.iter().map(move |(k, v)| (generation, k, v)))
+    {
       let domain = if start_with_star.is_match(domain) {
         &domain[2..]
       } else {
@@ -339,19 +365,24 @@ impl TargetDomainToKeyIdMap {
       };
       let domain = domain.to_ascii_lowercase();
       if re.is_match(&domain) || (domain.split('.').count() == 1) {
-        hashmap.entry(domain).or_default().push(key_id.to_owned());
+        hashmap
+          .entry(domain)
+          .or_default()
+          .entry(generation)
+          .or_default()
+          .push(key_id.to_owned());
       }
     }
     let suffix_dict_with_index = hashmap
       .iter()
-      .map(|(domain, key_ids)| {
+      .map(|(domain, key_ids_for_generation)| {
         let domain = if start_with_star.is_match(domain) {
           &domain[2..]
         } else {
           domain
         };
         let domain = domain.to_ascii_lowercase();
-        (domain, key_ids.to_owned())
+        (domain, key_ids_for_generation.to_owned())
       })
       .filter(|(domain, _)| re.is_match(domain) || (domain.split('.').count() == 1))
       .map(|(domain, key_ids)| (reverse_string(&domain), key_ids))
@@ -373,7 +404,7 @@ impl TargetDomainToKeyIdMap {
     // build mapper from index to key_ids
     let idx_key_ids_map = suffix_dict_with_index
       .iter()
-      .map(|(idx, (_, key_ids))| (idx.to_owned(), key_ids.to_owned()))
+      .map(|(idx, (_, key_ids_for_generation))| (idx.to_owned(), key_ids_for_generation.to_owned()))
       .collect::<IndexMap<_, _>>();
 
     self.suffix_idx_cedar = suffix_idx_cedar;
@@ -381,8 +412,8 @@ impl TargetDomainToKeyIdMap {
     self.idx_key_ids_map = idx_key_ids_map;
   }
 
-  /// Get key_ids for the domain
-  pub(super) fn get_key_ids(&self, domain: &str) -> Vec<KeyId> {
+  /// Get key_ids for the domain for the generation of key rotation.
+  pub(super) fn get_key_ids(&self, domain: &str) -> IndexMap<usize, Vec<KeyId>> {
     let rev_nn = reverse_string(domain);
     let matched_items = self.suffix_idx_cedar.common_prefix_iter(&rev_nn).filter_map(|(x, _)| {
       let target_domain = self.suffix_idx_map.get(&(x as usize)).map(|v| v.to_owned());
@@ -390,7 +421,7 @@ impl TargetDomainToKeyIdMap {
       target_domain.zip(available_key_ids)
     });
 
-    matched_items
+    let found_ids_for_generation = matched_items
       .filter(|(found_domain, _)| {
         if found_domain.len() == rev_nn.len() {
           true
@@ -400,8 +431,12 @@ impl TargetDomainToKeyIdMap {
           false
         }
       })
-      .flat_map(|(_, key_ids)| key_ids)
-      .collect()
+      .flat_map(|(_, key_ids)| key_ids);
+    let mut res = IndexMap::new();
+    found_ids_for_generation.for_each(|(generation, key_ids)| {
+      res.entry(generation).or_insert(Vec::new()).extend(key_ids);
+    });
+    res
   }
 }
 
@@ -415,27 +450,37 @@ mod tests {
   use super::*;
   #[test]
   fn test_target_domain_key_ids_map() {
-    let key_ids_map = vec![
+    let key_ids_map_current = vec![vec![
       ("test_key_id_10".to_string(), "test.example.com".to_string()),
       ("test_key_id_11".to_string(), "test.example.com".to_string()),
       ("test_key_id_20".to_string(), "test.example.org".to_string()),
       ("test_key_id_30".to_string(), "*.example.org".to_string()),
-    ];
+    ]];
 
     let mut target_domain_key_ids_map = TargetDomainToKeyIdMap::new();
-    target_domain_key_ids_map.set_trie(key_ids_map.iter().map(|(k, v)| (k, v)));
+    target_domain_key_ids_map.set_trie(key_ids_map_current.iter());
 
     // testing
     let target_domain = "test.example.com";
     let matched_indices = target_domain_key_ids_map.get_key_ids(target_domain);
-    assert!(matched_indices.contains(&"test_key_id_10".to_string()) && matched_indices.contains(&"test_key_id_11".to_string()));
+    assert!(
+      matched_indices.get(&0).unwrap().contains(&"test_key_id_10".to_string())
+        && matched_indices.get(&0).unwrap().contains(&"test_key_id_11".to_string())
+    );
 
     let target_domain = "test.example.org";
     let matched_indices = target_domain_key_ids_map.get_key_ids(target_domain);
-    assert!(matched_indices.contains(&"test_key_id_30".to_string()) && matched_indices.contains(&"test_key_id_20".to_string()));
+    assert!(
+      matched_indices.get(&0).unwrap().contains(&"test_key_id_20".to_string())
+        && matched_indices.get(&0).unwrap().contains(&"test_key_id_30".to_string())
+    );
 
     let target_domain = "testtest.example.org";
-    let matched_indices = target_domain_key_ids_map.get_key_ids(target_domain);
+    let matched_indices = target_domain_key_ids_map
+      .get_key_ids(target_domain)
+      .iter()
+      .flat_map(|(_, v)| v.clone())
+      .collect::<Vec<_>>();
     assert_eq!(matched_indices, vec!["test_key_id_30"]);
 
     let target_domain = "not_matched.example.com";

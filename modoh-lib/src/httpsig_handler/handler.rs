@@ -21,6 +21,7 @@ use httpsig_hyper::*;
 use httpsig_proto::{DeriveSessionKey, Deserialize, HttpSigConfigContents, HttpSigConfigs, HttpSigPublicKeys, SessionKeyNonce};
 use hyper::body::{Body, Bytes};
 use hyper_util::client::legacy::connect::Connect;
+use indexmap::IndexMap;
 use std::{sync::Arc, time::Duration};
 use tokio::{sync::Notify, time::sleep};
 use tracing::{instrument, Instrument};
@@ -53,6 +54,9 @@ where
   /// Generations of accepted previous DH public keys to fill the gap of the key rotation period.
   count_previous_dh_public_keys: usize,
 
+  /// Generations of past keys generating signatures simultaneously with the current key
+  count_transitional_margin: usize,
+
   /// Force httpsig verification for all requests regardless of the source ip validation result.
   pub(crate) force_verification: bool,
 
@@ -82,6 +86,7 @@ where
     let targets_info = httpsig_config.enabled_domains.clone();
     let refetch_period = httpsig_config.refetch_period;
     let count_previous_dh_public_keys = httpsig_config.count_previous_dh_public_keys;
+    let count_transitional_margin = httpsig_config.count_transitional_margin;
     let force_verification = httpsig_config.force_verification;
     let ignore_verification_result = httpsig_config.ignore_verification_result;
 
@@ -92,6 +97,7 @@ where
       http_client: http_client.clone(),
       key_map_state: Arc::new(HttpSigKeyMapState::new()),
       count_previous_dh_public_keys,
+      count_transitional_margin,
       force_verification,
       ignore_verification_result,
     });
@@ -268,28 +274,43 @@ where
       .map(|v| message_component::HttpMessageComponentId::try_from(*v))
       .collect::<std::result::Result<Vec<_>, _>>()
       .unwrap();
-    let mut signature_params = HttpSignatureParams::try_new(&covered_components).unwrap();
 
     // find appropriate keys and add signature to the header
     let nexthop_host = updated_request.uri().host().unwrap_or_default();
-    if let Some(hmac_key) = self.get_hmac_signing_key_by_domain(nexthop_host).await {
+    if let Some(hmac_keys_with_gen) = self.get_hmac_signing_key_by_domain(nexthop_host).await {
       // First checks DHKex+HKDF derived hmac key
       debug!(nexthop_host, "Request will be signed with hmac key");
-      let base64_url_nopad_nonce = general_purpose::STANDARD.encode(hmac_key.nonce());
-      let shared_key = SharedKey::HmacSha256(hmac_key.session_key().to_owned());
-      signature_params.set_nonce(&base64_url_nopad_nonce);
-      signature_params.set_alg(&AlgorithmName::HmacSha256);
-      // key id must be the one of the shared master key via DHKex+HKDF
-      signature_params.set_keyid(hmac_key.kem_kdf_derived_key_id());
+      let params_and_key_for_gen = hmac_keys_with_gen.iter().map(|(gen, hmac_key)| {
+        let mut signature_params = HttpSignatureParams::try_new(&covered_components).unwrap();
+        let base64_url_nopad_nonce = general_purpose::STANDARD.encode(hmac_key.nonce());
+        let shared_key = SharedKey::HmacSha256(hmac_key.session_key().to_owned());
+        signature_params.set_nonce(&base64_url_nopad_nonce);
+        signature_params.set_alg(&AlgorithmName::HmacSha256);
+        // // key id must be the one of the shared master key via DHKex+HKDF
+        signature_params.set_keyid(hmac_key.kem_kdf_derived_key_id());
+        (*gen, signature_params, shared_key)
+      });
 
-      updated_request
-        .set_message_signature(&signature_params, &shared_key, Some(HTTPSIG_CUSTOM_SIGNATURE_NAME))
-        .instrument(tracing::info_span!("set_message_signature_dh"))
-        .await?;
-      debug!("updated header with HMAC signature:\n{:#?}", updated_request.headers());
+      let total_gen = params_and_key_for_gen.len();
+      for (gen, signature_params, shared_key) in params_and_key_for_gen {
+        let custom_sig_name = if gen == 0 {
+          HTTPSIG_CUSTOM_SIGNATURE_NAME.to_string()
+        } else {
+          format!("{HTTPSIG_CUSTOM_SIGNATURE_NAME}-{gen}")
+        };
+        updated_request
+          .set_message_signature(&signature_params, &shared_key, Some(custom_sig_name.as_str()))
+          .instrument(tracing::info_span!("set_message_signature_dh"))
+          .await?;
+      }
+      debug!(
+        "updated header with HMAC signature for {total_gen} generations: {:#?}",
+        updated_request.headers()
+      );
     } else if let Some(pk_signing_key) = self.get_pk_signing_key().await {
       // If no hmac key is found, try use public key based signature
       debug!(nexthop_host, "Request will be signed with public key");
+      let mut signature_params = HttpSignatureParams::try_new(&covered_components).unwrap();
       signature_params.set_key_info(&pk_signing_key);
       signature_params.set_random_nonce();
 
@@ -309,26 +330,57 @@ where
   }
 
   #[instrument(name = "get_hmac_signing_key_by_domain", skip_all)]
-  /// **SigningAPI**: Get a hmac key for the given domain for signing
+  /// **SigningAPI**: Get hmac keys for the given domain for latest and transitional generations
   /// If found, derive the session key with random nonce.
-  pub(crate) async fn get_hmac_signing_key_by_domain(&self, domain: &str) -> Option<SessionKeyNonce> {
-    let available_key_ids = self.key_map_state.get_key_ids(domain).await;
+  pub(crate) async fn get_hmac_signing_key_by_domain(&self, domain: &str) -> Option<IndexMap<usize, SessionKeyNonce>> {
+    let available_key_ids = self
+      .key_map_state
+      .get_key_ids(domain)
+      .await
+      .into_iter()
+      .filter(|(generation, key_ids)| *generation <= self.count_transitional_margin && !key_ids.is_empty())
+      .collect::<IndexMap<_, _>>();
     if available_key_ids.is_empty() {
       return None;
     }
-    let key_id = available_key_ids.first().unwrap();
-    let Some(typed_key) = self.key_map_state.get_typed_key(key_id).await else {
-      return None;
-    };
-    let session_key_with_random_nonce = match typed_key {
-      TypedKey::Dh(dh_key) => dh_key.derive_session_key_with_random_nonce(&mut rand::thread_rng()),
-      _ => return None,
-    };
-    if session_key_with_random_nonce.is_err() {
-      warn!("Failed to derive session key with random nonce for domain {}", domain);
+    let one_key_id_for_each_generation = available_key_ids.iter().map(|(gen, key_ids)| (gen, key_ids.first().unwrap()));
+    let futs = one_key_id_for_each_generation.map(|(gen, key_id)| async move {
+      let Some(typed_key) = self.key_map_state.get_typed_key(key_id).await else {
+        return None;
+      };
+      let session_key_with_random_nonce = match typed_key {
+        TypedKey::Dh(dh_key) => dh_key.derive_session_key_with_random_nonce(&mut rand::thread_rng()),
+        _ => return None,
+      };
+      if session_key_with_random_nonce.is_err() {
+        warn!("Failed to derive session key with random nonce for {domain} {key_id}");
+        return None;
+      }
+      session_key_with_random_nonce.ok().map(|v| (*gen, v))
+    });
+    let session_keys_with_random_nonce = futures::future::join_all(futs)
+      .await
+      .into_iter()
+      .flatten()
+      .collect::<IndexMap<_, _>>();
+
+    // assertions
+    if session_keys_with_random_nonce.is_empty() {
       return None;
     }
-    session_key_with_random_nonce.ok()
+    if session_keys_with_random_nonce.get(&0).is_none() {
+      warn!("No latest available key for signing for domain {domain}");
+      return None;
+    }
+    if !session_keys_with_random_nonce
+      .iter()
+      .enumerate()
+      .all(|(i, (gen, _))| i == *gen)
+    {
+      warn!("Key map state might be broken!");
+      return None;
+    }
+    Some(session_keys_with_random_nonce)
   }
 
   #[instrument(name = "get_pk_signing_key", skip_all)]

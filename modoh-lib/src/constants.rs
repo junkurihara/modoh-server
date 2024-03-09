@@ -63,6 +63,8 @@ pub const HTTPSIG_KEY_REFETCH_PERIOD: u64 = 60;
 /// Maximum number of previous keys to store for HTTP message signature
 /// This is just for handling the gap between the new key and the old keys for DHKex
 pub const HTTPSIG_KEYS_STORE_PREVIOUS_COUNT: usize = 1;
+/// Number/generations of past keys generating signatures simultaneously with the current key
+pub const HTTPSIG_KEYS_TRANSITIONAL_MARGIN: usize = 1;
 /// HTTP request timeout for refetching httpsig configs
 pub const HTTPSIG_KEY_REFETCH_TIMEOUT_SEC: u64 = 3;
 /// User agent for refetching HTTP message signature keys
