@@ -11,13 +11,14 @@ use tokio::sync::RwLock;
 
 type KeyId = String;
 type DomainName = String;
+type Generation = usize;
 
 /* ------------------------------------------------ */
 #[derive(Debug, Clone)]
 /// Public key for verification or DH master key for signing and verification
 pub(crate) enum TypedKey {
-  Pk(PublicKey),
-  Dh(KemKdfDerivedSecret<HmacSha256HkdfSha256>),
+  Pk(PublicKeyWithGeneration),
+  Dh(DerivedSecretWithGeneration),
 }
 
 /* ------------------------------------------------ */
@@ -103,15 +104,15 @@ impl HttpSigKeyMapState {
   /// Get key_ids for the domain for the generation of key rotation.
   /// If empty, it means no key to generate the hmac signature for the domain.
   /// Then try to generate the public key based signature by checking.
-  pub(crate) async fn get_key_ids(&self, domain: &str) -> IndexMap<usize, Vec<KeyId>> {
+  pub(crate) async fn get_key_ids(&self, domain: &str) -> IndexMap<Generation, Vec<KeyId>> {
     self.domain_maps.read().await.get_key_ids(domain)
   }
   /// Key typed key for the key_id if exists
   pub(crate) async fn get_typed_key(&self, key_id: &str) -> Option<TypedKey> {
     let key_type = self.get_key_type(key_id).await?;
     match key_type {
-      KeyType::Pk => self.get_pk(key_id).await.map(TypedKey::Pk),
-      KeyType::Dh => self.get_dh(key_id).await.map(TypedKey::Dh),
+      KeyType::Pk(_) => self.get_pk(key_id).await.map(TypedKey::Pk),
+      KeyType::Dh(_) => self.get_dh(key_id).await.map(TypedKey::Dh),
     }
   }
   /// Get public key type signing key
@@ -124,11 +125,11 @@ impl HttpSigKeyMapState {
     self.key_id_maps.read().await.type_map.get(key_id).cloned()
   }
   /// Get public key for the key_id if exists
-  async fn get_pk(&self, key_id: &str) -> Option<PublicKey> {
+  async fn get_pk(&self, key_id: &str) -> Option<PublicKeyWithGeneration> {
     self.key_id_maps.read().await.pk_inner.get(key_id).cloned()
   }
   /// Get dh master key for the key_id if exists
-  async fn get_dh(&self, key_id: &str) -> Option<KemKdfDerivedSecret<HmacSha256HkdfSha256>> {
+  async fn get_dh(&self, key_id: &str) -> Option<DerivedSecretWithGeneration> {
     self.key_id_maps.read().await.dh_inner.get(key_id).cloned()
   }
 }
@@ -196,7 +197,7 @@ async fn derive_and_set_dh(
             my_key_pair.derive_secret(other).ok().map(|derived| {
               let key_id = derived.key_id();
               info!("DHKex for HTTPSig: {target_domain} id = {key_id} (generation {generation})",);
-              (derived, key_id, target_domain.to_owned())
+              (derived, key_id, target_domain.to_owned(), generation)
             })
           } else {
             None
@@ -211,14 +212,14 @@ async fn derive_and_set_dh(
   let key_id_to_dhkex_master = dhkex_res_for_generation
     .iter()
     .flatten()
-    .map(|(derived, key_id, _)| (key_id.to_owned(), derived.to_owned()));
+    .map(|(derived, key_id, _, gen)| (key_id.to_owned(), derived.to_owned(), gen.to_owned()));
   key_id_map.set_dh_inner(key_id_to_dhkex_master);
   // domain map includes only the keys generated with with self state for each generation
   let latest_master_id_to_domain = dhkex_res_for_generation
     .iter()
     .map(|v| {
       v.iter()
-        .map(|(_, key_id, domain)| (key_id.to_owned(), domain.to_owned().to_owned()))
+        .map(|(_derived, key_id, domain, _gen)| (key_id.to_owned(), domain.to_owned().to_owned()))
         .collect::<Vec<_>>()
     })
     .collect::<Vec<_>>();
@@ -281,19 +282,32 @@ impl OwnedPkTypeKeyPairs {
 
 /* ------------------------------------------------ */
 #[derive(Debug, Clone)]
-/// Key type
+/// Key type with generation, where if generation == 0, it means the latest key
 enum KeyType {
-  Pk,
-  Dh,
+  Pk(Generation),
+  Dh(Generation),
 }
+#[derive(Debug, Clone)]
+/// Public key with generation, where if generation == 0, it means the latest key
+pub(super) struct PublicKeyWithGeneration {
+  pub(super) inner: PublicKey,
+  pub(super) generation: usize,
+}
+#[derive(Debug, Clone)]
+/// Kem-Kdf Shared secret with generation, where if generation == 0, it means the latest secret
+pub(super) struct DerivedSecretWithGeneration {
+  pub(super) inner: KemKdfDerivedSecret<HmacSha256HkdfSha256>,
+  pub(super) generation: usize,
+}
+
 /// Fetched key's key_id-to-verification_key map
 pub(super) struct KeyIdToVerificationKeyMap {
   /// Key type map
   type_map: HashMap<KeyId, KeyType>,
   /// Public key map
-  pk_inner: HashMap<KeyId, PublicKey>,
+  pk_inner: HashMap<KeyId, PublicKeyWithGeneration>,
   /// DH key map
-  dh_inner: HashMap<KeyId, KemKdfDerivedSecret<HmacSha256HkdfSha256>>,
+  dh_inner: HashMap<KeyId, DerivedSecretWithGeneration>,
 }
 
 impl KeyIdToVerificationKeyMap {
@@ -307,23 +321,52 @@ impl KeyIdToVerificationKeyMap {
   }
   /// Set pk_inner, this clears existing pk_inner and recreate type_map.
   pub(super) fn set_pk_inner(&mut self, pk_inner: impl Iterator<Item = (KeyId, PublicKey)>) {
-    self.pk_inner = pk_inner.collect();
+    self.pk_inner = pk_inner
+      .map(|(key_id, pk)| {
+        (
+          key_id,
+          PublicKeyWithGeneration {
+            inner: pk,
+            generation: 0usize,
+          },
+        )
+      })
+      .collect();
     self.refresh_type_map();
   }
   /// Set dh_inner, this clears existing dh_inner and recreate type_map.
-  pub(super) fn set_dh_inner(&mut self, dh_inner: impl Iterator<Item = (KeyId, KemKdfDerivedSecret<HmacSha256HkdfSha256>)>) {
-    self.dh_inner = dh_inner.collect();
+  pub(super) fn set_dh_inner(
+    &mut self,
+    dh_inner: impl Iterator<Item = (KeyId, KemKdfDerivedSecret<HmacSha256HkdfSha256>, Generation)>,
+  ) {
+    self.dh_inner = dh_inner
+      .map(|(key_id, secret, generation)| {
+        (
+          key_id,
+          DerivedSecretWithGeneration {
+            inner: secret,
+            generation,
+          },
+        )
+      })
+      .collect();
     self.refresh_type_map();
   }
   /// refresh type_map
   fn refresh_type_map(&mut self) {
     self.type_map.clear();
-    self
-      .type_map
-      .extend(self.pk_inner.keys().map(|k| (k.to_owned(), KeyType::Pk)));
-    self
-      .type_map
-      .extend(self.dh_inner.keys().map(|k| (k.to_owned(), KeyType::Dh)));
+    self.type_map.extend(
+      self
+        .pk_inner
+        .iter()
+        .map(|(key_id, pk)| (key_id.to_owned(), KeyType::Pk(pk.generation))),
+    );
+    self.type_map.extend(
+      self
+        .dh_inner
+        .iter()
+        .map(|(key_id, secret)| (key_id.to_owned(), KeyType::Dh(secret.generation))),
+    );
   }
 }
 
@@ -334,7 +377,7 @@ impl KeyIdToVerificationKeyMap {
 pub(super) struct TargetDomainToKeyIdMap {
   suffix_idx_cedar: Cedar,
   suffix_idx_map: IndexMap<usize, String>,
-  idx_key_ids_map: IndexMap<usize, IndexMap<usize, Vec<KeyId>>>,
+  idx_key_ids_map: IndexMap<usize, IndexMap<Generation, Vec<KeyId>>>,
 }
 
 /// Regex for domain or prefix matching
@@ -353,7 +396,7 @@ impl TargetDomainToKeyIdMap {
   pub(super) fn set_trie<'a>(&mut self, master_id_domain: impl Iterator<Item = &'a Vec<(KeyId, DomainName)>>) {
     let start_with_star = Regex::new(r"^\*\..+").unwrap();
     let re = Regex::new(&format!("{}{}{}", r"^", REGEXP_DOMAIN_OR_PREFIX, r"$")).unwrap();
-    let mut hashmap: HashMap<DomainName, IndexMap<usize, Vec<KeyId>>> = HashMap::default();
+    let mut hashmap: HashMap<DomainName, IndexMap<Generation, Vec<KeyId>>> = HashMap::default();
     for (generation, key_id, domain) in master_id_domain
       .enumerate()
       .flat_map(|(generation, v)| v.iter().map(move |(k, v)| (generation, k, v)))
@@ -413,7 +456,7 @@ impl TargetDomainToKeyIdMap {
   }
 
   /// Get key_ids for the domain for the generation of key rotation.
-  pub(super) fn get_key_ids(&self, domain: &str) -> IndexMap<usize, Vec<KeyId>> {
+  pub(super) fn get_key_ids(&self, domain: &str) -> IndexMap<Generation, Vec<KeyId>> {
     let rev_nn = reverse_string(domain);
     let matched_items = self.suffix_idx_cedar.common_prefix_iter(&rev_nn).filter_map(|(x, _)| {
       let target_domain = self.suffix_idx_map.get(&(x as usize)).map(|v| v.to_owned());

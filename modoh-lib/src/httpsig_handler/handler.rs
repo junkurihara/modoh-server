@@ -26,6 +26,8 @@ use std::{sync::Arc, time::Duration};
 use tokio::{sync::Notify, time::sleep};
 use tracing::{instrument, Instrument};
 
+type Generation = usize;
+
 /// HttpSig keys handler service that
 /// - periodically refresh keys;
 /// - periodically refetch configurations from other servers.
@@ -177,7 +179,7 @@ where
         TypedKey::Dh(dh_key) => match nonce {
           Some(nonce) => {
             let nonce_bytes = general_purpose::STANDARD.decode(nonce).ok()?;
-            let session_key = dh_key.derive_session_key_with_nonce(nonce_bytes.as_slice()).ok()?;
+            let session_key = dh_key.inner.derive_session_key_with_nonce(nonce_bytes.as_slice()).ok()?;
             let shared_key = SharedKey::HmacSha256(session_key.session_key().to_owned());
             Some((key_id, shared_key))
           }
@@ -225,7 +227,7 @@ where
     );
     let pk_verify_res_future = pk_available_keys
       .iter()
-      .map(|(key_id, pk_key)| request.verify_message_signature(*pk_key, Some(key_id)));
+      .map(|(key_id, pk_key)| request.verify_message_signature(&pk_key.inner, Some(key_id)));
     let pk_verify_res = futures::future::join_all(pk_verify_res_future)
       .instrument(tracing::info_span!("pk_verify_res"))
       .await
@@ -332,7 +334,7 @@ where
   #[instrument(name = "get_hmac_signing_key_by_domain", skip_all)]
   /// **SigningAPI**: Get hmac keys for the given domain for latest and transitional generations
   /// If found, derive the session key with random nonce.
-  pub(crate) async fn get_hmac_signing_key_by_domain(&self, domain: &str) -> Option<IndexMap<usize, SessionKeyNonce>> {
+  pub(crate) async fn get_hmac_signing_key_by_domain(&self, domain: &str) -> Option<IndexMap<Generation, SessionKeyNonce>> {
     let available_key_ids = self
       .key_map_state
       .get_key_ids(domain)
@@ -349,7 +351,7 @@ where
         return None;
       };
       let session_key_with_random_nonce = match typed_key {
-        TypedKey::Dh(dh_key) => dh_key.derive_session_key_with_random_nonce(&mut rand::thread_rng()),
+        TypedKey::Dh(dh_key) => dh_key.inner.derive_session_key_with_random_nonce(&mut rand::thread_rng()),
         _ => return None,
       };
       if session_key_with_random_nonce.is_err() {
@@ -408,7 +410,7 @@ where
       return None;
     };
 
-    let Ok(session_key) = master.derive_session_key_with_nonce(nonce.as_slice()) else {
+    let Ok(session_key) = master.inner.derive_session_key_with_nonce(nonce.as_slice()) else {
       warn!("Failed to derive session key with nonce for key id {}", key_id);
       return None;
     };
@@ -421,7 +423,7 @@ where
   pub(crate) async fn get_pk_verification_key_by_key_id(&self, key_id: &str) -> Option<PublicKey> {
     let typed_key = self.key_map_state.get_typed_key(key_id).await?;
     let public_key = match typed_key {
-      TypedKey::Pk(pk) => pk,
+      TypedKey::Pk(pk) => pk.inner,
       _ => return None,
     };
     Some(public_key)
