@@ -63,6 +63,9 @@ where
 
   /// Ignore httpsig verification result and continue to serve the request.
   pub(crate) ignore_verification_result: bool,
+
+  /// covered components for the signature
+  covered_components: Vec<message_component::HttpMessageComponentId>,
 }
 
 impl<C> HttpSigKeysHandler<C>
@@ -90,6 +93,12 @@ where
     let generation_transition_margin = httpsig_config.generation_transition_margin;
     let force_verification = httpsig_config.force_verification;
     let ignore_verification_result = httpsig_config.ignore_verification_result;
+    // signature params
+    let covered_components = HTTPSIG_COVERED_COMPONENTS
+      .iter()
+      .map(|v| message_component::HttpMessageComponentId::try_from(*v))
+      .collect::<std::result::Result<Vec<_>, _>>()
+      .unwrap();
 
     let handler = Arc::new(Self {
       key_rotation_state: state.clone(),
@@ -101,6 +110,7 @@ where
       generation_transition_margin,
       force_verification,
       ignore_verification_result,
+      covered_components,
     });
 
     // rotator for httpsig key pairs
@@ -262,6 +272,8 @@ where
 
   #[instrument(name = "generate_signed_request", skip_all)]
   /// Append signature to request if available
+  /// For DHKex+HKDF signature, we add multiple signatures considering the generation transition margin.
+  /// On the other hand, for now, we do not care about the generation transition margin for PK-based type of signature.
   pub(crate) async fn generate_signed_request<T>(&self, request: Request<T>) -> Result<Request<IncomingOr<BoxBody>>>
   where
     T: Body + Sync + Send,
@@ -270,49 +282,20 @@ where
     // compute digest first
     let mut updated_request = self.generate_request_with_digest(request).await?;
 
-    // signature params
-    let covered_components = HTTPSIG_COVERED_COMPONENTS
-      .iter()
-      .map(|v| message_component::HttpMessageComponentId::try_from(*v))
-      .collect::<std::result::Result<Vec<_>, _>>()
-      .unwrap();
-
-    // find appropriate keys and add signature to the header
-    let nexthop_host = updated_request.uri().host().unwrap_or_default();
-    if let Some(hmac_keys_with_gen) = self.get_hmac_signing_key_by_domain(nexthop_host).await {
-      // First checks DHKex+HKDF derived hmac key
-      debug!(nexthop_host, "Request will be signed with hmac key");
-      let params_and_key_for_gen = hmac_keys_with_gen.iter().map(|(gen, hmac_key)| {
-        let mut signature_params = HttpSignatureParams::try_new(&covered_components).unwrap();
-        let base64_url_nopad_nonce = general_purpose::STANDARD.encode(hmac_key.nonce());
-        let shared_key = SharedKey::HmacSha256(hmac_key.session_key().to_owned());
-        signature_params.set_nonce(&base64_url_nopad_nonce);
-        signature_params.set_alg(&AlgorithmName::HmacSha256);
-        // // key id must be the one of the shared master key via DHKex+HKDF
-        signature_params.set_keyid(hmac_key.kem_kdf_derived_key_id());
-        (*gen, signature_params, shared_key)
-      });
-
-      let total_gen = params_and_key_for_gen.len();
-      for (gen, signature_params, shared_key) in params_and_key_for_gen {
-        let custom_sig_name = if gen == 0 {
-          HTTPSIG_CUSTOM_SIGNATURE_NAME.to_string()
-        } else {
-          format!("{HTTPSIG_CUSTOM_SIGNATURE_NAME}-{gen}")
-        };
-        updated_request
-          .set_message_signature(&signature_params, &shared_key, Some(custom_sig_name.as_str()))
-          .instrument(tracing::info_span!("set_message_signature_dh"))
-          .await?;
+    // try to sign with hmac key(s) considering the generation transition margin
+    match self.add_httpsig_with_dh_keys(&mut updated_request).await {
+      Ok(()) => return Ok(updated_request),
+      Err(MODoHError::NoDHKeyFound) => {}
+      Err(e) => {
+        return Err(e);
       }
-      debug!(
-        "updated header with HMAC signature for {total_gen} generations: {:#?}",
-        updated_request.headers()
-      );
-    } else if let Some(pk_signing_key) = self.get_pk_signing_key().await {
+    };
+
+    // try to sign with asymmetric key.
+    if let Some(pk_signing_key) = self.get_pk_signing_key().await {
       // If no hmac key is found, try use public key based signature
-      debug!(nexthop_host, "Request will be signed with public key");
-      let mut signature_params = HttpSignatureParams::try_new(&covered_components).unwrap();
+      // debug!(nexthop_host, "Request will be signed with public key");
+      let mut signature_params = HttpSignatureParams::try_new(&self.covered_components).unwrap();
       signature_params.set_key_info(&pk_signing_key);
       signature_params.set_random_nonce();
 
@@ -325,10 +308,59 @@ where
         updated_request.headers()
       );
     } else {
-      debug!(nexthop_host, "No key found for signing the request");
+      debug!("No key found for signing the request");
     }
 
     Ok(updated_request)
+  }
+
+  #[instrument(name = "add_httpsig_with_dh_keys", skip_all)]
+  /// Sign with hmac key
+  async fn add_httpsig_with_dh_keys<T>(&self, request_with_digest: &mut Request<T>) -> Result<()>
+  where
+    T: Body + Sync + Send,
+    <T as Body>::Data: Send,
+  {
+    // find appropriate keys and add signature to the header
+    let target_host = request_with_digest.uri().host().unwrap_or_default();
+    let Some(hmac_keys_with_gen) = self.get_hmac_signing_key_by_domain(target_host).await else {
+      return Err(MODoHError::NoDHKeyFound);
+    };
+    // First checks DHKex+HKDF derived hmac key
+    debug!(
+      target_host,
+      "Request will be signed with hmac keys of {} generation(s)",
+      hmac_keys_with_gen.len()
+    );
+    let params_key_name_for_gen = hmac_keys_with_gen
+      .iter()
+      .map(|(gen, hmac_key)| {
+        let mut signature_params = HttpSignatureParams::try_new(&self.covered_components).unwrap();
+        let base64_nonce = general_purpose::STANDARD.encode(hmac_key.nonce());
+        let shared_key = SharedKey::HmacSha256(hmac_key.session_key().to_owned());
+        signature_params.set_nonce(&base64_nonce);
+        signature_params.set_alg(&AlgorithmName::HmacSha256);
+        // // key id must be the one of the shared master key via DHKex+HKDF
+        signature_params.set_keyid(hmac_key.kem_kdf_derived_key_id());
+        let sig_name = if *gen == 0 {
+          HTTPSIG_CUSTOM_SIGNATURE_NAME.to_string()
+        } else {
+          format!("{HTTPSIG_CUSTOM_SIGNATURE_NAME}-{gen}")
+        };
+        (signature_params, shared_key, Some(sig_name))
+      })
+      .collect::<Vec<_>>();
+    let signing_inputs = params_key_name_for_gen
+      .iter()
+      .map(|(p, k, n)| (p, k, n.as_ref().map(|v| v.as_str())))
+      .collect::<Vec<_>>();
+    request_with_digest
+      .set_message_signatures(signing_inputs.as_slice())
+      .instrument(tracing::info_span!("set_message_signature_dh"))
+      .await?;
+
+    debug!("updated header with HMAC signature(s)\n {:#?}", request_with_digest.headers());
+    Ok(())
   }
 
   #[instrument(name = "get_hmac_signing_key_by_domain", skip_all)]
