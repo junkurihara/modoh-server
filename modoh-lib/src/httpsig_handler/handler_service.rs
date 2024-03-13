@@ -59,10 +59,10 @@ where
       *lock = httpsig_configs;
       drop(lock);
       // store previous configs to fill the gap between the new key and the old keys
-      if self.count_previous_dh_public_keys > 0 {
+      if self.previous_dh_public_keys_gen > 0 {
         let mut lock = self.key_rotation_state.previous_configs.write().await;
         lock.push_back(previous);
-        if lock.len() > self.count_previous_dh_public_keys {
+        if lock.len() > self.previous_dh_public_keys_gen {
           lock.pop_front();
         }
         drop(lock);
