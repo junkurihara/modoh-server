@@ -170,7 +170,8 @@ where
         // If it is invalid, it may be compromised one. In this case, we don't need to fetch the latest key.
         if ok_res.iter().any(|(_, (_, is_sender_stale))| *is_sender_stale) {
           // fetch the latest key
-          warn!("TODO:Having sender's stale key. Fetch the latest key");
+          warn!("Having sender's stale key. Fetch the latest key");
+          self.force_refetch_notify.notify_waiters();
         }
 
         return Ok(());
