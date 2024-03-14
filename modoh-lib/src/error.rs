@@ -35,6 +35,8 @@ pub enum MODoHError {
   HttpSigComputeError(String),
   #[error("Failed to verify HTTP message signature: {0}")]
   HttpSigVerificationError(String),
+  #[error("No DH key found")]
+  NoDHKeyFound,
   #[error(transparent)]
   Other(#[from] anyhow::Error),
 }

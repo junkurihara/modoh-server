@@ -63,6 +63,8 @@ pub const HTTPSIG_KEY_REFETCH_PERIOD: u64 = 60;
 /// Maximum number of previous keys to store for HTTP message signature
 /// This is just for handling the gap between the new key and the old keys for DHKex
 pub const HTTPSIG_KEYS_STORE_PREVIOUS_COUNT: usize = 1;
+/// Number/generations of past keys generating signatures simultaneously with the current key
+pub const HTTPSIG_KEYS_TRANSITION_MARGIN: usize = 1;
 /// HTTP request timeout for refetching httpsig configs
 pub const HTTPSIG_KEY_REFETCH_TIMEOUT_SEC: u64 = 3;
 /// User agent for refetching HTTP message signature keys
@@ -70,7 +72,14 @@ pub const HTTPSIG_REFETCH_USER_AGENT: &str = "modoh-server";
 /// Default covered components for HTTP message signature
 pub const HTTPSIG_COVERED_COMPONENTS: &[&str] = &["@method", "content-type", "content-digest", "cache-control"];
 /// Custom signature name for HTTP message signature
-pub const HTTPSIG_CUSTOM_SIGNATURE_NAME: &str = "modohsig";
+pub const HTTPSIG_CUSTOM_SIGNATURE_NAME: &str = "modoh-sig";
+/// Custom tag for `signed with my latest key` in HTTP message signature
+pub const HTTPSIG_CUSTOM_SIGNED_WITH_LATEST_KEY: &str = "modoh-sender-latest-key";
+/// Custom tag for `signed with my stale/previous key` in HTTP message signature
+pub const HTTPSIG_CUSTOM_SIGNED_WITH_STALE_KEY: &str = "modoh-sender-stale-key";
+/// Custom exp duration for HTTP message signature in seconds
+/// If the signature is expired, the receiver should not accept the message even if the signature is valid
+pub const HTTPSIG_EXP_DURATION_SEC: u64 = 1;
 
 #[cfg(feature = "evil-trace")]
 pub const EVIL_TRACE_HEADER_NAME: &str = "traceparent";

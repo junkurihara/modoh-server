@@ -230,11 +230,11 @@ impl TryInto<ServiceConfig> for &TargetConfig {
         info!("Set HttpSig-enabled targeted domains: {:#?}", httpsig_config.enabled_domains);
 
         if let Some(false) = httpsig.accept_previous_dh_public_keys {
-          httpsig_config.count_previous_dh_public_keys = 0;
+          httpsig_config.previous_dh_public_keys_gen = 0;
         }
         info!(
           "Accept previous DH public keys to fill the gap of the key rotation period: {} generations",
-          httpsig_config.count_previous_dh_public_keys
+          httpsig_config.previous_dh_public_keys_gen
         );
 
         if let Some(force_verification) = httpsig.force_verification {
