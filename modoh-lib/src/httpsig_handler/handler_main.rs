@@ -76,6 +76,9 @@ where
   /// Ignore httpsig verification result and continue to serve the request.
   pub(crate) ignore_verification_result: bool,
 
+  /// Ignore httpsig verification result and continue to serve the request, only if the source ip is allowed.
+  pub(crate) ignore_verification_result_for_allowed_source_ips: bool,
+
   /// covered components for the signature
   covered_components: Vec<message_component::HttpMessageComponentId>,
 }
@@ -105,6 +108,7 @@ where
     let generation_transition_margin = httpsig_config.generation_transition_margin;
     let force_verification = httpsig_config.force_verification;
     let ignore_verification_result = httpsig_config.ignore_verification_result;
+    let ignore_verification_result_for_allowed_source_ips = httpsig_config.ignore_verification_result_for_allowed_source_ips;
     // signature params
     let covered_components = HTTPSIG_COVERED_COMPONENTS
       .iter()
@@ -125,6 +129,7 @@ where
       generation_transition_margin,
       force_verification,
       ignore_verification_result,
+      ignore_verification_result_for_allowed_source_ips,
       covered_components,
     });
 

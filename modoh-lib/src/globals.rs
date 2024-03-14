@@ -131,6 +131,8 @@ pub struct HttpSigConfig {
   pub force_verification: bool,
   /// Ignore httpsig verification result and continue to serve the request. Useful for debugging.
   pub ignore_verification_result: bool,
+  /// Ignore httpsig verification result and continue to serve the request, only if the source ip is allowed.
+  pub ignore_verification_result_for_allowed_source_ips: bool,
 }
 
 impl Default for HttpSigConfig {
@@ -144,6 +146,7 @@ impl Default for HttpSigConfig {
       generation_transition_margin: HTTPSIG_KEYS_TRANSITION_MARGIN.min(HTTPSIG_KEYS_STORE_PREVIOUS_COUNT),
       force_verification: false,
       ignore_verification_result: false,
+      ignore_verification_result_for_allowed_source_ips: true,
     }
   }
 }

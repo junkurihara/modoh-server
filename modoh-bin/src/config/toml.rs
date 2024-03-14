@@ -104,6 +104,8 @@ pub struct HttpSig {
   pub force_verification: Option<bool>,
   /// Ignore the result of httpsig verification (verification itself is performed), and continue to serve the request.
   pub ignore_verification_result: Option<bool>,
+  /// Ignore the result of httpsig verification (verification itself is performed), and continue to serve the request, only if the source ip is allowed.
+  pub ignore_verification_result_for_allowed_source_ips: Option<bool>,
 }
 
 #[derive(Deserialize, Debug, PartialEq, Eq, Clone)]

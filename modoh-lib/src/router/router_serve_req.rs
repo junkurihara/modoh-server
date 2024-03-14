@@ -157,14 +157,18 @@ where
           debug!("passed httpsig verification");
         }
         Err(e) => {
-          warn!("httpsig validation failed: {e}");
-          if !handler.ignore_verification_result {
+          if src_ip_validated && handler.ignore_verification_result_for_allowed_source_ips {
+            warn!("ignore httpsig verification error! (ignore_verification_result_fo_allowed_source_ips): {e}");
+          } else if handler.ignore_verification_result {
+            warn!("ignore httpsig verification error! (ignore_verification_result): {e}");
+          } else {
+            warn!("httpsig validation failed: {e}");
+
             #[cfg(feature = "metrics")]
             count_with_http_status_code(&meters.httpsig_verification_rejected, &StatusCode::UNAUTHORIZED);
 
             return synthetic_error_response(StatusCode::UNAUTHORIZED);
           }
-          warn!("ignore httpsig verification error! (ignore_verification_result)");
         }
       }
     }

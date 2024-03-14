@@ -136,3 +136,11 @@ force_verification = false
 ## If set to true, the signature verification is performed, but the request is always processed regardless of the result.
 ## Usefull for debugging or testing.
 ignore_verification_result = false
+
+## By default, the signature verification is not performed for the requests from the allowed source ip addresses.
+## But if `force_verification` is set to true, the signature verification is performed for all requests.
+## This option is used to ignore the result of signature verification for the requests from the allowed source ip addresses.
+## In other words, requests from not-allowed source ip addresses are always rejected if the signature verification is failed.
+## Even if this is set to true, `ignore_verification_result` is evaluated independently.
+## (default = true, but not evaluated if `force_verification` is false)
+ignore_verification_result_for_allowed_source_ips = true

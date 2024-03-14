@@ -249,6 +249,13 @@ impl TryInto<ServiceConfig> for &TargetConfig {
             warn!("Ignore httpsig verification result and continue to serve the request.");
           }
         }
+        if let Some(ignore_verification_result_for_allowed_source_ips) = httpsig.ignore_verification_result_for_allowed_source_ips
+        {
+          httpsig_config.ignore_verification_result_for_allowed_source_ips = ignore_verification_result_for_allowed_source_ips;
+          if ignore_verification_result_for_allowed_source_ips {
+            warn!("Ignore httpsig verification result and continue to serve the request, only if the source ip is allowed.");
+          }
+        }
         Some(httpsig_config)
       } else {
         None
