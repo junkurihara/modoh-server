@@ -3,7 +3,10 @@ use super::{
   HttpSigKeyRotationState,
 };
 use crate::{
-  constants::{HTTPSIG_COVERED_COMPONENTS, HTTPSIG_CUSTOM_SIGNATURE_NAME},
+  constants::{
+    HTTPSIG_COVERED_COMPONENTS, HTTPSIG_CUSTOM_SIGNATURE_NAME, HTTPSIG_CUSTOM_SIGNED_WITH_LATEST_KEY,
+    HTTPSIG_CUSTOM_SIGNED_WITH_STALE_KEY, HTTPSIG_EXP_DURATION_SEC,
+  },
   error::*,
   globals::{Globals, HttpSigDomainInfo},
   hyper_body::{full, BoxBody, IncomingOr},
@@ -26,7 +29,13 @@ use tracing::{instrument, Instrument};
 /// We don't basically use ones of generation i > 0 for both signing and verification.
 /// However, we keep them for a while to fill the gap of the key rotation period by adding and verifying signature for previous key.
 type Generation = usize;
+type KeyId = String;
 
+type SignatureName = String;
+type IsSenderStaleKey = bool;
+type VerificationResult = IndexMap<KeyId, (std::result::Result<SignatureName, HyperSigError>, IsSenderStaleKey)>;
+
+#[derive(Clone)]
 /// HttpSig keys handler service that
 /// - periodically refresh keys;
 /// - periodically refetch configurations from other servers.
@@ -37,6 +46,9 @@ where
   <B as Body>::Data: Send,
   <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
 {
+  /// force to refetch notifier for the public keys
+  pub(super) force_refetch_notify: Arc<tokio::sync::Notify>,
+
   /// hyper client
   pub(super) http_client: Arc<HttpClient<C, B>>,
 
@@ -100,7 +112,10 @@ where
       .collect::<std::result::Result<Vec<_>, _>>()
       .unwrap();
 
+    let force_refetch_notify = Arc::new(tokio::sync::Notify::new());
+
     let handler = Arc::new(Self {
+      force_refetch_notify,
       key_rotation_state: state.clone(),
       refetch_period,
       targets_info,
@@ -137,59 +152,27 @@ where
     T: Body + Sync + Send,
     <T as Body>::Data: Send,
   {
-    // get key ids with nonce
-    let contained_key_ids_with_nonce = request
-      .get_signature_params()?
-      .iter()
-      .filter_map(|params| params.keyid.as_ref().map(|k| (k.to_owned(), params.nonce.clone())))
-      .collect::<Vec<_>>();
-    debug!("Key ids contained in a request: {:?}", contained_key_ids_with_nonce);
-    // find available keys
-    let available_keys_future = contained_key_ids_with_nonce.iter().map(|(key_id, nonce)| async {
-      self
-        .key_map_state
-        .get_typed_key(key_id)
-        .await
-        .map(|typed_key| (key_id.to_owned(), nonce.clone(), typed_key))
-    });
-    let available_keys = futures::future::join_all(available_keys_future)
-      .await
-      .into_iter()
-      .flatten()
-      .collect::<Vec<_>>();
-    debug!("available keys: {} keys found", available_keys.len());
-
+    // get (key id, nonce) tuples for non-expired signatures
+    let available_keys_map = self.find_available_keys_for_request(request).await?;
     // TODO: validate covered-component!
+
     /* ---------- */
     // verify signatures with available keys
     // first try dhkex+hkdf derived hmac key
-    let dh_available_keys = available_keys
-      .iter()
-      .filter_map(|(key_id, nonce, typed_key)| match typed_key {
-        TypedKey::Dh(dh_key) => match nonce {
-          Some(nonce) => {
-            let nonce_bytes = general_purpose::STANDARD.decode(nonce).ok()?;
-            let session_key = dh_key.inner.derive_session_key_with_nonce(nonce_bytes.as_slice()).ok()?;
-            let shared_key = SharedKey::HmacSha256(session_key.session_key().to_owned());
-            Some((key_id, shared_key))
-          }
-          _ => None,
-        },
-        _ => None,
-      })
-      .collect::<Vec<_>>();
-    if !dh_available_keys.is_empty() {
-      debug!("Found {} keys for DHKex+HKDF derived hmac key", dh_available_keys.len());
-      let dh_verify_res_future = dh_available_keys
+    if let Some(dh_verify_res) = self.verify_httpsig_with_dh_keys(request, &available_keys_map).await {
+      // if some of dh_verify_res is true, then the signature itself is ok.
+      let ok_res = dh_verify_res
         .iter()
-        .map(|(key_id, shared_key)| request.verify_message_signature(shared_key, Some(key_id)));
-      let dh_verify_res = futures::future::join_all(dh_verify_res_future)
-        .instrument(tracing::info_span!("dh_verify_res"))
-        .await
-        .iter()
-        .any(|v| v.is_ok());
-      // if dh_verify_res is true, then the signature itself is ok.
-      if dh_verify_res {
+        .filter(|(_, (v, _))| v.is_ok())
+        .collect::<IndexMap<_, _>>();
+      if !ok_res.is_empty() {
+        // If the signature is signed with a stale key, then we need to fetch the latest key when the signature is valid.
+        // If it is invalid, it may be compromised one. In this case, we don't need to fetch the latest key.
+        if ok_res.iter().any(|(_, (_, is_sender_stale))| *is_sender_stale) {
+          // fetch the latest key
+          warn!("TODO:Having sender's stale key. Fetch the latest key");
+        }
+
         return Ok(());
       }
       // Even if dh available key is found, if the signature is invalid, then it is invalid. skip the pk verification.
@@ -197,11 +180,12 @@ where
         "Failed to verify signature with DH key".to_string(),
       ));
     }
+
     /* ---------- */
     // if no dh key is found, try public key based signature
-    let pk_available_keys = available_keys
+    let pk_available_keys = available_keys_map
       .iter()
-      .filter_map(|(key_id, _, typed_key)| match typed_key {
+      .filter_map(|(key_id, (_, typed_key))| match typed_key {
         TypedKey::Pk(pk_key) => Some((key_id, pk_key)),
         _ => None,
       })
@@ -229,6 +213,100 @@ where
     return Err(MODoHError::HttpSigVerificationError(
       "Failed to verify signature with public key".to_string(),
     ));
+  }
+
+  #[instrument(name = "verify_httpsig_with_dh_keys", skip_all)]
+  /// Verify with hmac key
+  async fn verify_httpsig_with_dh_keys<T>(
+    &self,
+    request_with_digest: &Request<T>,
+    available_keys_map: &IndexMap<KeyId, (HttpSignatureParams, TypedKey)>,
+  ) -> Option<VerificationResult>
+  where
+    T: Body + Sync + Send,
+    <T as Body>::Data: Send,
+  {
+    let dh_available_keys = available_keys_map
+      .iter()
+      .filter_map(|(key_id, (params, typed_key))| match typed_key {
+        TypedKey::Dh(dh_key) => match &params.nonce {
+          Some(nonce) => {
+            let nonce_bytes = general_purpose::STANDARD.decode(nonce).ok()?;
+            let session_key = dh_key.inner.derive_session_key_with_nonce(nonce_bytes.as_slice()).ok()?;
+            let shared_key = SharedKey::HmacSha256(session_key.session_key().to_owned());
+            let is_sender_stale = params
+              .tag
+              .as_ref()
+              .map(|v| v.starts_with(HTTPSIG_CUSTOM_SIGNED_WITH_STALE_KEY))
+              .unwrap_or(false);
+            Some((key_id, (shared_key, is_sender_stale)))
+          }
+          _ => None,
+        },
+        _ => None,
+      })
+      .collect::<IndexMap<_, _>>();
+    if dh_available_keys.is_empty() {
+      return None;
+    }
+    debug!("Found {} keys for DHKex+HKDF derived hmac key", dh_available_keys.len());
+    let dh_verify_res_future = dh_available_keys
+      .into_iter()
+      .map(|(key_id, (shared_key, is_sender_stale))| async move {
+        let res = request_with_digest.verify_message_signature(&shared_key, Some(key_id)).await;
+        (key_id, (res, is_sender_stale))
+      });
+    let dh_verify_res = futures::future::join_all(dh_verify_res_future)
+      .instrument(tracing::info_span!("dh_verify_res"))
+      .await
+      .into_iter()
+      .map(|(k, v)| (k.to_owned(), v))
+      .collect::<IndexMap<_, _>>();
+
+    Some(dh_verify_res)
+  }
+
+  #[instrument(name = "find_available_keys_for_request", skip_all)]
+  /// Find available keys from the key map to verify the given request
+  async fn find_available_keys_for_request<T>(
+    &self,
+    request: &Request<T>,
+  ) -> Result<IndexMap<KeyId, (HttpSignatureParams, TypedKey)>>
+  where
+    T: Body + Sync + Send,
+    <T as Body>::Data: Send,
+  {
+    // get (key id, nonce) tuples for non-expired signatures
+    let contained_key_ids_params_map = request
+      .get_signature_params()?
+      .iter()
+      .filter_map(|(_name, params)| {
+        if params.is_expired() || params.tag.is_none() {
+          warn!("Expired or no-tag signature found");
+          return None;
+        }
+        params.keyid.as_ref().map(|k| (k.to_owned(), params.clone()))
+      })
+      .collect::<IndexMap<_, _>>();
+    debug!(
+      "(key_id, nonce) tuple(s) contained in a request: {:?}",
+      contained_key_ids_params_map
+    );
+    // find available keys
+    let available_keys_future = contained_key_ids_params_map.into_iter().map(|(key_id, params)| async {
+      self
+        .key_map_state
+        .get_typed_key(&key_id)
+        .await
+        .map(|typed_key| (key_id, (params, typed_key)))
+    });
+    let available_keys_map = futures::future::join_all(available_keys_future)
+      .await
+      .into_iter()
+      .flatten()
+      .collect::<IndexMap<_, _>>();
+    debug!("available keys: {} keys found", available_keys_map.len());
+    Ok(available_keys_map)
   }
 
   #[instrument(name = "generate_request_with_digest", skip_all)]
@@ -298,6 +376,8 @@ where
       let mut signature_params = HttpSignatureParams::try_new(&self.covered_components).unwrap();
       signature_params.set_key_info(&pk_signing_key);
       signature_params.set_random_nonce();
+      signature_params.set_expires_with_duration(Some(HTTPSIG_EXP_DURATION_SEC));
+      signature_params.set_tag(HTTPSIG_CUSTOM_SIGNED_WITH_LATEST_KEY);
 
       updated_request
         .set_message_signature(&signature_params, &pk_signing_key, Some(HTTPSIG_CUSTOM_SIGNATURE_NAME))
@@ -340,11 +420,14 @@ where
         let shared_key = SharedKey::HmacSha256(hmac_key.session_key().to_owned());
         signature_params.set_nonce(&base64_nonce);
         signature_params.set_alg(&AlgorithmName::HmacSha256);
-        // // key id must be the one of the shared master key via DHKex+HKDF
+        signature_params.set_expires_with_duration(Some(HTTPSIG_EXP_DURATION_SEC));
+        // key id must be the one of the shared master key via DHKex+HKDF
         signature_params.set_keyid(hmac_key.kem_kdf_derived_key_id());
         let sig_name = if *gen == 0 {
+          signature_params.set_tag(HTTPSIG_CUSTOM_SIGNED_WITH_LATEST_KEY);
           HTTPSIG_CUSTOM_SIGNATURE_NAME.to_string()
         } else {
+          signature_params.set_tag(HTTPSIG_CUSTOM_SIGNED_WITH_STALE_KEY);
           format!("{HTTPSIG_CUSTOM_SIGNATURE_NAME}-{gen}")
         };
         (signature_params, shared_key, Some(sig_name))

@@ -79,7 +79,7 @@ where
     match term_notify {
       Some(term) => loop {
         select! {
-          _ = self.fetch_and_handle_httpsig_public_keys().fuse() => {
+          _ = self.fetcher_loop().fuse() => {
             warn!("Fetcher service for HTTP message signature config got down.");
           }
           _ = term.notified().fuse() => {
@@ -89,50 +89,63 @@ where
         }
       },
       None => {
-        self.fetch_and_handle_httpsig_public_keys().await?;
+        self.fetcher_loop().await?;
         warn!("Fetcher service for HTTP message signature config got down.");
       }
     }
     Ok(())
   }
+
+  /// Event loop for fetching and handling httpsig public keys
+  async fn fetcher_loop(&self) -> Result<()> {
+    loop {
+      self.fetch_and_handle_httpsig_public_keys().await?;
+      select! {
+        _ = sleep(self.refetch_period).fuse() => {
+          info!("Fetching httpsig public keys");
+        }
+        _ = self.force_refetch_notify.notified().fuse() => {
+          info!("Force fetching httpsig public keys");
+        }
+      }
+    }
+  }
+
   /// Fetch httpsig public keys from other servers
   /// If public keys for DH are included in fetched configs, derive shared secret keys as well.
-  async fn fetch_and_handle_httpsig_public_keys(&self) -> Result<()> {
-    loop {
-      let futures = self.targets_info.iter().map(|info| async {
-        let config_endpoint_uri = info.configs_endpoint_uri.clone();
-        let deserialized_configs = fetch_and_deserialize(&self.http_client, &config_endpoint_uri).await?;
-        Ok(deserialized_configs) as Result<_>
-      });
-      let all_deserialized_configs = futures::future::join_all(futures).await;
+  pub(super) async fn fetch_and_handle_httpsig_public_keys(&self) -> Result<()> {
+    let futures = self.targets_info.iter().map(|info| async {
+      let config_endpoint_uri = info.configs_endpoint_uri.clone();
+      let deserialized_configs = fetch_and_deserialize(&self.http_client, &config_endpoint_uri).await?;
+      Ok(deserialized_configs) as Result<_>
+    });
+    let all_deserialized_configs = futures::future::join_all(futures).await;
 
-      let config_with_info = all_deserialized_configs
-        .iter()
-        .zip(self.targets_info.iter())
-        .collect::<Vec<_>>();
-      config_with_info.iter().for_each(|(deserialized, info)| {
-        if deserialized.is_err() {
-          error!(
-            "Failed to fetch httpsig public keys from {}: {}",
-            info.configs_endpoint_uri,
-            deserialized.as_ref().err().unwrap()
-          );
-        }
-      });
-      let config_with_info = config_with_info
-        .iter()
-        .filter(|(deserialized, _)| deserialized.is_ok())
-        .map(|(deserialized, info)| (deserialized.as_ref().unwrap(), info.to_owned()))
-        .collect::<Vec<_>>();
+    let config_with_info = all_deserialized_configs
+      .iter()
+      .zip(self.targets_info.iter())
+      .collect::<Vec<_>>();
+    config_with_info.iter().for_each(|(deserialized, info)| {
+      if deserialized.is_err() {
+        error!(
+          "Failed to fetch httpsig public keys from {}: {}",
+          info.configs_endpoint_uri,
+          deserialized.as_ref().err().unwrap()
+        );
+      }
+    });
+    let config_with_info = config_with_info
+      .iter()
+      .filter(|(deserialized, _)| deserialized.is_ok())
+      .map(|(deserialized, info)| (deserialized.as_ref().unwrap(), info.to_owned()))
+      .collect::<Vec<_>>();
 
-      // update key map state with new external configs fetched
-      self
-        .key_map_state
-        .update_with_new_external_configs(&self.key_rotation_state, &config_with_info)
-        .await;
-
-      sleep(self.refetch_period).await;
-    }
+    // update key map state with new external configs fetched
+    self
+      .key_map_state
+      .update_with_new_external_configs(&self.key_rotation_state, &config_with_info)
+      .await;
+    Ok(())
   }
 }
 
@@ -143,8 +156,6 @@ async fn fetch_and_deserialize<C>(http_client: &Arc<HttpClient<C>>, uri: &http::
 where
   C: Send + Sync + Connect + Clone + 'static,
 {
-  debug!("Fetching httpsig public keys from {}", uri);
-
   let request = Request::builder()
     .uri(uri)
     .method(Method::GET)

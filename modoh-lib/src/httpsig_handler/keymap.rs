@@ -22,6 +22,17 @@ pub(crate) enum TypedKey {
   Dh(DerivedSecret),
 }
 
+#[allow(unused)]
+impl TypedKey {
+  /// Get generation
+  pub(super) fn generation(&self) -> usize {
+    match self {
+      TypedKey::Pk(pk) => pk.generation,
+      TypedKey::Dh(dh) => dh.generation,
+    }
+  }
+}
+
 /* ------------------------------------------------ */
 
 /// Http message signature key management state

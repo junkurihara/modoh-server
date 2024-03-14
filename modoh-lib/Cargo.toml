@@ -92,5 +92,5 @@ tracing-opentelemetry = { version = "0.23.0", optional = true }
 # httpsig
 httpsig-proto = { path = "../httpsig-wire-proto", default-features = false, package = "httpsig-proto" }
 indexmap = { version = "2.2.5" }
-httpsig = { version = "0.0.12" }
-httpsig-hyper = { version = "0.0.12" }
+httpsig = { version = "0.0.14" }
+httpsig-hyper = { version = "0.0.14" }
