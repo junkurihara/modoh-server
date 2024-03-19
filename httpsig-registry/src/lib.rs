@@ -5,10 +5,6 @@ mod parse_md;
 
 use constants::HTTPSIG_CONFIGS_PATH;
 
-pub fn ex() {
-  println!("Hello, world!");
-}
-
 #[derive(Clone, Debug)]
 /// HTTP message signatures enabled domain information
 pub struct HttpSigDomainInfo {
@@ -35,13 +31,18 @@ impl HttpSigDomainInfo {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use minisign_verify::{PublicKey, Signature};
 
   #[test]
   fn it_works() {
+    let minisign_pk = "RWQm8wdk0lJP8AyGtShi96d72ZzkZnGX9gxR0F5EIWmMW2N25SDfzbrt";
     let file_path = std::path::PathBuf::from(".././.private/registry/httpsig-endpoints.md");
+    let file_path_minisig = std::path::PathBuf::from(".././.private/registry/httpsig-endpoints.md.minisig");
     let markdown_input = std::fs::read_to_string(file_path).unwrap();
+    let markdown_minisig_input = std::fs::read_to_string(file_path_minisig).unwrap();
     let parsed = parse_md::parse_md(markdown_input);
     println!("{:#?}", parsed);
-    ex();
+
+    let pk = PublicKey::decode(minisign_pk).unwrap();
   }
 }

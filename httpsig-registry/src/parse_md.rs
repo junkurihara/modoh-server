@@ -3,7 +3,7 @@ use indexmap::IndexMap;
 use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 use std::borrow::Cow;
 
-/// Parse the markdown
+/// Parse the markdown and convert it to a vector of HttpSigDomainInfo
 pub(crate) fn parse_md<'a, T: Into<Cow<'a, str>>>(markdown_input: T) -> Vec<HttpSigDomainInfo> {
   let markdown_input = markdown_input.into();
   let parser = Parser::new(markdown_input.as_ref());

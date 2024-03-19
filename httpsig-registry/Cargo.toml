@@ -18,3 +18,4 @@ thiserror = { version = "1.0.58" }
 pulldown-cmark = { version = "0.10.0", default-features = false }
 http = { version = "1.1.0" }
 indexmap = { version = "2.2.5" }
+minisign-verify = { version = "0.2.1" }
