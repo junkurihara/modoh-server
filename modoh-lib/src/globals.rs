@@ -118,7 +118,7 @@ pub struct HttpSigConfig {
   /// Public key rotation period for Diffie-Hellman key exchange, in seconds.
   pub key_rotation_period: Duration,
   /// List of HTTP message signatures enabled domains, which expose public keys
-  pub enabled_domains: Vec<HttpSigDomainInfo>,
+  pub enabled_domains: Vec<HttpSigDomain>,
   /// List of registries of HTTP message signatures enabled domains and public keys for minisign verification.
   pub enabled_domains_registry: Vec<HttpSigRegistry>,
 
@@ -155,25 +155,18 @@ impl Default for HttpSigConfig {
 }
 
 #[derive(Clone, Debug)]
-/// HTTP message signatures enabled domain information
-pub struct HttpSigDomainInfo {
-  /// Configs endpoint
-  pub configs_endpoint_uri: http::Uri,
-  /// Domain name
-  pub dh_signing_target_domain: String,
+/// HTTP message signatures enabled domain registry
+pub struct HttpSigDomain {
+  pub configs_endpoint_domain: String,
+  pub dh_signing_target_domain: Option<String>,
 }
 
-impl HttpSigDomainInfo {
-  /// Create a new HttpSigDomainInfo
-  pub fn new(configs_endpoint_domain: String, dh_signing_target_domain: Option<String>) -> Self {
-    let configs_endpoint_uri: http::Uri = format!("https://{}{}", configs_endpoint_domain, HTTPSIG_CONFIGS_PATH)
-      .parse()
-      .unwrap();
-    let dh_signing_target_domain =
-      dh_signing_target_domain.unwrap_or_else(|| configs_endpoint_uri.authority().unwrap().to_string());
+impl HttpSigDomain {
+  /// Create a new HttpSigDomain
+  pub fn new(configs_endpoint_domain: &str, dh_signing_target_domain: Option<&str>) -> Self {
     Self {
-      configs_endpoint_uri,
-      dh_signing_target_domain,
+      configs_endpoint_domain: configs_endpoint_domain.to_string(),
+      dh_signing_target_domain: dh_signing_target_domain.map(|s| s.to_string()),
     }
   }
 }

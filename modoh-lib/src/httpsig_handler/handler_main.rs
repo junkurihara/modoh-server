@@ -8,7 +8,7 @@ use crate::{
     HTTPSIG_CUSTOM_SIGNED_WITH_STALE_KEY, HTTPSIG_EXP_DURATION_SEC,
   },
   error::*,
-  globals::{Globals, HttpSigDomainInfo},
+  globals::Globals,
   hyper_body::{full, BoxBody, IncomingOr},
   hyper_client::HttpClient,
   trace::*,
@@ -18,6 +18,7 @@ use http::Request;
 use httpsig::prelude::*;
 use httpsig_hyper::*;
 use httpsig_proto::{DeriveSessionKey, SessionKeyNonce};
+use httpsig_registry::HttpSigDomainInfo;
 use hyper::body::Body;
 use hyper_util::client::legacy::connect::Connect;
 use indexmap::IndexMap;
@@ -102,7 +103,15 @@ where
       .httpsig
       .as_ref()
       .ok_or(MODoHError::BuildHttpSigHandlerError)?;
-    let targets_info = httpsig_config.enabled_domains.clone();
+
+    // TODO: registryとベタ書きのdomainの情報を統合するロジックの実装
+    // TODO: 一発目はtry_newの中で。それ以降、periodic updateをかけるようにする。
+    let targets_info = httpsig_config
+      .enabled_domains
+      .iter()
+      .map(|v| HttpSigDomainInfo::new(v.configs_endpoint_domain.as_str(), v.dh_signing_target_domain.clone()))
+      .collect::<Vec<_>>();
+
     let refetch_period = httpsig_config.refetch_period;
     let previous_dh_public_keys_gen = httpsig_config.previous_dh_public_keys_gen;
     let generation_transition_margin = httpsig_config.generation_transition_margin;

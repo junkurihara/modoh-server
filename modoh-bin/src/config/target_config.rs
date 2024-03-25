@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use hot_reload::{Reload, ReloaderError};
 use ipnet::IpNet;
 use modoh_server_lib::{
-  AccessConfig, HttpSigConfig, HttpSigDomainInfo, HttpSigRegistry, ServiceConfig, ValidationConfig, ValidationConfigInner,
+  AccessConfig, HttpSigConfig, HttpSigDomain, HttpSigRegistry, ServiceConfig, ValidationConfig, ValidationConfigInner,
 };
 use std::{
   fs::read_to_string,
@@ -220,12 +220,7 @@ impl TryInto<ServiceConfig> for &TargetConfig {
         if let Some(enabled_domains) = &httpsig.enabled_domains {
           let enabled_domains = enabled_domains
             .iter()
-            .map(|domain| {
-              HttpSigDomainInfo::new(
-                domain.configs_endpoint_domain.clone(),
-                domain.dh_signing_target_domain.clone(),
-              )
-            })
+            .map(|domain| HttpSigDomain::new(&domain.configs_endpoint_domain, domain.dh_signing_target_domain.as_deref()))
             .collect();
           httpsig_config.enabled_domains = enabled_domains;
         }
@@ -240,7 +235,11 @@ impl TryInto<ServiceConfig> for &TargetConfig {
         }
         info!(
           "Set HttpSig-enabled targeted domains registry: {:#?}",
-          httpsig_config.enabled_domains_registry
+          httpsig_config
+            .enabled_domains_registry
+            .iter()
+            .map(|r| r.md_url.as_str())
+            .collect::<Vec<_>>()
         );
 
         if let Some(false) = httpsig.accept_previous_dh_public_keys {

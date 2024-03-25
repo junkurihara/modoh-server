@@ -1,8 +1,9 @@
 use super::HttpSigKeyRotationState;
-use crate::{globals::HttpSigDomainInfo, trace::*};
+use crate::trace::*;
 use cedarwood::Cedar;
 use httpsig::prelude::{PublicKey as RawPublicKey, SecretKey as RawSecretKey, SigningKey, VerifyingKey};
 use httpsig_proto::{DeriveKeyId, HmacSha256HkdfSha256, HttpSigConfigContents, HttpSigKeyPair, KemKdfDerivedSecret};
+use httpsig_registry::HttpSigDomainInfo;
 use indexmap::IndexMap;
 use regex::Regex;
 use rustc_hash::FxHashMap as HashMap;
