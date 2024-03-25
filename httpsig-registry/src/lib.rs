@@ -7,6 +7,7 @@ use crate::{constants::HTTPSIG_CONFIGS_PATH, error::ModohRegistryError};
 use minisign_verify::{PublicKey, Signature};
 use std::{borrow::Cow, str::FromStr};
 
+/* ------------------------------------------------ */
 #[derive(Clone, Debug)]
 /// HTTP message signatures enabled domain information
 pub struct HttpSigDomainInfo {
@@ -75,6 +76,7 @@ impl HttpSigDomainInfo {
   }
 }
 
+/* ------------------------------------------------ */
 #[cfg(test)]
 mod tests {
   use super::*;

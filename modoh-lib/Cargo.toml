@@ -41,7 +41,7 @@ tokio = { version = "1.36.0", features = [
 anyhow = "1.0.81"
 tracing = "0.1.40"
 thiserror = "1.0.58"
-async-trait = "0.1.77"
+async-trait = "0.1.79"
 
 # http handling for both client and server
 url = "2.5.0"
@@ -77,7 +77,7 @@ serde_json = { version = "1.0.114" }
 # access control
 ipnet = { version = "2.9.0" }
 cedarwood = { version = "0.4.6" }
-regex = { version = "1.10.3" }
+regex = { version = "1.10.4" }
 
 # metrics
 opentelemetry = { version = "0.22.0", optional = true }
@@ -91,6 +91,6 @@ tracing-opentelemetry = { version = "0.23.0", optional = true }
 
 # httpsig
 httpsig-proto = { path = "../httpsig-wire-proto", default-features = false, package = "httpsig-proto" }
-indexmap = { version = "2.2.5" }
+indexmap = { version = "2.2.6" }
 httpsig = { version = "0.0.14" }
 httpsig-hyper = { version = "0.0.14" }
