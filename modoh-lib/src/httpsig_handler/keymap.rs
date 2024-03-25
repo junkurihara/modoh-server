@@ -293,6 +293,7 @@ impl OwnedPkTypeKeyPairs {
 }
 
 /* ------------------------------------------------ */
+#[allow(unused)]
 #[derive(Debug, Clone)]
 /// Key type with generation, where if generation == 0, it means the latest key
 enum KeyType {
@@ -505,7 +506,7 @@ mod tests {
   use super::*;
   #[test]
   fn test_target_domain_key_ids_map() {
-    let key_ids_map_current = vec![vec![
+    let key_ids_map_current = [vec![
       ("test_key_id_10".to_string(), "test.example.com".to_string()),
       ("test_key_id_11".to_string(), "test.example.com".to_string()),
       ("test_key_id_20".to_string(), "test.example.org".to_string()),

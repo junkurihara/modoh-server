@@ -468,9 +468,7 @@ where
     }
     let one_key_id_for_each_generation = available_key_ids.iter().map(|(gen, key_ids)| (gen, key_ids.first().unwrap()));
     let futs = one_key_id_for_each_generation.map(|(gen, key_id)| async move {
-      let Some(typed_key) = self.key_map_state.get_typed_key(key_id).await else {
-        return None;
-      };
+      let typed_key = self.key_map_state.get_typed_key(key_id).await?;
       let session_key_with_random_nonce = match typed_key {
         TypedKey::Dh(dh_key) => dh_key.inner.derive_session_key_with_random_nonce(&mut rand::thread_rng()),
         _ => return None,
