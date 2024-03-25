@@ -3,7 +3,9 @@ use crate::{error::*, trace::*};
 use async_trait::async_trait;
 use hot_reload::{Reload, ReloaderError};
 use ipnet::IpNet;
-use modoh_server_lib::{AccessConfig, HttpSigConfig, HttpSigDomainInfo, ServiceConfig, ValidationConfig, ValidationConfigInner};
+use modoh_server_lib::{
+  AccessConfig, HttpSigConfig, HttpSigDomainInfo, HttpSigRegistry, ServiceConfig, ValidationConfig, ValidationConfigInner,
+};
 use std::{
   fs::read_to_string,
   net::{IpAddr, SocketAddr},
@@ -228,6 +230,18 @@ impl TryInto<ServiceConfig> for &TargetConfig {
           httpsig_config.enabled_domains = enabled_domains;
         }
         info!("Set HttpSig-enabled targeted domains: {:#?}", httpsig_config.enabled_domains);
+
+        if let Some(enabled_domains_registry) = &httpsig.enabled_domains_registry {
+          let enabled_domains_registry = enabled_domains_registry
+            .iter()
+            .map(|registry| HttpSigRegistry::new(&registry.md_url, &registry.public_key))
+            .collect();
+          httpsig_config.enabled_domains_registry = enabled_domains_registry;
+        }
+        info!(
+          "Set HttpSig-enabled targeted domains registry: {:#?}",
+          httpsig_config.enabled_domains_registry
+        );
 
         if let Some(false) = httpsig.accept_previous_dh_public_keys {
           httpsig_config.previous_dh_public_keys_gen = 0;

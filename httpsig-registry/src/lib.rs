@@ -31,10 +31,11 @@ impl HttpSigDomainInfo {
   }
 
   /// Create a new HttpSigDomainInfo by fetching endpoint list in markdown format from `file://<abs_path>` or `https://<domain>/<path>`
-  pub async fn new_from_registry_md<'a, T1: Into<Cow<'a, str>>, T2: Into<Cow<'a, str>>>(
-    registry_uri: T1,
-    minisign_base64_pk: T2,
-  ) -> Result<Vec<Self>, ModohRegistryError> {
+  pub async fn new_from_registry_md<'a, T1, T2>(registry_uri: T1, minisign_base64_pk: T2) -> Result<Vec<Self>, ModohRegistryError>
+  where
+    T1: Into<Cow<'a, str>>,
+    T2: Into<Cow<'a, str>>,
+  {
     // let registry_uri = registry_uri.into();
     let reqwest_uri = reqwest::Url::from_str(&registry_uri.into()).map_err(|_| ModohRegistryError::FailToParseUrl)?;
     if !reqwest_uri.path().ends_with(".md") {

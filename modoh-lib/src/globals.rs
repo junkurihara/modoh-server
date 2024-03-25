@@ -119,6 +119,8 @@ pub struct HttpSigConfig {
   pub key_rotation_period: Duration,
   /// List of HTTP message signatures enabled domains, which expose public keys
   pub enabled_domains: Vec<HttpSigDomainInfo>,
+  /// List of registries of HTTP message signatures enabled domains and public keys for minisign verification.
+  pub enabled_domains_registry: Vec<HttpSigRegistry>,
 
   /// Refetch period for public keys
   pub refetch_period: Duration,
@@ -141,6 +143,7 @@ impl Default for HttpSigConfig {
       key_types: vec![HttpSigKeyTypes::default()],
       key_rotation_period: Duration::from_secs(HTTPSIG_KEY_ROTATION_PERIOD),
       enabled_domains: vec![],
+      enabled_domains_registry: vec![],
       refetch_period: Duration::from_secs(HTTPSIG_KEY_REFETCH_PERIOD),
       previous_dh_public_keys_gen: HTTPSIG_KEYS_STORE_PREVIOUS_COUNT,
       generation_transition_margin: HTTPSIG_KEYS_TRANSITION_MARGIN.min(HTTPSIG_KEYS_STORE_PREVIOUS_COUNT),
@@ -171,6 +174,26 @@ impl HttpSigDomainInfo {
     Self {
       configs_endpoint_uri,
       dh_signing_target_domain,
+    }
+  }
+}
+
+#[derive(Clone, Debug)]
+/// HTTP message signatures enabled domain registry
+pub struct HttpSigRegistry {
+  /// URL
+  pub md_url: url::Url,
+  /// Public key
+  pub public_key: String,
+}
+
+impl HttpSigRegistry {
+  /// Create a new HttpSigRegistry
+  pub fn new(md_url: &str, public_key: &str) -> Self {
+    let md_url = md_url.parse().unwrap();
+    Self {
+      md_url,
+      public_key: public_key.to_string(),
     }
   }
 }

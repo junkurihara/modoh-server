@@ -121,6 +121,11 @@ enabled_domains = [
   { configs_endpoint_domain = "modoh.example.org" },
 ]
 
+enabled_domains_registry = [
+  { md_url = "https://example.com/httpsig-endpoints.md", public_key = "minisign public key" },
+  # { md_url = "file:///path/to/httpsig-endpoints.md", public_key = "minisign public key" },
+]
+
 ## Accept signatures generated with previously exposed public keys for DHKex+HKDF+HMAC. (default = true)
 ## Considering the key rotation period, there exist a gap between the time when a new key is exposed and the time when other nodes fetch the new key.
 ## The new exposed key is not used at the external node for signing until the time when the new key is fetched.
