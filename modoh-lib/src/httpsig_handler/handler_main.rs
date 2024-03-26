@@ -106,6 +106,7 @@ where
 
     // TODO: registryとベタ書きのdomainの情報を統合するロジックの実装
     // TODO: 一発目はtry_newの中で。それ以降、periodic updateをかけるようにする。
+    // TODO: target domain filteringについても整合性を取れるようにしておかないとやばい
     let targets_info = httpsig_config
       .enabled_domains
       .iter()
