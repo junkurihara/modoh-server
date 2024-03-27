@@ -3,6 +3,7 @@ pub const HOSTNAME: &str = "localhost";
 pub const RELAY_PATH: &str = "/proxy";
 pub const TARGET_PATH: &str = "/dns-query";
 pub const ODOH_CONFIGS_PATH: &str = "/.well-known/odohconfigs";
+pub const HTTPSIG_CONFIGS_PATH: &str = "/.well-known/httpsigconfigs";
 
 pub const TCP_LISTEN_BACKLOG: u32 = 1024;
 pub const MAX_CLIENTS: usize = 1024;
@@ -53,6 +54,34 @@ pub const JWKS_REFETCH_DELAY_SEC: u64 = 300;
 pub const JWKS_REFETCH_TIMEOUT_SEC: u64 = 3;
 /// Expected maximum size of JWKS in bytes
 pub const EXPECTED_MAX_JWKS_SIZE: u64 = 1024 * 64;
+
+// Httpsig constants
+/// HTTP message signature key rotation period in seconds
+pub const HTTPSIG_KEY_ROTATION_PERIOD: u64 = 3600;
+/// HTTP message signature key refetch period in seconds
+pub const HTTPSIG_KEY_REFETCH_PERIOD: u64 = 60;
+/// Maximum number of previous keys to store for HTTP message signature
+/// This is just for handling the gap between the new key and the old keys for DHKex
+pub const HTTPSIG_KEYS_STORE_PREVIOUS_COUNT: usize = 1;
+/// Number/generations of past keys generating signatures simultaneously with the current key
+pub const HTTPSIG_KEYS_TRANSITION_MARGIN: usize = 1;
+/// HTTP request timeout for refetching httpsig configs
+pub const HTTPSIG_KEY_REFETCH_TIMEOUT_SEC: u64 = 3;
+/// User agent for refetching HTTP message signature keys
+pub const HTTPSIG_REFETCH_USER_AGENT: &str = "modoh-server";
+/// Default covered components for HTTP message signature
+pub const HTTPSIG_COVERED_COMPONENTS: &[&str] = &["@method", "content-type", "content-digest", "cache-control"];
+/// Custom signature name for HTTP message signature
+pub const HTTPSIG_CUSTOM_SIGNATURE_NAME: &str = "modoh-sig";
+/// Custom tag for `signed with my latest key` in HTTP message signature
+pub const HTTPSIG_CUSTOM_SIGNED_WITH_LATEST_KEY: &str = "modoh-sender-latest-key";
+/// Custom tag for `signed with my stale/previous key` in HTTP message signature
+pub const HTTPSIG_CUSTOM_SIGNED_WITH_STALE_KEY: &str = "modoh-sender-stale-key";
+/// Custom exp duration for HTTP message signature in seconds
+/// If the signature is expired, the receiver should not accept the message even if the signature is valid
+pub const HTTPSIG_EXP_DURATION_SEC: u64 = 1;
+/// Watch period for the registry of HTTP message signatures enabled domains, in seconds. Default is 5 minutes = 300 seconds
+pub const HTTPSIG_REGISTRY_WATCH_PERIOD_SEC: u64 = 300;
 
 #[cfg(feature = "evil-trace")]
 pub const EVIL_TRACE_HEADER_NAME: &str = "traceparent";

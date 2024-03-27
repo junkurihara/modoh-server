@@ -1,5 +1,6 @@
 use crate::{constants::*, count::RequestCount};
 use auth_validator::ValidationConfig;
+use httpsig_proto::HttpSigKeyTypes;
 use ipnet::IpNet;
 use std::{
   net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6},
@@ -99,6 +100,95 @@ pub struct AccessConfig {
   pub trusted_cdn_ip_addresses: Vec<IpNet>,
   /// Whether to trust previous hop reverse proxy
   pub trust_previous_hop: bool,
+  /// Httpsig configuration
+  pub httpsig: Option<HttpSigConfig>,
+}
+
+#[derive(Clone)]
+/// Configuration for HTTP message signatures, which is used to
+/// - verify if the incoming request is from one of the httpsig-enabled domains,
+/// - sign outgoing (relayed) requests when the next node is one of the httpsig-enabled domains.
+/// Note that Source IP address is prioritized over the signature verification.
+/// When the destination domain is not in the list, it is not signed and dispatched without signature.
+pub struct HttpSigConfig {
+  /// Public key types exposed at the `httpsigconfigs` endpoint.
+  /// - Public key, KEM and KDF types used for Diffie-Hellman key exchange for httpsig's hmac-sha256 signature.
+  /// - Public key types used for direct signature verification.
+  pub key_types: Vec<HttpSigKeyTypes>,
+  /// Public key rotation period for Diffie-Hellman key exchange, in seconds.
+  pub key_rotation_period: Duration,
+  /// List of HTTP message signatures enabled domains, which expose public keys
+  pub enabled_domains: Vec<HttpSigDomain>,
+  /// List of registries of HTTP message signatures enabled domains and public keys for minisign verification.
+  pub enabled_domains_registry: Vec<HttpSigRegistry>,
+
+  /// Refetch period for public keys
+  pub refetch_period: Duration,
+
+  /// Generations of previous dh public keys accepted to fill the gap of the key rotation period.
+  pub previous_dh_public_keys_gen: usize,
+  /// Number of generations of past keys generating signatures simultaneously with the current key.
+  pub generation_transition_margin: usize,
+  /// Force httpsig verification for all requests regardless of the source ip validation result.
+  pub force_verification: bool,
+  /// Ignore httpsig verification result and continue to serve the request. Useful for debugging.
+  pub ignore_verification_result: bool,
+  /// Ignore httpsig verification result and continue to serve the request, only if the source ip is allowed.
+  pub ignore_verification_result_for_allowed_source_ips: bool,
+}
+
+impl Default for HttpSigConfig {
+  fn default() -> Self {
+    Self {
+      key_types: vec![HttpSigKeyTypes::default()],
+      key_rotation_period: Duration::from_secs(HTTPSIG_KEY_ROTATION_PERIOD),
+      enabled_domains: vec![],
+      enabled_domains_registry: vec![],
+      refetch_period: Duration::from_secs(HTTPSIG_KEY_REFETCH_PERIOD),
+      previous_dh_public_keys_gen: HTTPSIG_KEYS_STORE_PREVIOUS_COUNT,
+      generation_transition_margin: HTTPSIG_KEYS_TRANSITION_MARGIN.min(HTTPSIG_KEYS_STORE_PREVIOUS_COUNT),
+      force_verification: false,
+      ignore_verification_result: false,
+      ignore_verification_result_for_allowed_source_ips: true,
+    }
+  }
+}
+
+#[derive(Clone, Debug)]
+/// HTTP message signatures enabled domain registry
+pub struct HttpSigDomain {
+  pub configs_endpoint_domain: String,
+  pub dh_signing_target_domain: Option<String>,
+}
+
+impl HttpSigDomain {
+  /// Create a new HttpSigDomain
+  pub fn new(configs_endpoint_domain: &str, dh_signing_target_domain: Option<&str>) -> Self {
+    Self {
+      configs_endpoint_domain: configs_endpoint_domain.to_string(),
+      dh_signing_target_domain: dh_signing_target_domain.map(|s| s.to_string()),
+    }
+  }
+}
+
+#[derive(Clone, Debug)]
+/// HTTP message signatures enabled domain registry
+pub struct HttpSigRegistry {
+  /// URL
+  pub md_url: url::Url,
+  /// Public key
+  pub public_key: String,
+}
+
+impl HttpSigRegistry {
+  /// Create a new HttpSigRegistry
+  pub fn new(md_url: &str, public_key: &str) -> Self {
+    let md_url = md_url.parse().unwrap();
+    Self {
+      md_url,
+      public_key: public_key.to_string(),
+    }
+  }
 }
 
 impl Default for ServiceConfig {

@@ -57,8 +57,7 @@ where
     }
 
     // assert that query pair contains targethost and targetpath
-    let (Some(targethost), Some(targetpath)) = (query_pairs.get(ODOH_TARGETHOST), query_pairs.get(ODOH_TARGETPATH))
-    else {
+    let (Some(targethost), Some(targetpath)) = (query_pairs.get(ODOH_TARGETHOST), query_pairs.get(ODOH_TARGETPATH)) else {
       return Err(HttpError::InvalidQueryParameter);
     };
 
@@ -127,10 +126,9 @@ mod tests {
     let url = Url::parse("https://example.com/proxy?targethost=example.com&targetpath=/dns-query").unwrap();
     assert!(is_looped(&url));
 
-    let url = Url::parse(
-      "https://example.com/proxy?targethost=example.com&targetpath=/&relayhost[1]=example.com&relaypath[1]=/proxy",
-    )
-    .unwrap();
+    let url =
+      Url::parse("https://example.com/proxy?targethost=example.com&targetpath=/&relayhost[1]=example.com&relaypath[1]=/proxy")
+        .unwrap();
     assert!(is_looped(&url));
 
     let url = Url::parse("https://example.com/proxy?targethost=example.com&targetpath=/dns-query&relayhost[1]=example.com&relaypath[1]=/proxy&relayhost[2]=example.com&relaypath[2]=/proxy").unwrap();
@@ -151,11 +149,7 @@ mod tests {
 
   #[test]
   fn test_build_next_hop_url() {
-    let runtime_handle = tokio::runtime::Builder::new_multi_thread()
-      .build()
-      .unwrap()
-      .handle()
-      .clone();
+    let runtime_handle = tokio::runtime::Builder::new_multi_thread().build().unwrap().handle().clone();
     let inner: InnerRelay<_, Incoming> = InnerRelay {
       inner: Arc::new(HttpClient::try_new(runtime_handle).unwrap()),
       request_headers: HeaderMap::new(),
@@ -163,6 +157,7 @@ mod tests {
       relay_path: "/proxy".to_string(),
       max_subseq_nodes: 3,
       request_filter: None,
+      httpsig_handler: None,
 
       #[cfg(feature = "metrics")]
       meters: Arc::new(crate::metrics::Meters::new()),
@@ -172,7 +167,10 @@ mod tests {
     let next_hop_url = inner.build_nexthop_url(&url).unwrap();
     assert_eq!(next_hop_url.as_str(), "https://example1.com/dns-query");
 
-    let url = Url::parse("https://example1.com/proxy?targethost=example2.com&targetpath=/dns-query&relayhost[1]=example3.com&relaypath[1]=/proxy").unwrap();
+    let url = Url::parse(
+      "https://example1.com/proxy?targethost=example2.com&targetpath=/dns-query&relayhost[1]=example3.com&relaypath[1]=/proxy",
+    )
+    .unwrap();
     let next_hop_url = inner.build_nexthop_url(&url).unwrap();
     assert_eq!(
       next_hop_url.as_str(),

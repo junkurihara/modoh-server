@@ -2,6 +2,7 @@ mod constants;
 mod count;
 mod error;
 mod globals;
+mod httpsig_handler;
 mod hyper_body;
 mod hyper_client;
 mod hyper_executor;
@@ -26,7 +27,7 @@ use hyper_util::server::{self, conn::auto::Builder as ConnectionBuilder};
 use std::sync::Arc;
 
 pub use auth_validator::{ValidationConfig, ValidationConfigInner};
-pub use globals::{AccessConfig, ServiceConfig};
+pub use globals::{AccessConfig, HttpSigConfig, HttpSigDomain, HttpSigRegistry, ServiceConfig};
 
 /// Entry point of the relay
 pub async fn entrypoint(

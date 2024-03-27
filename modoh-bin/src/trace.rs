@@ -10,7 +10,7 @@ use tracing_opentelemetry::OpenTelemetryLayer;
 #[cfg(feature = "otel-metrics")]
 use crate::otel::init_meter_provider;
 #[cfg(feature = "otel-metrics")]
-use opentelemetry_sdk::metrics::MeterProvider;
+use opentelemetry_sdk::metrics::SdkMeterProvider;
 
 /// Initialize tracing subscriber
 pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>) -> MetricsGuard {
@@ -98,7 +98,7 @@ pub(crate) struct OtelConfig<T> {
 /// Guard for opentelemetry metrics
 pub struct MetricsGuard {
   #[cfg(feature = "otel-metrics")]
-  pub meter_provider: Option<MeterProvider>,
+  pub meter_provider: Option<SdkMeterProvider>,
 }
 
 #[cfg(feature = "otel-metrics")]

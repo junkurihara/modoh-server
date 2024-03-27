@@ -21,8 +21,22 @@ pub enum MODoHError {
   BuildRelayError,
   #[error("Failed to build target")]
   BuildTargetError,
+  #[error("Failed to build httpsig handler")]
+  BuildHttpSigHandlerError,
+  #[error("Fialed to fetch httpsig public keys: {0}")]
+  FetchHttpsigConfigsError(String),
   #[error("Failed to build odoh config")]
   ODoHConfigError(#[from] odoh_rs::Error),
+  #[error("Failed to build httpsig config")]
+  HttpSigConfigError(#[from] httpsig_proto::HttpSigError),
+  #[error("Hyper HTTP message signature error")]
+  HyperHttpSigError(#[from] httpsig_hyper::HyperSigError),
+  #[error("Failed to compute HTTP message signature: {0}")]
+  HttpSigComputeError(String),
+  #[error("Failed to verify HTTP message signature: {0}")]
+  HttpSigVerificationError(String),
+  #[error("No DH key found")]
+  NoDHKeyFound,
   #[error(transparent)]
   Other(#[from] anyhow::Error),
 }
@@ -108,6 +122,9 @@ pub enum HttpError {
   #[error("Forbidden destination domain: {0}")]
   ForbiddenDomain(String),
 
+  #[error("HttpSig singning error: {0}")]
+  HttpSigSigningError(String),
+
   #[error(transparent)]
   Other(#[from] anyhow::Error),
 }
@@ -154,6 +171,8 @@ impl From<HttpError> for StatusCode {
       HttpError::InvalidToken => StatusCode::UNAUTHORIZED,
       HttpError::ForbiddenSourceAddress(_) => StatusCode::FORBIDDEN,
       HttpError::ForbiddenDomain(_) => StatusCode::FORBIDDEN,
+
+      HttpError::HttpSigSigningError(_) => StatusCode::INTERNAL_SERVER_ERROR,
 
       HttpError::InvalidForwardedHeader(_) => StatusCode::BAD_REQUEST,
 

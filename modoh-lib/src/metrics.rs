@@ -14,10 +14,18 @@ pub(crate) struct Meters {
   pub(crate) query_odoh_configs: Counter<u64>,
   /// counter for query odoh_configs error
   pub(crate) query_odoh_configs_result_error: Counter<u64>,
+  /// counter for query httpsig_configs
+  pub(crate) query_httpsig_configs: Counter<u64>,
+  /// counter for query httpsig_configs error
+  pub(crate) query_httpsig_configs_result_error: Counter<u64>,
   /// counter for source ip access control execution
   pub(crate) src_ip_access_control: Counter<u64>,
   /// counter for rejection by source ip access control
   pub(crate) src_ip_access_control_result_rejected: Counter<u64>,
+  /// counter for httpsig verification
+  pub(crate) httpsig_verification: Counter<u64>,
+  /// counter for httpsig verification error
+  pub(crate) httpsig_verification_rejected: Counter<u64>,
   /// counter for anonymized/relaying query
   pub(crate) query_relaying: Counter<u64>,
   /// counter for token-validated anonymized/relaying query
@@ -81,6 +89,16 @@ impl Meters {
       .u64_counter("query_odoh_configs_result_error")
       .with_description("Count of queries for odoh_configs error")
       .init();
+
+    let query_httpsig_configs = meter
+      .u64_counter("query_httpsig_configs")
+      .with_description("Count of queries for httpsig_configs")
+      .init();
+    let query_httpsig_configs_result_error = meter
+      .u64_counter("query_httpsig_configs_result_error")
+      .with_description("Count of queries for httpsig_configs error")
+      .init();
+
     let src_ip_access_control = meter
       .u64_counter("src_ip_access_control")
       .with_description("Count of source ip access control execution")
@@ -89,6 +107,16 @@ impl Meters {
       .u64_counter("src_ip_access_control_result_rejected")
       .with_description("Count of rejection by source ip access control")
       .init();
+
+    let httpsig_verification = meter
+      .u64_counter("httpsig_verification")
+      .with_description("Count of httpsig verification")
+      .init();
+    let httpsig_verification_rejected = meter
+      .u64_counter("httpsig_verification_rejected")
+      .with_description("Count of rejection by httpsig verification")
+      .init();
+
     let query_relaying = meter
       .u64_counter("query_relaying")
       .with_description("Count of anonymized/relaying query")
@@ -173,8 +201,14 @@ impl Meters {
       query_odoh_configs,
       query_odoh_configs_result_error,
 
+      query_httpsig_configs,
+      query_httpsig_configs_result_error,
+
       src_ip_access_control,
       src_ip_access_control_result_rejected,
+
+      httpsig_verification,
+      httpsig_verification_rejected,
 
       query_relaying,
       query_token_validated_relaying,

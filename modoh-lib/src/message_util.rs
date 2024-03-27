@@ -138,10 +138,7 @@ mod tests {
       RequestType::from_str("application/oblivious-dns-message").unwrap(),
       RequestType::ODoH
     );
-    assert_eq!(
-      RequestType::from_str("application/dns-message").unwrap(),
-      RequestType::DoH
-    );
+    assert_eq!(RequestType::from_str("application/dns-message").unwrap(), RequestType::DoH);
     assert!(RequestType::from_str("application/oblivious-dns-message1").is_err());
     assert!(RequestType::from_str("application/dns-message1").is_err());
     assert!(RequestType::from_str("application/oblivious-dns-message1").is_err());
