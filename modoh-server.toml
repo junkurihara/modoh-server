@@ -110,6 +110,7 @@ key_rotation_period = 3600
 ## to directly verify public key signatures or to use Diffie-Hellman key exchange for hmac signature.
 ## Keys are periodically refetched from `/.well-known/httpsigconfigs` endpoints of the domains.
 ## (default = [])
+## Note that the for DHKex, the destination domain filtering is always bypassed for dh_signing_target_domain even if `allowd_destination_domains` does not coincide with `httpsig.enabled_domains`.
 enabled_domains = [
   ## In this example, httpsig configs are fetched from `https://httpsig.example.com/.well-known/httpsigconfigs` endpoint.
   ## Then, if the fetched configs contains ones for DH based signature, requests dispatched to `*.example.com` are signed with DH based signature.
@@ -121,6 +122,10 @@ enabled_domains = [
   { configs_endpoint_domain = "modoh.example.org" },
 ]
 
+## Registry of httpsig enabled domains with public keys, which are served at the given md_url.
+## For the served markdown file, minisign signature is served as a file `<markdown_name>.md.minisig`.
+## The httpsig enabled domains listed in the markdown file are periodically fetched and updated (default = 300 secs).
+## The fetched list is merged with the enabled_domains list.
 enabled_domains_registry = [
   { md_url = "https://example.com/httpsig-endpoints.md", public_key = "minisign public key" },
   # { md_url = "file:///path/to/httpsig-endpoints.md", public_key = "minisign public key" },

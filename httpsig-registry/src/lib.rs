@@ -109,7 +109,7 @@ mod tests {
     let res = HttpSigDomainInfo::new_from_registry_md(string_path, minisign_pk).await;
     println!("from file:\n{:#?}", res);
 
-    let https_path = "https://filedn.com/lVEKDQEKcCIhnH516GYdXu0/httpsig_test/httpsig-endpoints.md";
+    let https_path = "https://filedn.com/lVEKDQEKcCIhnH516GYdXu0/modoh_httpsig_dev/httpsig-endpoints.md";
     let res = HttpSigDomainInfo::new_from_registry_md(https_path, minisign_pk).await;
     println!("from https:\n{:#?}", res);
     assert!(res.is_ok());

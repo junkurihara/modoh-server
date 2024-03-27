@@ -80,6 +80,8 @@ pub const HTTPSIG_CUSTOM_SIGNED_WITH_STALE_KEY: &str = "modoh-sender-stale-key";
 /// Custom exp duration for HTTP message signature in seconds
 /// If the signature is expired, the receiver should not accept the message even if the signature is valid
 pub const HTTPSIG_EXP_DURATION_SEC: u64 = 1;
+/// Watch period for the registry of HTTP message signatures enabled domains, in seconds. Default is 5 minutes = 300 seconds
+pub const HTTPSIG_REGISTRY_WATCH_PERIOD_SEC: u64 = 300;
 
 #[cfg(feature = "evil-trace")]
 pub const EVIL_TRACE_HEADER_NAME: &str = "traceparent";

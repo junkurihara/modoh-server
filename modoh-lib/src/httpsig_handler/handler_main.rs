@@ -1,5 +1,6 @@
 use super::{
   keymap::{HttpSigKeyMapState, TypedKey},
+  target_domains::TargetDomains,
   HttpSigKeyRotationState,
 };
 use crate::{
@@ -18,7 +19,6 @@ use http::Request;
 use httpsig::prelude::*;
 use httpsig_hyper::*;
 use httpsig_proto::{DeriveSessionKey, SessionKeyNonce};
-use httpsig_registry::HttpSigDomainInfo;
 use hyper::body::Body;
 use hyper_util::client::legacy::connect::Connect;
 use indexmap::IndexMap;
@@ -56,8 +56,8 @@ where
   /// Service state for exposed httpsig public keys
   pub(super) key_rotation_state: Arc<HttpSigKeyRotationState>,
 
-  /// Public key fetcher target domains
-  pub(super) targets_info: Vec<HttpSigDomainInfo>,
+  /// Public key for DHKex, fetcher's target domains
+  pub(super) targets_info: Arc<TargetDomains>,
 
   // inner state and data structure updated by fetcher and used by router, target, relay
   pub(super) key_map_state: Arc<HttpSigKeyMapState>,
@@ -103,15 +103,7 @@ where
       .httpsig
       .as_ref()
       .ok_or(MODoHError::BuildHttpSigHandlerError)?;
-
-    // TODO: registryとベタ書きのdomainの情報を統合するロジックの実装
-    // TODO: 一発目はtry_newの中で。それ以降、periodic updateをかけるようにする。
-    // TODO: target domain filteringについても整合性を取れるようにしておかないとやばい
-    let targets_info = httpsig_config
-      .enabled_domains
-      .iter()
-      .map(|v| HttpSigDomainInfo::new(v.configs_endpoint_domain.as_str(), v.dh_signing_target_domain.clone()))
-      .collect::<Vec<_>>();
+    let targets_info = Arc::new(TargetDomains::try_new(httpsig_config).await?);
 
     let refetch_period = httpsig_config.refetch_period;
     let previous_dh_public_keys_gen = httpsig_config.previous_dh_public_keys_gen;
@@ -149,6 +141,18 @@ where
     globals
       .runtime_handle
       .spawn(async move { handler_clone.start_httpsig_rotation(term_notify).await.ok() });
+
+    // periodic fetcher for httpsig enabled domain registry
+    if !httpsig_config.enabled_domains_registry.is_empty() {
+      let handler_clone = handler.clone();
+      let term_notify = globals.term_notify.clone();
+      globals.runtime_handle.spawn(async move {
+        handler_clone
+          .start_watch_service_httpsig_enabled_domains(term_notify)
+          .await
+          .ok()
+      });
+    }
 
     // periodic fetcher for httpsig public keys
     let handler_clone = handler.clone();
@@ -462,17 +466,23 @@ where
     Ok(())
   }
 
-  #[instrument(name = "get_hmac_signing_key_by_domain", skip_all)]
-  /// **SigningAPI**: Get hmac keys for the given domain for latest and transitional generations
-  /// If found, derive the session key with random nonce.
-  pub(crate) async fn get_hmac_signing_key_by_domain(&self, domain: &str) -> Option<IndexMap<Generation, SessionKeyNonce>> {
-    let available_key_ids = self
+  #[instrument(name = "get_available_key_ids_for_hmac", skip_all)]
+  /// Get/Check available key ids for hmac signing for the given domain
+  pub(crate) async fn get_available_key_ids_for_hmac(&self, domain: &str) -> IndexMap<Generation, Vec<KeyId>> {
+    self
       .key_map_state
       .get_key_ids(domain)
       .await
       .into_iter()
       .filter(|(generation, key_ids)| *generation <= self.generation_transition_margin && !key_ids.is_empty())
-      .collect::<IndexMap<_, _>>();
+      .collect::<IndexMap<_, _>>()
+  }
+
+  #[instrument(name = "get_hmac_signing_key_by_domain", skip_all)]
+  /// **SigningAPI**: Get hmac keys for the given domain for latest and transitional generations
+  /// If found, derive the session key with random nonce.
+  pub(crate) async fn get_hmac_signing_key_by_domain(&self, domain: &str) -> Option<IndexMap<Generation, SessionKeyNonce>> {
+    let available_key_ids = self.get_available_key_ids_for_hmac(domain).await;
     if available_key_ids.is_empty() {
       return None;
     }
