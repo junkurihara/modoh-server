@@ -27,7 +27,7 @@ use hyper_util::server::{self, conn::auto::Builder as ConnectionBuilder};
 use std::sync::Arc;
 
 pub use auth_validator::{ValidationConfig, ValidationConfigInner};
-pub use globals::{AccessConfig, HttpSigConfig, HttpSigDomainInfo, ServiceConfig};
+pub use globals::{AccessConfig, HttpSigConfig, HttpSigDomain, HttpSigRegistry, ServiceConfig};
 
 /// Entry point of the relay
 pub async fn entrypoint(

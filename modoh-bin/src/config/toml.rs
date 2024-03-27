@@ -98,6 +98,8 @@ pub struct HttpSig {
   pub key_rotation_period: Option<u64>,
   /// List of HTTP message signatures enabled domains, which exposes public keys for Diffie-Hellman key exchange or directly for signature verification.
   pub enabled_domains: Option<Vec<HttpSigEnabledDomains>>,
+  /// Domain registry urls and public keys
+  pub enabled_domains_registry: Option<Vec<HttpSigEnabledDomainsRegistry>>,
   /// Accept previous DH public keys to fill the gap of the key rotation period.
   pub accept_previous_dh_public_keys: Option<bool>,
   /// Force httpsig verification for all requests regardless of the source ip validation result.
@@ -115,6 +117,14 @@ pub struct HttpSigEnabledDomains {
   pub configs_endpoint_domain: String,
   /// DH signing target domain
   pub dh_signing_target_domain: Option<String>,
+}
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
+/// Object with url and public_key
+pub struct HttpSigEnabledDomainsRegistry {
+  /// URL
+  pub md_url: String,
+  /// Public key
+  pub public_key: String,
 }
 
 impl ConfigToml {

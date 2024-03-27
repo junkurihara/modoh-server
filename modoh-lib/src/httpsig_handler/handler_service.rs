@@ -1,6 +1,6 @@
 use super::HttpSigKeysHandler;
 use crate::{
-  constants::{HTTPSIG_KEY_REFETCH_TIMEOUT_SEC, HTTPSIG_REFETCH_USER_AGENT},
+  constants::{HTTPSIG_KEY_REFETCH_TIMEOUT_SEC, HTTPSIG_REFETCH_USER_AGENT, HTTPSIG_REGISTRY_WATCH_PERIOD_SEC},
   error::*,
   hyper_body::IncomingOr,
   hyper_client::HttpClient,
@@ -72,6 +72,7 @@ where
     }
   }
 
+  /* ------------------------------------------------ */
   /// Start the periodic fetcher for httpsig public keys,
   pub(super) async fn start_httpsig_pk_fetcher_service(&self, term_notify: Option<Arc<Notify>>) -> Result<()> {
     info!("Start external httpsig config fetcher service");
@@ -114,17 +115,15 @@ where
   /// Fetch httpsig public keys from other servers
   /// If public keys for DH are included in fetched configs, derive shared secret keys as well.
   pub(super) async fn fetch_and_handle_httpsig_public_keys(&self) -> Result<()> {
-    let futures = self.targets_info.iter().map(|info| async {
+    let targets_info = self.targets_info.get_all().await;
+    let futures = targets_info.iter().map(|info| async {
       let config_endpoint_uri = info.configs_endpoint_uri.clone();
       let deserialized_configs = fetch_and_deserialize(&self.http_client, &config_endpoint_uri).await?;
       Ok(deserialized_configs) as Result<_>
     });
     let all_deserialized_configs = futures::future::join_all(futures).await;
 
-    let config_with_info = all_deserialized_configs
-      .iter()
-      .zip(self.targets_info.iter())
-      .collect::<Vec<_>>();
+    let config_with_info = all_deserialized_configs.iter().zip(targets_info.iter()).collect::<Vec<_>>();
     config_with_info.iter().for_each(|(deserialized, info)| {
       if deserialized.is_err() {
         error!(
@@ -146,6 +145,42 @@ where
       .update_with_new_external_configs(&self.key_rotation_state, &config_with_info)
       .await;
     Ok(())
+  }
+
+  /* ------------------------------------------------ */
+  /// Service to update HTTPSig enabled domains information by fetching from the registry
+  pub(super) async fn start_watch_service_httpsig_enabled_domains(&self, term_notify: Option<Arc<Notify>>) -> Result<()> {
+    info!("Start httpsig registry watch service");
+
+    match term_notify {
+      Some(term) => loop {
+        select! {
+          _ = self.registry_watcher_loop().fuse() => {
+            warn!("Watcher service for registry of httpsig enabled domains got down.");
+          }
+          _ = term.notified().fuse() => {
+            info!("Watcher service for registry receives the term signal");
+            break;
+          }
+        }
+      },
+      None => {
+        self.registry_watcher_loop().await?;
+        warn!("Watcher service for registry of httpsig enabled domains got down.");
+      }
+    }
+    Ok(())
+  }
+
+  /// Watcher loop for httpsig enabled domains registry
+  async fn registry_watcher_loop(&self) -> Result<()> {
+    let interval = Duration::from_secs(HTTPSIG_REGISTRY_WATCH_PERIOD_SEC);
+    loop {
+      sleep(interval).await;
+      info!("Watching httpsig registry for updates");
+
+      self.targets_info.update().await?;
+    }
   }
 }
 

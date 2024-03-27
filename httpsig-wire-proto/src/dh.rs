@@ -268,7 +268,7 @@ mod tests {
 
   #[test]
   fn test_derive_secret() {
-    let dh_types = vec![HttpSigDhTypes::Hs256DhP256HkdfSha256, HttpSigDhTypes::Hs256X25519HkdfSha256];
+    let dh_types = [HttpSigDhTypes::Hs256DhP256HkdfSha256, HttpSigDhTypes::Hs256X25519HkdfSha256];
     dh_types.iter().for_each(|t| {
       let alice_kp = t.generate_key_pair(&mut thread_rng());
       let bob_kp = t.generate_key_pair(&mut thread_rng());
@@ -289,7 +289,7 @@ mod tests {
 
   #[test]
   fn test_serialize_dh_config() {
-    let dh_types = vec![HttpSigDhTypes::Hs256DhP256HkdfSha256, HttpSigDhTypes::Hs256X25519HkdfSha256];
+    let dh_types = [HttpSigDhTypes::Hs256DhP256HkdfSha256, HttpSigDhTypes::Hs256X25519HkdfSha256];
     dh_types.iter().for_each(|t| {
       let kp = t.generate_key_pair(&mut thread_rng());
       let mut serialized_config = Vec::new();

@@ -105,29 +105,39 @@ where
     // next hop domain name check here
     // for authorized domains, maintain blacklist (error metrics) at each relay for given responses
     let nexthop_domain = nexthop_url.host_str().ok_or(HttpError::InvalidUrl)?;
-    let filter_result = self.request_filter.as_ref().and_then(|filter| {
-      #[cfg(feature = "metrics")]
-      self.meters.dst_domain_access_control.add(1_u64, &[]);
-
-      filter
-        .outbound_filter
-        .as_ref()
-        .map(|outbound| outbound.in_domain_list(nexthop_domain))
-    });
-    if let Some(res) = filter_result {
-      if !res {
-        debug!("Nexthop domain is filtered: {}", nexthop_domain);
-
+    let mut force_destination_filter = true;
+    if let Some(handler) = self.httpsig_handler.as_ref() {
+      // if next hop supports DHKex-HMAC, bypass filter (in other words, force_destination_filter = false)
+      force_destination_filter = handler.get_available_key_ids_for_hmac(nexthop_domain).await.is_empty();
+    };
+    // Execute destination domain access control
+    if force_destination_filter {
+      let filter_result = self.request_filter.as_ref().and_then(|filter| {
         #[cfg(feature = "metrics")]
-        self
-          .meters
-          .dst_domain_access_control_result_rejected
-          .add(1_u64, &[opentelemetry::KeyValue::new("domain", nexthop_domain.to_string())]);
+        self.meters.dst_domain_access_control.add(1_u64, &[]);
 
-        return Err(HttpError::ForbiddenDomain(nexthop_domain.to_string()));
+        filter
+          .outbound_filter
+          .as_ref()
+          .map(|outbound| outbound.in_domain_list(nexthop_domain))
+      });
+      if let Some(res) = filter_result {
+        if !res {
+          debug!("Nexthop domain is filtered: {}", nexthop_domain);
+
+          #[cfg(feature = "metrics")]
+          self
+            .meters
+            .dst_domain_access_control_result_rejected
+            .add(1_u64, &[opentelemetry::KeyValue::new("domain", nexthop_domain.to_string())]);
+
+          return Err(HttpError::ForbiddenDomain(nexthop_domain.to_string()));
+        }
+
+        debug!("Passed destination domain access control");
       }
-
-      debug!("Passed destination domain access control");
+    } else {
+      debug!("Bypassed destination domain access control");
     }
 
     // split request into parts and body to manipulate them later

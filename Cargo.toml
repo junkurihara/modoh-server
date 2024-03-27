@@ -28,7 +28,7 @@ edition = "2021"
 publish = false
 
 [workspace]
-members = ["modoh-bin", "modoh-lib", "httpsig-wire-proto"]
+members = ["modoh-bin", "modoh-lib", "httpsig-wire-proto", "httpsig-registry"]
 exclude = ["submodules/hyper-tls"]
 resolver = "2"
 
