@@ -85,8 +85,8 @@ mod tests {
   #[test]
   fn it_works() {
     let minisign_pk = "RWQm8wdk0lJP8AyGtShi96d72ZzkZnGX9gxR0F5EIWmMW2N25SDfzbrt";
-    let file_path = std::path::PathBuf::from("../.private/registry/httpsig-endpoints.md");
-    let file_path_minisig = std::path::PathBuf::from("../.private/registry/httpsig-endpoints.md.minisig");
+    let file_path = std::path::PathBuf::from("./registry-sample/httpsig-endpoints.md");
+    let file_path_minisig = std::path::PathBuf::from("./registry-sample/httpsig-endpoints.md.minisig");
     let markdown_input = std::fs::read_to_string(file_path).unwrap();
     let markdown_minisig_input = std::fs::read_to_string(file_path_minisig).unwrap();
     let pk = PublicKey::from_base64(minisign_pk).unwrap();
@@ -102,7 +102,7 @@ mod tests {
   async fn test_from_uri() {
     let minisign_pk = "RWQm8wdk0lJP8AyGtShi96d72ZzkZnGX9gxR0F5EIWmMW2N25SDfzbrt";
 
-    let abs_path = std::path::PathBuf::from("../.private/registry/httpsig-endpoints.md")
+    let abs_path = std::path::PathBuf::from("./registry-sample/httpsig-endpoints.md")
       .canonicalize()
       .unwrap();
     let string_path = format!("file://{}", abs_path.to_str().unwrap());
