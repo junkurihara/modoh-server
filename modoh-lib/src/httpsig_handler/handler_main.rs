@@ -103,7 +103,8 @@ where
       .httpsig
       .as_ref()
       .ok_or(MODoHError::BuildHttpSigHandlerError)?;
-    let targets_info = Arc::new(TargetDomains::try_new(httpsig_config).await?);
+    let my_host_excluded_to_fetch = globals.service_config.hostname.clone();
+    let targets_info = Arc::new(TargetDomains::try_new(httpsig_config, &my_host_excluded_to_fetch).await?);
 
     let refetch_period = httpsig_config.refetch_period;
     let previous_dh_public_keys_gen = httpsig_config.previous_dh_public_keys_gen;

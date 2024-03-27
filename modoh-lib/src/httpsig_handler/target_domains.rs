@@ -15,15 +15,25 @@ pub(super) struct TargetDomains {
   local: Vec<HttpSigDomain>,
   /// Registry list of domains info
   registry: Vec<HttpSigRegistry>,
+  /// My host that is excluded as config endpoint
+  my_host_name: String,
 }
 
 impl TargetDomains {
   /// Create a new TargetDomains instance with initially fetched domains info
-  pub(super) async fn try_new(httpsig_config: &HttpSigConfig) -> Result<Self> {
+  /// `my_host_excluded_config_endpoint` is the domain name of the host where the service is running,
+  /// which should be excluded from the fetched domains info. (Unable to fetch the public key of the host itself)
+  pub(super) async fn try_new(httpsig_config: &HttpSigConfig, my_host_excluded_config_endpoint: &str) -> Result<Self> {
     let local = httpsig_config.enabled_domains.clone();
     let registry = httpsig_config.enabled_domains_registry.clone();
+    let my_host_name = my_host_excluded_config_endpoint.to_string();
     let inner = RwLock::new(vec![]);
-    let self_ = Self { inner, local, registry };
+    let self_ = Self {
+      inner,
+      local,
+      registry,
+      my_host_name,
+    };
     self_.update().await?;
     Ok(self_)
   }
@@ -53,18 +63,19 @@ impl TargetDomains {
       .filter_map(|v| v.ok())
       .flatten()
       .map(|v| {
-        let info = v
+        let configs_endpoint_domain = v
           .configs_endpoint_uri
           .clone()
           .authority()
           .map(|v| v.to_string())
           .unwrap_or_default();
-        (info, v)
+        (configs_endpoint_domain, v)
       })
       .collect::<IndexMap<_, _>>();
 
-    // merge
+    // merge and exclude my_host
     inner_map.extend(fetched);
+    inner_map.swap_remove(&self.my_host_name);
 
     *self.inner.write().await = inner_map.into_iter().map(|(_, v)| v).collect();
     Ok(())
@@ -102,9 +113,22 @@ mod tests {
       }],
       ..Default::default()
     };
-    let target_domains = TargetDomains::try_new(&httpsig_config).await.unwrap();
+    let target_domains = TargetDomains::try_new(&httpsig_config, "modoh03.typeq.org").await.unwrap();
     let inner = target_domains.inner.read().await;
 
-    assert_eq!(inner.len(), 5);
+    assert_eq!(inner.len(), 4);
+    assert!(inner
+      .iter()
+      .any(|v| v.configs_endpoint_uri.host().unwrap() != "modoh01.typeq.org"));
+    assert!(inner
+      .iter()
+      .any(|v| v.configs_endpoint_uri.host().unwrap() != "modoh02.typeq.org"));
+    assert!(inner
+      .iter()
+      .any(|v| v.configs_endpoint_uri.host().unwrap() != "dnsauth.typeq.org"));
+    assert!(inner.iter().any(|v| v.configs_endpoint_uri.host().unwrap() != "example.com"));
+    assert!(inner
+      .iter()
+      .all(|v| v.configs_endpoint_uri.host().unwrap() != "modoh03.typeq.org"))
   }
 }
