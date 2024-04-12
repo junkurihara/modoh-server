@@ -13,7 +13,7 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
-anyhow = { version = "1.0.81" }
+anyhow = { version = "1.0.82" }
 thiserror = { version = "1.0.58" }
 pulldown-cmark = { version = "0.10.2", default-features = false }
 http = { version = "1.1.0" }

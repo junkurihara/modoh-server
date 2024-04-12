@@ -38,10 +38,10 @@ tokio = { version = "1.37.0", features = [
   "sync",
   "macros",
 ] }
-anyhow = "1.0.81"
+anyhow = "1.0.82"
 tracing = "0.1.40"
 thiserror = "1.0.58"
-async-trait = "0.1.79"
+async-trait = "0.1.80"
 
 # http handling for both client and server
 url = "2.5.0"
@@ -93,5 +93,5 @@ tracing-opentelemetry = { version = "0.23.0", optional = true }
 httpsig-proto = { path = "../httpsig-wire-proto", default-features = false, package = "httpsig-proto" }
 httpsig-registry = { path = "../httpsig-registry", default-features = false, package = "httpsig-registry" }
 indexmap = { version = "2.2.6" }
-httpsig = { version = "0.0.14" }
-httpsig-hyper = { version = "0.0.14" }
+httpsig = { version = "0.0.15" }
+httpsig-hyper = { version = "0.0.15" }

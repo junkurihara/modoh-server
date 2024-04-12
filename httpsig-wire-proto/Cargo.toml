@@ -13,7 +13,7 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
-anyhow = "1.0.81"
+anyhow = "1.0.82"
 thiserror = "1.0.58"
 rand = "0.8.5"
 hpke = "0.11.0"
@@ -25,4 +25,4 @@ ed25519-compact = { version = "2.1.1" }
 digest = "0.10.7"
 sha2 = "0.10.8"
 hkdf = "0.12.4"
-httpsig = "0.0.14"
+httpsig = "0.0.15"
