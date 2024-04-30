@@ -40,13 +40,13 @@ tokio = { version = "1.37.0", features = [
 ] }
 anyhow = "1.0.82"
 tracing = "0.1.40"
-thiserror = "1.0.58"
+thiserror = "1.0.59"
 async-trait = "0.1.80"
 
 # http handling for both client and server
 url = "2.5.0"
 rustc-hash = "1.1.0"
-hyper = { version = "1.2.0", default-features = false }
+hyper = { version = "1.3.1", default-features = false }
 http = "1.1.0"
 http-body-util = "0.1.1"
 hyper-util = { version = "0.1.3", features = ["full"] }
@@ -70,9 +70,9 @@ base64 = "0.22.0"
 byteorder = "1.5.0"
 
 # validation of id token
-serde = { version = "1.0.197", default-features = false }
+serde = { version = "1.0.199", default-features = false }
 auth-validator = { git = "https://github.com/junkurihara/rust-token-server", package = "rust-token-server-validator", branch = "develop" }
-serde_json = { version = "1.0.115" }
+serde_json = { version = "1.0.116" }
 
 # access control
 ipnet = { version = "2.9.0" }

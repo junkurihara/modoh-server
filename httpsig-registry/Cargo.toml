@@ -14,12 +14,12 @@ publish.workspace = true
 
 [dependencies]
 anyhow = { version = "1.0.82" }
-thiserror = { version = "1.0.58" }
-pulldown-cmark = { version = "0.10.2", default-features = false }
+thiserror = { version = "1.0.59" }
+pulldown-cmark = { version = "0.10.3", default-features = false }
 http = { version = "1.1.0" }
 indexmap = { version = "2.2.6" }
 minisign-verify = { version = "0.2.1" }
-reqwest = { version = "0.12.3", default-features = false, features = [
+reqwest = { version = "0.12.4", default-features = false, features = [
   "rustls-tls",
   "http2",
   "hickory-dns",
