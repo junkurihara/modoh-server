@@ -65,7 +65,7 @@ impl TryInto<ServiceConfig> for &TargetConfig {
     info!("Listening on {}", service_conf.listener_socket);
 
     if let Some(hostname) = &self.config_toml.hostname {
-      service_conf.hostname = hostname.clone();
+      service_conf.hostname.clone_from(hostname);
     }
     info!("Hostname: {}", service_conf.hostname);
 
@@ -76,7 +76,7 @@ impl TryInto<ServiceConfig> for &TargetConfig {
     if let Some(relay) = &self.config_toml.relay {
       info!("(M)ODoH relay enabled");
       if let Some(path) = &relay.path {
-        service_conf.relay.as_mut().unwrap().path = path.clone();
+        service_conf.relay.as_mut().unwrap().path.clone_from(path);
       }
       info!("Relay path: {}", service_conf.relay.as_ref().unwrap().path);
 
@@ -88,7 +88,12 @@ impl TryInto<ServiceConfig> for &TargetConfig {
         service_conf.relay.as_ref().unwrap().max_subseq_nodes
       );
       if let Some(http_user_agent) = &relay.forwarder_user_agent {
-        service_conf.relay.as_mut().unwrap().http_user_agent = http_user_agent.clone();
+        service_conf
+          .relay
+          .as_mut()
+          .unwrap()
+          .http_user_agent
+          .clone_from(http_user_agent);
       }
       info!(
         "Relay http user agent: {}",
@@ -100,7 +105,7 @@ impl TryInto<ServiceConfig> for &TargetConfig {
     if let Some(target) = &self.config_toml.target {
       info!("(M)ODoH target enabled");
       if let Some(path) = &target.path {
-        service_conf.target.as_mut().unwrap().path = path.clone();
+        service_conf.target.as_mut().unwrap().path.clone_from(path);
       }
       info!("Target path: {}", service_conf.target.as_ref().unwrap().path);
 
