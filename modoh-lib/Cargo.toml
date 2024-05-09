@@ -38,9 +38,9 @@ tokio = { version = "1.37.0", features = [
   "sync",
   "macros",
 ] }
-anyhow = "1.0.82"
+anyhow = "1.0.83"
 tracing = "0.1.40"
-thiserror = "1.0.59"
+thiserror = "1.0.60"
 async-trait = "0.1.80"
 
 # http handling for both client and server
@@ -66,13 +66,13 @@ hyper-rustls = { version = "0.27.1", default-features = false, features = [
 # modoh target handling
 odoh-rs = { git = "https://github.com/junkurihara/odoh-rs" }
 rand = "0.8.5"
-base64 = "0.22.0"
+base64 = "0.22.1"
 byteorder = "1.5.0"
 
 # validation of id token
-serde = { version = "1.0.199", default-features = false }
+serde = { version = "1.0.201", default-features = false }
 auth-validator = { git = "https://github.com/junkurihara/rust-token-server", package = "rust-token-server-validator", branch = "develop" }
-serde_json = { version = "1.0.116" }
+serde_json = { version = "1.0.117" }
 
 # access control
 ipnet = { version = "2.9.0" }
