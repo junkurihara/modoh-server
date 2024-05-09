@@ -88,7 +88,11 @@ allowed_destination_domains = ["example.com", "example.net", "*.example.org"]
 ## - verify if the incoming request is from one of the httpsig-enabled domains,
 ## - sign outgoing (relayed) requests when the next node is one of the httpsig-enabled domains.
 ## Note that Source IP address is prioritized over the signature verification.
-## When the destination domain is not in the list, it is not signed and dispatched without signature.
+## The signed request is dispatched to the next hop when the destination domain is in the `allowed_destination_domains` (with public key-based signature)
+## or it supports DHKex-based signature (with DHKex-based signature) since it explicitly specify the destination in the config.
+## If you need to sign the request for any destination domains with public key-based signature, you should make the `allowed_destination_domains` to be empty.
+## Note that in such a case, no signature is appended to the outgoing request when public-key-based signature is unavailable
+## and the destination domain does not support DHKex-based signature.
 ## If [access.httpsig] is not specified, the signature verification is not performed, and public key is not served at endpoint.
 [access.httpsig]
 ## Key types used for httpsig verification
