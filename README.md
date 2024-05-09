@@ -26,7 +26,7 @@ Here is an example of the network architecture of &mu;ODoH.
 
 The &mu;ODoH network consists of &mu;ODoH client ([`doh-auth-proxy`](https://github.com/junkurihara/doh-auth-proxy)), &mu;ODoH relay and target servers(`modoh-server`), and supplementary authentication server ([`rust-token-server`](https://github.com/junkurihara/rust-token-server)). Note that when there exist two `modoh-server`, i.e., single relay and single target available, it exactly coincides with ODoH.
 
-`modoh-server` supplementary provides several access control functions for incoming and outgoing HTTP requests: For incoming requests, it provides (1) client authentication by Bearer token and (2) acceptance of pre-authorized previous relays by their source IP addresses; For outgoing requests, it enforces (3) filtering requests by pre-authorized target domains. Both for incoming and outgoing requests from/to other relays, (4) it validates the source by the HTTP message signature [RFC9421](https://datatracker.ietf.org/doc/rfc9421/) and allows to dispatch only when the HTTP signature-enabled domains. To enable the (1) client authentication, the `rust-token-server` must be configured and deployed on the Internet in addition to `modoh-server`. Also note that statically pre-configured (2) allowed source addresses and (3) allowed destination domains are prioritized over (4) HTTP signature-based operations.
+`modoh-server` supplementary provides several access control functions for incoming and outgoing HTTP requests: For incoming requests, it provides (1) client authentication by Bearer token and (2) acceptance of pre-authorized previous relays by their source IP addresses; For outgoing requests, it enforces (3) filtering requests by pre-authorized target domains. Both for incoming and outgoing requests from/to other relays, (4) it validates the source by the HTTP message signature ([RFC9421](https://datatracker.ietf.org/doc/rfc9421/)) and allows to dispatch only when the HTTP signature-enabled domains. To enable the (1) client authentication, the `rust-token-server` must be configured and deployed on the Internet in addition to `modoh-server`. Also note that statically pre-configured (2) allowed source addresses and (3) allowed destination domains are prioritized over (4) HTTP signature-based operations.
 
 ## Installing/Building an Executable Binary
 
@@ -288,6 +288,12 @@ allowed_destination_domains = ["example.com", "example.net", "*.example.org"]
 ```
 
 ### Configuration of HTTP Message Signature-based Authentication for Incoming and Outgoing Requests
+
+The access control mechanisms based on source IP addresses and destination domains must be pre-configured in the configuration file in a static manner, which means that all relays and targets must updates their configuration files whenever a new allowed node joins. This becomes really inconvenient as the network of &mu;ODoH expands. Thus, in addition to the static configuration, the `modoh-server` leverages the brand-new IETF-standardized *HTTP message signature* ([RFC9421](https://datatracker.ietf.org/doc/rfc9421/)) to realize the dynamic updates of access control configurations.
+
+<!-- Both for incoming and outgoing requests from/to other relays, (4) it validates the source by and allows to dispatch only when the HTTP signature-enabled domains. To enable the (1) client authentication, the `rust-token-server` must be configured and deployed on the Internet in addition to `modoh-server`. Also note that statically pre-configured (2) allowed source addresses and (3) allowed destination domains are prioritized over (4) HTTP signature-based operations. -->
+
+The full configuration options are given as follows.
 
 ```toml
 ## Configuration for HTTP message signatures, which is used to
