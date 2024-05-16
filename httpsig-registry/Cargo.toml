@@ -1,0 +1,37 @@
+[package]
+name = "httpsig-registry"
+description = "Handler for endpoints that serves wire-formatted HTTPSig public keys"
+version.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+categories.workspace = true
+keywords.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow = { version = "1.0.83" }
+thiserror = { version = "1.0.60" }
+pulldown-cmark = { version = "0.10.3", default-features = false }
+http = { version = "1.1.0" }
+indexmap = { version = "2.2.6" }
+minisign-verify = { version = "0.2.1" }
+reqwest = { version = "0.12.4", default-features = false, features = [
+  "rustls-tls",
+  "http2",
+  "hickory-dns",
+] }
+futures = { version = "0.3.30", default-features = false, features = [
+  "std",
+  "async-await",
+] }
+tokio = { version = "1.37.0", features = [
+  "net",
+  "rt-multi-thread",
+  "time",
+  "sync",
+  "macros",
+] }

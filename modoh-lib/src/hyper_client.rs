@@ -1,3 +1,4 @@
+#[allow(unused_imports)]
 use crate::{
   error::*,
   hyper_body::{BoxBody, IncomingOr},
@@ -33,10 +34,7 @@ where
 {
   #[instrument(level = "debug", name = "http_request", skip_all)]
   /// wrapper request fn
-  pub async fn request(
-    &self,
-    req: Request<B>,
-  ) -> std::result::Result<Response<Incoming>, hyper_util::client::legacy::Error> {
+  pub async fn request(&self, req: Request<B>) -> std::result::Result<Response<Incoming>, hyper_util::client::legacy::Error> {
     #[cfg(feature = "evil-trace")]
     {
       use crate::constants::{EVIL_TRACE_FLAGS, EVIL_TRACE_HEADER_NAME, EVIL_TRACE_VERSION};
@@ -57,10 +55,7 @@ where
         http::HeaderValue::from_str(&header_value).unwrap_or(http::HeaderValue::from_static("")),
       );
       debug!(
-        new_traceparent = headers
-          .get("traceparent")
-          .and_then(|v| v.to_str().ok())
-          .unwrap_or("none"),
+        new_traceparent = headers.get("traceparent").and_then(|v| v.to_str().ok()).unwrap_or("none"),
         "evil-trace enabled. send request with traceparent header."
       );
       self.inner.request(req).await

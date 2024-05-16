@@ -9,7 +9,8 @@ We have several container-specific environment variables, which doesn't relates 
 - `HOST_GID` (default: `900`): `GID` of `HOST_USER`
 - `LOG_LEVEL=debug|info|warn|error` (default: `info`): Log level
 - `LOG_TO_FILE=true|false` (default: `false`): Enable logging to the log file `/modoh/log/modoh-server.log` using `logrotate`. You should mount `/modoh/log` via docker volume option if enabled. The log dir and file will be owned by the `HOST_USER` with `HOST_UID:HOST_GID` on the host machine. Hence, `HOST_USER`, `HOST_UID` and `HOST_GID` should be the same as ones of the user who executes the `modoh-server` container on the host.
-- `OTEL_ENDPOINT`: If set, `--trace` and `--metrics` are enabled in the execute option. Set the gRPC endpoint of `opentelemetry-collector`.
+- `DISABLE_OTEL`: If explicitly set to `true`, `--trace` and `--metrics` are disabled in the execute option. (default: `false`)
+- `OTEL_ENDPOINT`: Set the gRPC endpoint of `opentelemetry-collector`. (default: `http://localhost:4317` but no collector is contained in the `modoh-server` docker container.)
 
 See [`./docker-compose.yml`](./docker-compose.yml) for the detailed configuration of the above environment variables.
 

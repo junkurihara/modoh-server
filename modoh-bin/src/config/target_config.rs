@@ -3,7 +3,9 @@ use crate::{error::*, trace::*};
 use async_trait::async_trait;
 use hot_reload::{Reload, ReloaderError};
 use ipnet::IpNet;
-use modoh_server_lib::{AccessConfig, ServiceConfig, ValidationConfig, ValidationConfigInner};
+use modoh_server_lib::{
+  AccessConfig, HttpSigConfig, HttpSigDomain, HttpSigRegistry, ServiceConfig, ValidationConfig, ValidationConfigInner,
+};
 use std::{
   fs::read_to_string,
   net::{IpAddr, SocketAddr},
@@ -32,8 +34,8 @@ impl Reload<TargetConfig> for ConfigReloader {
   }
 
   async fn reload(&self) -> Result<Option<TargetConfig>, ReloaderError<TargetConfig>> {
-    let config_toml = ConfigToml::new(&self.config_path)
-      .map_err(|_e| ReloaderError::<TargetConfig>::Reload("Failed to reload config toml"))?;
+    let config_toml =
+      ConfigToml::new(&self.config_path).map_err(|_e| ReloaderError::<TargetConfig>::Reload("Failed to reload config toml"))?;
 
     Ok(Some(TargetConfig { config_toml }))
   }
@@ -63,7 +65,7 @@ impl TryInto<ServiceConfig> for &TargetConfig {
     info!("Listening on {}", service_conf.listener_socket);
 
     if let Some(hostname) = &self.config_toml.hostname {
-      service_conf.hostname = hostname.clone();
+      service_conf.hostname.clone_from(hostname);
     }
     info!("Hostname: {}", service_conf.hostname);
 
@@ -74,7 +76,7 @@ impl TryInto<ServiceConfig> for &TargetConfig {
     if let Some(relay) = &self.config_toml.relay {
       info!("(M)ODoH relay enabled");
       if let Some(path) = &relay.path {
-        service_conf.relay.as_mut().unwrap().path = path.clone();
+        service_conf.relay.as_mut().unwrap().path.clone_from(path);
       }
       info!("Relay path: {}", service_conf.relay.as_ref().unwrap().path);
 
@@ -86,7 +88,12 @@ impl TryInto<ServiceConfig> for &TargetConfig {
         service_conf.relay.as_ref().unwrap().max_subseq_nodes
       );
       if let Some(http_user_agent) = &relay.forwarder_user_agent {
-        service_conf.relay.as_mut().unwrap().http_user_agent = http_user_agent.clone();
+        service_conf
+          .relay
+          .as_mut()
+          .unwrap()
+          .http_user_agent
+          .clone_from(http_user_agent);
       }
       info!(
         "Relay http user agent: {}",
@@ -98,7 +105,7 @@ impl TryInto<ServiceConfig> for &TargetConfig {
     if let Some(target) = &self.config_toml.target {
       info!("(M)ODoH target enabled");
       if let Some(path) = &target.path {
-        service_conf.target.as_mut().unwrap().path = path.clone();
+        service_conf.target.as_mut().unwrap().path.clone_from(path);
       }
       info!("Target path: {}", service_conf.target.as_ref().unwrap().path);
 
@@ -190,11 +197,94 @@ impl TryInto<ServiceConfig> for &TargetConfig {
         }
       }
 
+      let httpsig = if let Some(httpsig) = access.httpsig.as_ref() {
+        let mut httpsig_config = HttpSigConfig::default();
+        if let Some(key_types) = &httpsig.key_types {
+          let key_types = key_types
+            .iter()
+            .map(|s| s.as_str().try_into())
+            .collect::<Result<Vec<_>, _>>()?;
+          httpsig_config.key_types = key_types;
+        }
+        info!(
+          "Set available key types for HttpSig: {}",
+          httpsig_config
+            .key_types
+            .iter()
+            .map(|t| t.to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+        );
+        if let Some(key_rotation_period) = &httpsig.key_rotation_period {
+          httpsig_config.key_rotation_period = std::time::Duration::from_secs(*key_rotation_period);
+        }
+        info!(
+          "Set key rotation period for HttpSig: {}",
+          httpsig_config.key_rotation_period.as_secs()
+        );
+        if let Some(enabled_domains) = &httpsig.enabled_domains {
+          let enabled_domains = enabled_domains
+            .iter()
+            .map(|domain| HttpSigDomain::new(&domain.configs_endpoint_domain, domain.dh_signing_target_domain.as_deref()))
+            .collect();
+          httpsig_config.enabled_domains = enabled_domains;
+        }
+        info!("Set HttpSig-enabled targeted domains: {:#?}", httpsig_config.enabled_domains);
+
+        if let Some(enabled_domains_registry) = &httpsig.enabled_domains_registry {
+          let enabled_domains_registry = enabled_domains_registry
+            .iter()
+            .map(|registry| HttpSigRegistry::new(&registry.md_url, &registry.public_key))
+            .collect();
+          httpsig_config.enabled_domains_registry = enabled_domains_registry;
+        }
+        info!(
+          "Set HttpSig-enabled targeted domains registry: {:#?}",
+          httpsig_config
+            .enabled_domains_registry
+            .iter()
+            .map(|r| r.md_url.as_str())
+            .collect::<Vec<_>>()
+        );
+
+        if let Some(false) = httpsig.accept_previous_dh_public_keys {
+          httpsig_config.previous_dh_public_keys_gen = 0;
+        }
+        info!(
+          "Accept previous DH public keys to fill the gap of the key rotation period: {} generations",
+          httpsig_config.previous_dh_public_keys_gen
+        );
+
+        if let Some(force_verification) = httpsig.force_verification {
+          httpsig_config.force_verification = force_verification;
+          if force_verification {
+            info!("Force httpsig verification for all requests regardless of the source ip validation result");
+          }
+        }
+        if let Some(ignore_verification_result) = httpsig.ignore_verification_result {
+          httpsig_config.ignore_verification_result = ignore_verification_result;
+          if ignore_verification_result {
+            warn!("Ignore httpsig verification result and continue to serve the request.");
+          }
+        }
+        if let Some(ignore_verification_result_for_allowed_source_ips) = httpsig.ignore_verification_result_for_allowed_source_ips
+        {
+          httpsig_config.ignore_verification_result_for_allowed_source_ips = ignore_verification_result_for_allowed_source_ips;
+          if ignore_verification_result_for_allowed_source_ips {
+            warn!("Ignore httpsig verification result and continue to serve the request, only if the source ip is allowed.");
+          }
+        }
+        Some(httpsig_config)
+      } else {
+        None
+      };
+
       service_conf.access = Some(AccessConfig {
         allowed_source_ip_addresses: inner_ip,
         allowed_destination_domains: inner_domain,
         trusted_cdn_ip_addresses: inner_cdn_ip,
         trust_previous_hop,
+        httpsig,
       });
     };
 
