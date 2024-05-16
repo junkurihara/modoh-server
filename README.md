@@ -1,4 +1,4 @@
-# modoh-server
+# modoh-server: Relay and Target Server Implementation for Oblivious DNS over HTTPS (ODoH), ODoH-based Mutualized Oblivious DNS (&mu;ODoH), and Standard DoH.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Unit Test](https://github.com/junkurihara/modoh-server/actions/workflows/test.yml/badge.svg)
@@ -26,7 +26,7 @@ Here is an example of the network architecture of &mu;ODoH.
 
 The &mu;ODoH network consists of &mu;ODoH client ([`doh-auth-proxy`](https://github.com/junkurihara/doh-auth-proxy)), &mu;ODoH relay and target servers(`modoh-server`), and supplementary authentication server ([`rust-token-server`](https://github.com/junkurihara/rust-token-server)). Note that when there exist two `modoh-server`, i.e., single relay and single target available, it exactly coincides with ODoH.
 
-`modoh-server` supplementary provides several access control functions for incoming and outgoing HTTP requests: For incoming requests, it provides (1) client authentication by Bearer token and (2) acceptance of pre-authorized previous relays by their source IP addresses; For outgoing requests, it enforces (3) filtering requests by pre-authorized target domains. To enable the (1) client authentication, the `rust-token-server` must be configured and deployed on the Internet in addition to `modoh-server`.
+`modoh-server` supplementary provides several access control functions for incoming and outgoing HTTP requests: For incoming requests, it provides (1) client authentication by Bearer token and (2) acceptance of pre-authorized previous relays by their source IP addresses; For outgoing requests, it enforces (3) filtering requests by pre-authorized target domains. Both for incoming and outgoing requests from/to other relays, (4) it validates the source by the HTTP message signature ([RFC9421](https://datatracker.ietf.org/doc/rfc9421/)) and allows to dispatch only when the HTTP signature-enabled domains. To enable the (1) client authentication, the `rust-token-server` must be configured and deployed on the Internet in addition to `modoh-server`. Also note that statically pre-configured (2) allowed source addresses and (3) allowed destination domains are prioritized over (4) HTTP signature-based operations.
 
 ## Installing/Building an Executable Binary
 
@@ -88,7 +88,7 @@ At least, either one or both of `[relay]` and `[target]` directives must be spec
 
 `modoh-server` works as a target, i.e., a forwarder of DNS queries to upstream Do53 full-service resolver, with default parameters just by adding the following directive in `config.toml`.
 
-```toml:config.toml
+```toml
 [target]
 ```
 
@@ -139,7 +139,7 @@ t.co.                   300     IN      A       104.244.42.133
 
 The full configuration options for the target functionality are given as follows.
 
-```toml:config.toml
+```toml
 ## Target configuration
 [target]
 ## Target serving path [default: "/dns-query"]
@@ -162,7 +162,7 @@ min_ttl = 10
 
 Much like the previous example, the relay (proxy) functionality can be enabled with default parameters just by adding the following directive in `config.toml`.
 
-```toml:config.toml
+```toml
 [relay]
 ```
 
@@ -183,7 +183,7 @@ You can run `modoh-server` as a relay and check its logs as follows (only `[rela
 
 The full configuration options for the relay functionality are given as follows.
 
-```toml: config.toml
+```toml
 ## Relay configuration
 [relay]
 ## Relay serving path [default: "/proxy"]
@@ -200,7 +200,7 @@ max_subsequent_nodes = 3
 
 The default listen address and port are `0.0.0.0` and `8080`. To override these parameters, following top-level parameters needs to be specified.
 
-```toml:config.toml
+```toml
 ## Listen address [default: "0.0.0.0"]
 listen_address = "0.0.0.0"
 
@@ -210,7 +210,7 @@ listen_port = 8080
 
 Also the default hostname is `localhost`, which is used to check the header fo incoming HTTP request. *This should be adequately changed when deployed according to the configured domain* by setting the following top-level parameter.
 
-```toml:config.toml
+```toml
 ## Serving hostname [default: "localhost"]
 ## This will be used to check host header of incoming requests.
 hostname = "modoh.example.com"
@@ -226,7 +226,7 @@ For the secure deployment of `modoh-server`, the access control mechanisms shoul
 
 For the client authentication, we can use the Bearer token in HTTP Authorization header, which is issued by [`rust-token-server`](https://github.com/junkurihara/rust-token-server) in the context of OpenID Connect. The authentication through the token validation is configured in the `[validation]` directive in `config.toml` as follows.
 
-```toml:config.toml
+```toml
 ## Validation of source, typically user clients, using Id token
 [validation]
 
@@ -251,9 +251,9 @@ Note that *when the bearer token does not exist in the HTTP request header, the 
 
 ### Configuration of Pre-authorized Relays for Incoming Requests
 
-(Only) When the token validation is not configured or bypassed for requests without Authorization header, `modoh-server` can filters requests incoming from non-authorized nodes by their source IP addresses. The source IP filtering can be configured in `[access]` directive in `config.toml` as follows.
+(Only) When the token validation is not configured or bypassed for requests without Authorization header, `modoh-server` can filters requests incoming from non-authorized nodes by their source IP addresses or the HTTP message signatures if available. The source IP filtering can be configured in `[access]` directive in `config.toml` as follows.
 
-```toml:config.toml
+```toml
 ## Access control of source, typically relays, using source ip address and nexthop destination domain
 [access]
 ## Allowed source ip addrs
@@ -281,17 +281,175 @@ When the `modoh-server` instance uses CDNs, `trusted_cdn_ips` and/or `trusted_cd
 
 In &mu;ODoH, the request path to the target through relays is configured by the client itself. Hence, `modoh-server` can filter relaying requests outgoing to unauthorized domains to disallow &mu;ODoH queries to travel towards unexpected destinations and limit the possibility of DoS attacks to external domains. This can be configured in `[access]` directive as well as the source IP filtering in `config.toml`.
 
-```toml:config.toml
+```toml
 [access]
 ## Allowed next destination target and relay domains
 allowed_destination_domains = ["example.com", "example.net", "*.example.org"]
 ```
+
+### Configuration of HTTP Message Signature-based Authentication for Incoming and Outgoing Requests
+
+The access control mechanisms based on source IP addresses must be pre-configured in the configuration file in a static manner, which means that all relays and targets must updates their configuration files whenever a new allowed node joins or existing nodes changes their IP addresses. This becomes really inconvenient as the network of &mu;ODoH expands. Thus, in addition to the static list of source IP addresses, the `modoh-server` leverages the brand-new IETF-standardized *HTTP message signature* ([RFC9421](https://datatracker.ietf.org/doc/rfc9421/)) to realize the dynamic updates of source access control configurations independent of the IP addresses.
+
+For the HTTP message signature-based authentication, the `modoh-server` exposes its public key at the endpoint `/.well-known/httpsigconfigs` much like the `/.well-known/odohconfigs` endpoint for ODoH. Thus, to enable the HTTP message signature-based authentication, the reverse proxy in front of the `modoh-server` must be configured to allow the access to the `/.well-known/httpsigconfigs` endpoint. The `httpsigconfigs` is a series of public keys serialized in the same manner as the `odohconfigs`. The exposed keys are periodically rotated and refreshed. Currently, the following key types are supported:
+
+- `ed25519`, `es256` for public-key-based signature
+- `hs256-x25519-hkdf-sha256`, `hs256-p256-hkdf-sha256` for Diffie-Hellman key exchange (DHKex)-based signature
+
+Here, public-key-based signature means the simple solution directly using the exposed public key to verify the HTTP message signature. On the other hand, DHKex-based signature means the more complex one that uses the Diffie-Hellman key exchange to generate a shared secret key for HMAC signature. In particular, `hs256-x25519-hkdf-sha256` is a procedure that first generates a shared secret key using the x25519 key exchange by fetching the destination's exposed public key, and expands the shared key using HKDF-SHA256 (hkdf-sha256) to generate the HMAC-SHA256 (hs256) key for the signature. The key types are set in the `[access.httpsig.key_types]` directive in `config.toml`, and the keys.
+
+The `modoh-server` periodically fetches public keys for verification in public key-based signature and those for the HMAC key in signing and verification in DHKex-based signature from the `httpsigconfigs` endpoints of domains specified in `[access.httpsig.enabled_domains]` directive. The `enabled_domains_registry` can specified the endpoint serving the file containing the list of enabled domains.
+
+Note that for the destination domain that does not supports DHKex-based signature, no signature is appended to the outgoing request unless public-key-based signature is available in `key_types` directive.
+
+The full configuration options are given as follows.
+
+```toml
+## Configuration for HTTP message signatures, which is used to
+## - verify if the incoming request is from one of the httpsig-enabled domains,
+## - sign outgoing (relayed) requests when the next node is one of the httpsig-enabled domains.
+## Note that Source IP address is prioritized over the signature verification.
+## The signed request is dispathed to the next hop when the destination domain is in the `allowed_destination_domains` (with public key-based signature)
+## or it supports DHKex-based signature (with DHKex-based signature) since it explicitly specify the destination in the config.
+## If you need to sign the request for any destination domains with public key-based signature, you should make the `allowed_destination_domains` to be empty.
+## Note that in such a case, no signature is appended to the outgoing request when public-key-based signature is unavailable
+## and the destination domain does not support DHKex-based signature.
+## If [access.httpsig] is not specified, the signature verification is not performed, and public key is not served at endpoint.
+[access.httpsig]
+## Key types used for httpsig verification
+## - Asymmetric key for public-key-based signature like ed25519, ecdsa-p256-sha256 (es256).
+## - Diffie-Hellman key exchange for hmac-sha256 (hs256) signature.
+## These are automatically generated and exposed at `/.well-known/httpsigconfigs` endpoint.
+##   default = ["hs256-x25519-hkdf-sha256"],
+##   supported = "hs256-p256-hkdf-sha256" (h256 via ecdh), "hs256-x25519-hkdf-sha256" (h256 via ecdh), "ed25519", and "es256"
+## The DH key type is first used for signing only if available according to the target domain.
+## If not available for the domain, the public key type is used for signing if the type exists in the list.
+key_types = ["dhp256-hkdf-sha256", "x25519-hkdf-sha256"]
+
+## Public key rotation period in seconds.
+## Keys are periodically rotated and exposed to mitigate the risk of key compromise.
+## (default = 3600)
+key_rotation_period = 3600
+
+## List of HTTP message signatures enabled domains, which expose public keys
+## to directly verify public key signatures or to use Diffie-Hellman key exchange for hmac signature.
+## Keys are periodically refetched from `/.well-known/httpsigconfigs` endpoints of the domains.
+## (default = [])
+## Note that the for DHKex, the destination domain filtering is always bypassed for dh_signing_target_domain even if `allowd_destination_domains` does not coincide with `httpsig.enabled_domains`.
+enabled_domains = [
+  ## In this example, httpsig configs are fetched from `https://httpsig.example.com/.well-known/httpsigconfigs` endpoint.
+  ## Then, if the fetched configs contains ones for DH based signature, requests dispatched to `*.example.com` are signed with DH based signature.
+  ## For public key based signature, the fetched configs are used only to verify the incoming requests, `dh_signing_target_domain` is not used.
+  { configs_endpoint_domain = "httpsig.example.com", dh_signing_target_domain = "*.example.com" },
+  ## If only configs_endpoint_domain is specified, it is used for both fetching and DH signing target.
+  ## Namely the below is equivalent to `{ configs_endpoint_domain = "modoh.example.net", dh_signing_target_domain = "modoh.example.net" }`.
+  { configs_endpoint_domain = "modoh.example.net" },
+  { configs_endpoint_domain = "modoh.example.org" },
+]
+
+## Registry of httpsig enabled domains with public keys, which are served at the given md_url.
+## For the served markdown file, minisign signature is served as a file `<markdown_name>.md.minisig`.
+## The httpsig enabled domains listed in the markdown file are periodically fetched and updated (default = 300 secs).
+## The fetched list is merged with the enabled_domains list.
+enabled_domains_registry = [
+  { md_url = "https://example.com/httpsig-endpoints.md", public_key = "minisign public key" },
+  # { md_url = "file:///path/to/httpsig-endpoints.md", public_key = "minisign public key" },
+]
+
+## Accept signatures generated with previously exposed public keys for DHKex+HKDF+HMAC. (default = true)
+## Considering the key rotation period, there exist a gap between the time when a new key is exposed and the time when other nodes fetch the new key.
+## The new exposed key is not used at the external node for signing until the time when the new key is fetched.
+## This option accepts the signature generated with the previous key for the time gap.
+accept_previous_dh_public_keys = true
+
+## Force HTTP Signature verification for all requests unless the ID token is given in the http header (default = false)
+## By default (false), the signature verification is performed only when the source ip address is not in the allowed_source_ips list.
+force_verification = false
+
+## Always ignore the result of signature verification. (default = false)
+## By default (false), if the signature verification is failed for given key id, the request is immediately rejected.
+## If set to true, the signature verification is performed, but the request is always processed regardless of the result.
+## Usefull for debugging or testing.
+ignore_verification_result = false
+
+## By default, the signature verification is not performed for the requests from the allowed source ip addresses.
+## But if `force_verification` is set to true, the signature verification is performed for all requests.
+## This option is used to ignore the result of signature verification for the requests from the allowed source ip addresses.
+## In other words, requests from not-allowed source ip addresses are always rejected if the signature verification is failed.
+## Even if this is set to true, `ignore_verification_result` is evaluated independently.
+## (default = true, but not evaluated if `force_verification` is false)
+ignore_verification_result_for_allowed_source_ips = true
+```
+
+#### Dispatching Requests to the Next Hop
+
+Note that the pre-configured allow list of source IP addresses is prioritized over HTTP signature-based operations. Also, **the signed request is dispatched to the next hop if either one of the following conditions is satisfied**:
+
+- The destination domain is in the `allowed_destination_domains`
+- It supports DHKex-based signature (since it explicitly specifies the destination in the `enabled_domain` config.)
+
+If you need to sign the request for any destination domains, you should make the `allowed_destination_domains` to be empty or not to be specified.
+
+#### Public Key Rotation for HTTP Message Signatures
+
+Since the key rotation happens periodically, the verification fails if the pre-fetched public key is stale in both public key-based and DHKex-based signature. To mitigate this risk and fill the gap for the propagation of rotated keys, `modoh-server` always keeps the previous key pair (stale one) [^keystore] in addition to the fresh one, and it appends the *two signatures* in the header in outgoing requests:
+
+- Public key-based signature: Two signatures generated with the current and previous private keys. This allows the receiver to verify the signature with the previous key if the current key is not fetched yet.
+- DHKex-based signature: Two signatures generated with the DHKex shared secret derived from:
+
+  - The current public key and the stored target key
+  - The previous public key and the stored target key.
+
+  Since both the sender and receiver stores two generations of their own key pairs, this allows the receiver to verify the signature even if
+
+  - the sender stores the receiver's previous public key; and/or
+  - the receiver stores the sender's previous public key.
+
+[^keystore]: `modoh-server` keeps two generations of its own keys in the inner key store while it stores only the one generation of exposed public keys of other nodes specified in `enabled_domains`.
+
+#### DHKex-based Signature for HTTP Message Signatures
+
+Even if both DHKex and public key-based signatures are available, the DHKex-based signing are prioritized over the public key-based signing when the destination domain supports DHKex-based signature. The DHKex-based signature, i.e., `hs256-x25519-hkdf-sha256` or `hs256-p256-hkdf-sha256`, is generated by the HMAC-SHA256 (hs256) with the pre-computed HMAC key derived as follows.
+
+1. The sender fetches the public key of the destination domain from the `httpsigconfigs` endpoint.
+2. The sender generates a shared secret key `dh` using the x25519 key exchange (or ECDH with curve p256) with the fetched public key and its own secret key.
+3. The shared secret key `dh` is expanded using HKDF-SHA256 to generate the HMAC-SHA256 key `hmac_key` for the signature in the following manner:
+
+    ```plaintext
+    - skS: Sender private key
+    - pkS: Sender public key
+    - pkR: Receiver public key
+    - dh = DH(skS, pkR): Derived shared secret key
+
+    pkSm = SerializePublicKey(pkS)
+    pkRm = SerializePublicKey(pkR)
+
+    kem_context = pkSm XOR pkRm
+
+    hmac_key = ExtractAndExpand(dh, kem_context)
+    ```
+
+The third step follows *DH-based Key Encapsulation Mechanism in Hybrid Public Key Encryption* ([RFC9180, Section 4.1](https://www.rfc-editor.org/rfc/rfc9180.html#name-dh-based-kem-dhkem)). However, in the HPKE, the `kem_context` is generated by the concatenation of the serialized public keys of the sender and receiver, i.e., `kem_context = concat(pkSm, pkRm)`. On the other hand, in `modoh-server`, the `kem_context` is generated by the XOR operation of the serialized public keys of the sender and receiver. This is because in &mu;ODoH, the sender could be the receiver and vice versa unlike the server-client model in HPKE. Thus we need a commutative and associative operation for the `kem_context` generation. This change allows us the bidirectional signature generation between the sender and receiver.
+
+Also, in `modoh-server`, the sender and receiver keys are statically stored in their key store for the signature generation and verification, while the sender public and private key are always *ephemeral* in HPKE. This means that in `modoh-server`, the forward secrecy for the sender's private key cannot be guaranteed unlike HPKE [^hpke-forward-secrecy]. Thus, the exposed key rotation must be done periodically to mitigate the risk of key compromise.
+
+[^hpke-forward-secrecy]: In HPKE, the forward secrecy with respect to sender compromise is guaranteed by the ephemeral sender's public and private key pair. However, since the receiver's public key is static for the key exchange, the forward secrecy with respect to receiver compromise is not guaranteed. (See [RFC9180, Section 9.4.7](https://www.rfc-editor.org/rfc/rfc9180.html#name-forward-secrecy))
+
+From the deployment aspect, we prioritize the DHKex-based signature, i.e., HMAC signature, over the public key-based signature, ECDSA or EdDSA, since the signing and verification of the DHKex-based signature is much faster than the public key-based signature [^example-speed]. Since the DNS query and response must be exchanged as fast as possible in order to minimize the latency, we believe that the DHKex-based signature is the best choice for the &mu;ODoH deployment.
+
+[^example-speed]: In [the recent research on the signing and verifying performance in JWT](https://iopscience.iop.org/article/10.1088/1757-899X/550/1/012023/pdf), the HMAC-SHA256 is 4.5 times and 1.9 times faster than ECDSA with P-256 curve in signing and verifying, respectively.
+
+## Deployment using Docker
+
+See the [`./docker`](./docker) directory.
 
 ## Using Opentelemetry for Observability
 
 `modoh-server` provides the functionality to monitor traces and metrics for DevOps with [Opentelemetry](https://opentelemetry.io/). Namely, `modoh-server` can send traces and metrics to an [`opentelemetry-collector`](https://github.com/open-telemetry/opentelemetry-collector) endpoint via gRPC.
 
 To enable the observability options, start `modoh-server` with `--otel-trace` for traces and `--otel-metrics` for metrics. By default, the gRPC endpoint of `opentelemetry-collector` is `http://localhost:4317`, which can be overridden with `--otel-endpoint <ENDPOINT_URL>` option.
+
+The [`./docker-otel`](./docker-otel) directory contains an example architecture for observability based on `opentelemetry-collector`, metrics storage, visualizer, and analyzer containers.
 
 ## License
 

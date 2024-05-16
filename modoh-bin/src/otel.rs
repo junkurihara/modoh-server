@@ -13,7 +13,7 @@ use opentelemetry_sdk::trace::{BatchConfig, RandomIdGenerator, Sampler, Tracer};
 #[cfg(feature = "otel-metrics")]
 use opentelemetry_sdk::metrics::{
   reader::{DefaultAggregationSelector, DefaultTemporalitySelector},
-  Instrument, MeterProvider, PeriodicReader, Stream,
+  Instrument, PeriodicReader, SdkMeterProvider, Stream,
 };
 
 #[cfg(feature = "otel-metrics")]
@@ -41,8 +41,8 @@ where
 }
 
 #[cfg(feature = "otel-metrics")]
-/// Construct MeterProvider for MetricsLayer
-pub(crate) fn init_meter_provider<T>(otel_config: &OtelConfig<T>) -> MeterProvider
+/// Construct SdkMeterProvider for MetricsLayer
+pub(crate) fn init_meter_provider<T>(otel_config: &OtelConfig<T>) -> SdkMeterProvider
 where
   T: Into<String> + Clone,
   opentelemetry::Value: From<T>,
@@ -86,7 +86,7 @@ where
     }
   };
 
-  let meter_provider = MeterProvider::builder()
+  let meter_provider = SdkMeterProvider::builder()
     .with_resource(resource(otel_config))
     .with_reader(reader)
     .with_reader(stdout_reader)

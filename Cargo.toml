@@ -1,6 +1,34 @@
-[workspace]
+[workspace.package]
+version = "0.2.0"
+authors = ["Jun Kurihara"]
+homepage = "https://github.com/junkurihara/modoh-server"
+repository = "https://github.com/junkurihara/modoh-server"
+license = "MIT"
+readme = "./README.md"
+categories = [
+  "asynchronous",
+  "network-programming",
+  "command-line-utilities",
+  "web-programming::http-server",
+]
+keywords = [
+  "dns",
+  "https",
+  "dns-over-https",
+  "doh",
+  "oblivious-dns-over-https",
+  "odoh",
+  "mutualized-oblivious-dns",
+  "mutualized-odoh",
+  "modoh",
+  "relay",
+  "authorization",
+]
+edition = "2021"
+publish = false
 
-members = ["modoh-bin", "modoh-lib"]
+[workspace]
+members = ["modoh-bin", "modoh-lib", "httpsig-wire-proto", "httpsig-registry"]
 exclude = ["submodules/hyper-tls"]
 resolver = "2"
 

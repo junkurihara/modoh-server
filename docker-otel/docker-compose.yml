@@ -31,6 +31,7 @@ services:
     image: jaegertracing/all-in-one:latest
     container_name: jaeger
     restart: unless-stopped
+    command: ["--memory.max-traces", "4096"] # limits the memory used by the in-memory storage
     ports:
       - 127.0.0.1:16686:16686 # frontend
     expose:

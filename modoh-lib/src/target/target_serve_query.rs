@@ -1,8 +1,8 @@
 use super::{dns, target_main::build_http_response, InnerTarget};
 use crate::{
   constants::{
-    DNS_QUERY_PARAM, DOH_CONTENT_TYPE, MAX_DNS_QUESTION_LEN, MAX_DNS_RESPONSE_LEN, MIN_DNS_PACKET_LEN,
-    ODOH_CONTENT_TYPE, TARGET_UDP_TCP_RATIO,
+    DNS_QUERY_PARAM, DOH_CONTENT_TYPE, MAX_DNS_QUESTION_LEN, MAX_DNS_RESPONSE_LEN, MIN_DNS_PACKET_LEN, ODOH_CONTENT_TYPE,
+    TARGET_UDP_TCP_RATIO,
   },
   error::*,
   hyper_body::BoxBody,
@@ -144,7 +144,7 @@ impl InnerTarget {
 
   #[instrument(level = "debug", name = "target_resolve_inner", skip_all)]
   /// Resolve raw dns query by the upstream resolver (inner to count metrics)
-  async fn resolve_inner(&self, query: &mut Vec<u8>) -> HttpResult<DnsResponse> {
+  async fn resolve_inner(&self, query: &mut [u8]) -> HttpResult<DnsResponse> {
     let (min_ttl, max_ttl, err_ttl) = (&self.min_ttl, &self.max_ttl, &self.err_ttl);
 
     let mut packet = vec![0; MAX_DNS_RESPONSE_LEN];
@@ -185,10 +185,7 @@ impl InnerTarget {
       }
       .map_err(|_| HttpError::TcpSocketError)?;
 
-      let mut ext_socket = socket
-        .connect(self.upstream)
-        .await
-        .map_err(|_| HttpError::TcpSocketError)?;
+      let mut ext_socket = socket.connect(self.upstream).await.map_err(|_| HttpError::TcpSocketError)?;
       ext_socket.set_nodelay(true).map_err(|_| HttpError::TcpSocketError)?;
       let mut binlen = [0u8, 0];
       BigEndian::write_u16(&mut binlen, query.len() as u16);

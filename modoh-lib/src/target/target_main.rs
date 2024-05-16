@@ -1,9 +1,12 @@
 use super::odoh::ODoHPublicKey;
 use crate::{
-  constants::{ODOH_CONFIGS_PATH, ODOH_KEY_ROTATION_SECS, STALE_IF_ERROR_SECS, STALE_WHILE_REVALIDATE_SECS},
+  constants::{
+    HTTPSIG_CONFIGS_PATH, ODOH_CONFIGS_PATH, ODOH_KEY_ROTATION_SECS, STALE_IF_ERROR_SECS, STALE_WHILE_REVALIDATE_SECS,
+  },
   count::RequestCount,
   error::*,
   globals::Globals,
+  httpsig_handler::HttpSigKeyRotationState,
   hyper_body::{full, BoxBody},
   message_util::inspect_host,
   trace::*,
@@ -20,22 +23,15 @@ use tracing::instrument;
 
 #[instrument(level = "debug", skip_all)]
 /// build http response from given packet
-pub(super) fn build_http_response(
-  packet: &[u8],
-  ttl: u64,
-  content_type: &str,
-  cors: bool,
-) -> HttpResult<Response<BoxBody>> {
+pub(super) fn build_http_response(packet: &[u8], ttl: u64, content_type: &str, cors: bool) -> HttpResult<Response<BoxBody>> {
   let packet_len = packet.len();
   let mut response_builder = Response::builder()
     .header(header::CONTENT_LENGTH, packet_len)
     .header(header::CONTENT_TYPE, content_type)
     .header(
       header::CACHE_CONTROL,
-      format!(
-        "max-age={ttl}, stale-if-error={STALE_IF_ERROR_SECS}, stale-while-revalidate={STALE_WHILE_REVALIDATE_SECS}"
-      )
-      .as_str(),
+      format!("max-age={ttl}, stale-if-error={STALE_IF_ERROR_SECS}, stale-while-revalidate={STALE_WHILE_REVALIDATE_SECS}")
+        .as_str(),
     );
   if cors {
     response_builder = response_builder.header(hyper::header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
@@ -60,10 +56,14 @@ pub struct InnerTarget {
   pub(super) max_ttl: u32,
   /// Minimum TTL, in seconds
   pub(super) min_ttl: u32,
-  /// ODOh config path
+  /// ODoH config path
   pub(crate) odoh_configs_path: String,
   /// ODoH configs periodically rotated
   pub(super) odoh_configs: Arc<RwLock<ODoHPublicKey>>,
+  /// HTTP message signature config path
+  pub(crate) httpsig_configs_path: String,
+  /// HTTP message signature config which is periodically rotated
+  pub(super) httpsig_key_rotation_state: Option<Arc<HttpSigKeyRotationState>>,
   /// timeout for dns query
   pub(super) timeout: Duration,
   /// Maximum number of TCP session including HTTP request from clients
@@ -95,6 +95,31 @@ impl InnerTarget {
     let configs = lock.as_config().to_owned();
     drop(lock);
     build_http_response(&configs, ODOH_KEY_ROTATION_SECS, "application/octet-stream", true)
+  }
+
+  /// Serve httpsig config via GET method
+  #[instrument(name = "target_serve_httpsig_configs", skip_all)]
+  pub async fn serve_httpsig_configs<B>(&self, req: Request<B>) -> HttpResult<Response<BoxBody>> {
+    // check host
+    inspect_host(&req, &self.target_host)?;
+    // check path
+    if req.uri().path() != self.httpsig_configs_path {
+      return Err(HttpError::InvalidPath);
+    };
+    // check method, only get method is allowed for odoh config
+    if req.method() != Method::GET {
+      return Err(HttpError::InvalidMethod);
+    };
+
+    let Some(httpsig_state) = &self.httpsig_key_rotation_state else {
+      return Err(HttpError::InvalidPath);
+    };
+
+    let lock = httpsig_state.configs.read().await;
+    let configs = lock.as_config().to_owned();
+    let rotation_period = httpsig_state.rotation_period.as_secs();
+    drop(lock);
+    build_http_response(&configs, rotation_period, "application/octet-stream", true)
   }
 
   /// Start odoh config rotation service
@@ -136,12 +161,8 @@ impl InnerTarget {
   }
 
   /// Build inner relay
-  pub fn try_new(globals: &Arc<Globals>) -> Result<Arc<Self>> {
-    let target_config = globals
-      .service_config
-      .target
-      .as_ref()
-      .ok_or(MODoHError::BuildTargetError)?;
+  pub fn try_new(globals: &Arc<Globals>, httpsig_key_rotation_state: &Option<Arc<HttpSigKeyRotationState>>) -> Result<Arc<Self>> {
+    let target_config = globals.service_config.target.as_ref().ok_or(MODoHError::BuildTargetError)?;
     let target_host = globals.service_config.hostname.clone();
     let target_path = target_config.path.clone();
     let upstream = target_config.upstream;
@@ -151,6 +172,7 @@ impl InnerTarget {
     let min_ttl = target_config.min_ttl;
     let odoh_configs_path = ODOH_CONFIGS_PATH.to_string();
     let odoh_configs = Arc::new(RwLock::new(ODoHPublicKey::new()?));
+    let httpsig_configs_path = HTTPSIG_CONFIGS_PATH.to_string();
     let timeout = globals.service_config.timeout;
     let max_tcp_sessions = globals.service_config.max_clients;
     let request_count = globals.request_count.clone();
@@ -165,6 +187,8 @@ impl InnerTarget {
       min_ttl,
       odoh_configs_path,
       odoh_configs,
+      httpsig_configs_path,
+      httpsig_key_rotation_state: httpsig_key_rotation_state.clone(),
       timeout,
       max_tcp_sessions,
       request_count,
