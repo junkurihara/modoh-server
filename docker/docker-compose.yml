@@ -19,7 +19,8 @@ services:
       - HOST_UID=501
       - HOST_GID=501
       # - WATCH=true
-      - OTLP_ENDPOINT=http://otel-collector:4317 # opentelemetry is enabled if specified the OTLP_ENDPOINT
+      # - DISABLE_OTEL=true # opentelemetry is disabled if DISABLE_OTEL=true (default: false)
+      - OTLP_ENDPOINT=http://otel-collector:4317 # opentelemetry endpoint (default: http://localhost:4317)
     tty: false
     privileged: true
     volumes:
