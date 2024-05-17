@@ -163,14 +163,20 @@ pub fn min_ttl(packet: &[u8], min_ttl: u32, max_ttl: u32, failure_ttl: u32) -> R
 }
 
 #[allow(unused)]
-pub fn qname(packet: &[u8]) -> Result<String, Error> {
+pub fn qname_qtype_qclass(packet: &[u8]) -> Result<(String, u16, u16), Error> {
   // -> Result<String, Error> {
   let packet_len = packet.len();
   ensure!(packet_len > DNS_OFFSET_QUESTION, "Short packet");
   ensure!(packet_len <= DNS_MAX_PACKET_SIZE, "Large packet");
   ensure!(qdcount(packet) == 1, "No question");
   // let rcode = rcode(packet);
+
   let offset = skip_name(packet, DNS_OFFSET_QUESTION)?;
+  let qtype = BigEndian::read_u16(&packet[offset..]);
+  ensure!(qtype != DNS_TYPE_OPT, "OPT record found");
+  let qclass = BigEndian::read_u16(&packet[offset + 2..]);
+  ensure!(qclass == 1, "Unsupported class");
+
   let qname_bin = packet[DNS_OFFSET_QUESTION..offset].to_vec();
   ensure!(qname_bin.ends_with(&[0u8]), "Malformed packet");
   let mut qname = String::new();
@@ -192,7 +198,7 @@ pub fn qname(packet: &[u8]) -> Result<String, Error> {
     current += label_len + 1;
     ensure!(current <= DNS_MAX_HOSTNAME_SIZE, "Name too long");
   }
-  Ok(qname)
+  Ok((qname, qtype, qclass))
 }
 
 fn add_edns_section(packet: &mut Vec<u8>, max_payload_size: u16) -> Result<(), Error> {

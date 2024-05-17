@@ -39,7 +39,7 @@ impl InnerTarget {
   /// 3. retrieve query and check if it is a valid doh/odoh query
   /// 4. forward request to upstream resolver and receive a response.
   /// 5. build response and return it to client
-  pub async fn serve<B>(&self, req: Request<B>) -> HttpResult<Response<BoxBody>>
+  pub async fn serve<B>(&self, req: Request<B>, _peer_addr: &SocketAddr) -> HttpResult<Response<BoxBody>>
   where
     B: Body + Unpin,
   {
@@ -71,7 +71,7 @@ impl InnerTarget {
               .map_err(|_| HttpError::UpstreamTimeout)??;
 
             #[cfg(feature = "qrlog")]
-            log_dns_message(&res.packet, &req_headers);
+            log_dns_message(_peer_addr, &res.packet, &req_headers);
 
             let resp = build_http_response(&res.packet, res.ttl as u64, DOH_CONTENT_TYPE, true)?;
             Ok(resp)
@@ -92,7 +92,7 @@ impl InnerTarget {
               .map_err(|_| HttpError::UpstreamTimeout)??;
 
             #[cfg(feature = "qrlog")]
-            log_dns_message(&res.packet, &req_headers);
+            log_dns_message(_peer_addr, &res.packet, &req_headers);
 
             let encrypted_body = context.encrypt_response(res.packet)?;
             let resp = build_http_response(&encrypted_body, 0u64, ODOH_CONTENT_TYPE, false)?;
@@ -115,7 +115,7 @@ impl InnerTarget {
               .map_err(|_| HttpError::UpstreamTimeout)??;
 
             #[cfg(feature = "qrlog")]
-            log_dns_message(&res.packet, &req_headers);
+            log_dns_message(_peer_addr, &res.packet, &req_headers);
 
             let resp = build_http_response(&res.packet, res.ttl as u64, DOH_CONTENT_TYPE, true)?;
             Ok(resp)
@@ -276,7 +276,7 @@ fn query_from_query_string<B>(req: Request<B>) -> HttpResult<Vec<u8>> {
 
 #[cfg(feature = "qrlog")]
 /// Log DNS message
-fn log_dns_message(raw_packet: &[u8], http_req_headers: &http::HeaderMap) {
+fn log_dns_message(peer_addr: &SocketAddr, raw_packet: &[u8], http_req_headers: &http::HeaderMap) {
   let span = tracing::info_span!("qrlog");
   let _guard = span.enter();
   /* ------------------------------------- */
@@ -299,14 +299,27 @@ fn log_dns_message(raw_packet: &[u8], http_req_headers: &http::HeaderMap) {
     let claims: serde_json::Value = serde_json::from_str(&claims).unwrap_or_default();
     claims.get("sub").and_then(|v| v.as_str()).unwrap_or_default().to_string()
   });
+  let x_forwarded_for = http_req_headers
+    .get("x-forwarded-for")
+    .map(|v| v.to_str().unwrap_or_default())
+    .unwrap_or_default();
+  let forwarded = http_req_headers
+    .get("forwarded")
+    .map(|v| v.to_str().unwrap_or_default())
+    .unwrap_or_default();
+  let content_type = http_req_headers
+    .get("content-type")
+    .map(|v| v.to_str().unwrap_or_default())
+    .unwrap_or_default();
 
   let rcode = dns::rcode(raw_packet);
-  let qname = dns::qname(raw_packet).unwrap_or_default();
+  let (qname, qtype, qclass) = dns::qname_qtype_qclass(raw_packet).unwrap_or_default();
+  let peer_addr = peer_addr.to_string();
   if dns::qr(raw_packet) != 0 {
-    tracing::event!(name: "qrlog", tracing::Level::INFO, sub_id, rcode, qname, "DNS response");
+    tracing::event!(name: "qrlog", tracing::Level::INFO, rcode, qname, qtype, qclass, peer_addr, sub_id, x_forwarded_for, forwarded, content_type, "DNS response");
     return;
   }
-  warn!(sub_id, rcode, qname, "DNS response");
+  tracing::event!(name: "qrlog", tracing::Level::INFO, rcode, qname, qtype, qclass, peer_addr, sub_id, x_forwarded_for, forwarded, content_type, "DNS query");
 
   /* ------------------------------------- */
 }

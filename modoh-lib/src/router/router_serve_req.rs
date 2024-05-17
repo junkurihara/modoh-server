@@ -233,7 +233,7 @@ where
       }
     }
 
-    return match target.unwrap().serve(req).await {
+    return match target.unwrap().serve(req, &peer_addr).await {
       Ok(res) => {
         #[cfg(feature = "metrics")]
         count_with_http_status_code(&meters.query_target_result_responded, &res.status());
