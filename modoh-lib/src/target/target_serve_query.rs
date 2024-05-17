@@ -49,6 +49,11 @@ impl InnerTarget {
     if req.uri().path() != self.target_path {
       return Err(HttpError::InvalidPath);
     };
+
+    #[cfg(feature = "qrlog")]
+    // headers for logging
+    let req_headers = req.headers().clone();
+
     // check method
     match *req.method() {
       Method::POST => {
@@ -64,6 +69,10 @@ impl InnerTarget {
             let res = timeout(self.timeout, self.resolve(&mut query))
               .await
               .map_err(|_| HttpError::UpstreamTimeout)??;
+
+            #[cfg(feature = "qrlog")]
+            log_dns_message(&res.packet, &req_headers);
+
             let resp = build_http_response(&res.packet, res.ttl as u64, DOH_CONTENT_TYPE, true)?;
             Ok(resp)
           }
@@ -81,6 +90,10 @@ impl InnerTarget {
             let res = timeout(self.timeout, self.resolve(&mut query))
               .await
               .map_err(|_| HttpError::UpstreamTimeout)??;
+
+            #[cfg(feature = "qrlog")]
+            log_dns_message(&res.packet, &req_headers);
+
             let encrypted_body = context.encrypt_response(res.packet)?;
             let resp = build_http_response(&encrypted_body, 0u64, ODOH_CONTENT_TYPE, false)?;
             Ok(resp)
@@ -100,6 +113,10 @@ impl InnerTarget {
             let res = timeout(self.timeout, self.resolve(&mut query))
               .await
               .map_err(|_| HttpError::UpstreamTimeout)??;
+
+            #[cfg(feature = "qrlog")]
+            log_dns_message(&res.packet, &req_headers);
+
             let resp = build_http_response(&res.packet, res.ttl as u64, DOH_CONTENT_TYPE, true)?;
             Ok(resp)
           }
@@ -255,4 +272,41 @@ fn query_from_query_string<B>(req: Request<B>) -> HttpResult<Vec<u8>> {
     .decode(question_str)
     .map_err(|_| HttpError::InvalidDnsQuery)?;
   Ok(query)
+}
+
+#[cfg(feature = "qrlog")]
+/// Log DNS message
+fn log_dns_message(raw_packet: &[u8], http_req_headers: &http::HeaderMap) {
+  let span = tracing::info_span!("qrlog");
+  let _guard = span.enter();
+  /* ------------------------------------- */
+  // TODO: implement query logger async task
+  // 今はここで地味に実験。channelか何かでheader valueをlogger serviceへdispatchするようにした方が良さそう
+  let authorization_header = http_req_headers
+    .get("authorization")
+    .map(|v| v.to_str().unwrap_or_default())
+    .and_then(|v| {
+      if v.starts_with("Bearer ") {
+        Some(v.trim_start_matches("Bearer ").to_string())
+      } else {
+        None
+      }
+    });
+  let sub_id = authorization_header.as_ref().map(|v| {
+    let claims = v.split('.').nth(1).unwrap_or_default();
+    let claims = general_purpose::URL_SAFE_NO_PAD.decode(claims).unwrap_or_default();
+    let claims = String::from_utf8(claims).unwrap_or_default();
+    let claims: serde_json::Value = serde_json::from_str(&claims).unwrap_or_default();
+    claims.get("sub").and_then(|v| v.as_str()).unwrap_or_default().to_string()
+  });
+
+  let rcode = dns::rcode(raw_packet);
+  let qname = dns::qname(raw_packet).unwrap_or_default();
+  if dns::qr(raw_packet) != 0 {
+    tracing::event!(name: "qrlog", tracing::Level::INFO, sub_id, rcode, qname, "DNS response");
+    return;
+  }
+  warn!(sub_id, rcode, qname, "DNS response");
+
+  /* ------------------------------------- */
 }

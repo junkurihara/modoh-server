@@ -32,7 +32,8 @@ fn main() {
 
     // Initialize tracing subscriber
     let trace_config = parsed_opts.trace_config;
-    let _gurad = init_tracing_subscriber(&trace_config);
+    let qrlog_config = parsed_opts.qrlog_config;
+    let _gurad = init_tracing_subscriber(&trace_config, &qrlog_config);
 
     if !parsed_opts.watch {
       if let Err(e) = relay_service_without_watcher(&parsed_opts.config_file_path, runtime.handle().clone()).await {
@@ -40,13 +41,10 @@ fn main() {
         std::process::exit(1);
       }
     } else {
-      let (config_service, config_rx) = ReloaderService::<ConfigReloader, TargetConfig>::new(
-        &parsed_opts.config_file_path,
-        CONFIG_WATCH_DELAY_SECS,
-        false,
-      )
-      .await
-      .unwrap();
+      let (config_service, config_rx) =
+        ReloaderService::<ConfigReloader, TargetConfig>::new(&parsed_opts.config_file_path, CONFIG_WATCH_DELAY_SECS, false)
+          .await
+          .unwrap();
 
       tokio::select! {
         Err(e) = config_service.start() => {

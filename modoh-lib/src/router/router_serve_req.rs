@@ -49,7 +49,7 @@ where
       }
     };
     debug!(
-      sub = claims.custom.get("sub").and_then(|v| v.as_str()).unwrap_or(""),
+      sub_id = claims.custom.get("sub").and_then(|v| v.as_str()).unwrap_or(""),
       "passed token validation",
     );
     token_validated = true;

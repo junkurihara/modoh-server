@@ -12,34 +12,110 @@ use crate::otel::init_meter_provider;
 #[cfg(feature = "otel-metrics")]
 use opentelemetry_sdk::metrics::SdkMeterProvider;
 
+#[cfg(feature = "qrlog")]
+use crate::constants::QRLOG_EVENT_NAME;
+
 /// Initialize tracing subscriber
-pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>) -> MetricsGuard {
-  let format_layer = fmt::layer()
-    .with_line_number(false)
+pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>, _qrlog_config: &QrlogConfig) -> MetricsGuard {
+  let global_level_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+
+  // This limits the logger to emits only this crate with any level, for included crates it will emit only INFO or above level.
+  let stdio_layer = fmt::layer()
+    .with_line_number(true)
     .with_thread_ids(false)
     .with_thread_names(true)
     .with_target(true)
     .with_level(true)
-    .compact();
+    .compact()
+    .with_filter(tracing_subscriber::filter::filter_fn(move |metadata| {
+      metadata
+        .target()
+        .starts_with(env!("CARGO_PKG_NAME").replace('-', "_").as_str())
+        || metadata.level() <= &tracing::Level::INFO
+    }));
 
-  // This limits the logger to emits only this crate
-  let pkg_name = env!("CARGO_PKG_NAME").replace('-', "_");
-  let level_string = std::env::var(EnvFilter::DEFAULT_ENV).unwrap_or_else(|_| "info".to_string());
-  let filter_layer = EnvFilter::new(format!("{}={}", pkg_name, level_string));
-  // let filter_layer = EnvFilter::try_from_default_env()
-  // .unwrap_or_else(|_| EnvFilter::new("info"))
-  // .add_directive(format!("{}=trace", pkg_name).parse().unwrap());
+  let reg = tracing_subscriber::registry().with(global_level_filter).with(stdio_layer);
 
-  let reg = tracing_subscriber::registry().with(format_layer).with(filter_layer);
+  #[cfg(feature = "qrlog")]
+  let qlog_layer_base = fmt::layer()
+    .with_line_number(false)
+    .with_thread_ids(false)
+    .with_thread_names(false)
+    .with_target(false)
+    .with_level(false)
+    .with_timer(fmt::time::ChronoLocal::new("%s".to_string()))
+    .json();
 
-  #[cfg(any(feature = "otel-trace", feature = "otel-metrics"))]
+  // metrics
+  // tracing-opentelemetry for metrics is disabled and we use opentelemetry directly for metrics.
+  let metrics_guard = MetricsGuard {
+    #[cfg(feature = "otel-metrics")]
+    meter_provider: {
+      match _trace_config.otel_config.as_ref() {
+        None => None,
+        Some(otel_config) => {
+          if otel_config.metrics_enabled {
+            println!("Opentelemetry is enabled for metrics");
+            Some(init_meter_provider(otel_config))
+          } else {
+            None
+          }
+        }
+      }
+    },
+  };
+
+  #[cfg(all(any(feature = "otel-trace", feature = "otel-metrics"), feature = "qrlog"))]
+  {
+    match (_trace_config.otel_config.as_ref(), _qrlog_config.qrlog_path.as_ref()) {
+      (None, None) => {
+        reg.init();
+      }
+      /* --------------------------------- */
+      (Some(otel_config), None) => {
+        // traces
+        #[cfg(feature = "otel-trace")]
+        if otel_config.trace_enabled {
+          println!("Opentelemetry is enabled for traces");
+          reg.with(OpenTelemetryLayer::new(init_tracer(otel_config))).init();
+        } else {
+          reg.init();
+        }
+        #[cfg(not(feature = "otel-trace"))]
+        reg.init();
+      }
+      /* --------------------------------- */
+      (None, Some(qrlog_path)) => {
+        let qrlog_file = qrlog_file(qrlog_path);
+        // Query and response logger in json format
+        let reg = reg.with(qlog_layer_base.with_writer(qrlog_file).with_filter(QrlogFilter));
+        println!("Query-response logging is enabled");
+        reg.init();
+      }
+      /* --------------------------------- */
+      (Some(otel_config), Some(qrlog_path)) => {
+        let qrlog_file = qrlog_file(qrlog_path);
+        // Query and response logger in json format
+        let reg = reg.with(qlog_layer_base.with_writer(qrlog_file).with_filter(QrlogFilter));
+        println!("Query-response logging is enabled");
+
+        // traces
+        #[cfg(feature = "otel-trace")]
+        if otel_config.trace_enabled {
+          println!("Opentelemetry is enabled for traces");
+          reg.with(OpenTelemetryLayer::new(init_tracer(otel_config))).init();
+        } else {
+          reg.init();
+        }
+        #[cfg(not(feature = "otel-trace"))]
+        reg.init();
+      }
+    }
+  }
+  #[cfg(all(any(feature = "otel-trace", feature = "otel-metrics"), not(feature = "qrlog")))]
   {
     if _trace_config.otel_config.is_none() {
       reg.init();
-      MetricsGuard {
-        #[cfg(feature = "otel-metrics")]
-        meter_provider: None,
-      }
     } else {
       let otel_config = _trace_config.otel_config.as_ref().unwrap();
 
@@ -53,27 +129,49 @@ pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>) -> MetricsGu
       }
       #[cfg(not(feature = "otel-trace"))]
       reg.init();
-
-      // metrics
-      // tracing-opentelemetry for metrics is disabled and we use opentelemetry directly for metrics.
-      MetricsGuard {
-        #[cfg(feature = "otel-metrics")]
-        meter_provider: {
-          if otel_config.metrics_enabled {
-            println!("Opentelemetry is enabled for metrics");
-            Some(init_meter_provider(otel_config))
-          } else {
-            None
-          }
-        },
-      }
     }
   }
-  #[cfg(not(any(feature = "otel-trace", feature = "otel-metrics")))]
+  #[cfg(all(feature = "qrlog", not(any(feature = "otel-trace", feature = "otel-metrics"))))]
+  {
+    if let Some(qrlog_path) = _qrlog_config.qrlog_path.as_ref() {
+      let qrlog_file = qrlog_file(qrlog_path);
+      // Query and response logger in json format
+      let reg = reg.with(qlog_layer_base.with_writer(qrlog_file).with_filter(QrlogFilter));
+      println!("Query-response logging is enabled");
+      reg.init();
+    } else {
+      reg.init();
+    }
+  }
+  #[cfg(not(any(feature = "otel-trace", feature = "otel-metrics", feature = "qrlog")))]
   {
     reg.init();
-    MetricsGuard {}
   }
+
+  metrics_guard
+}
+
+#[cfg(feature = "qrlog")]
+struct QrlogFilter;
+#[cfg(feature = "qrlog")]
+impl<S> tracing_subscriber::layer::Filter<S> for QrlogFilter {
+  fn enabled(&self, metadata: &tracing::Metadata<'_>, _: &tracing_subscriber::layer::Context<'_, S>) -> bool {
+    metadata
+      .target()
+      .starts_with(env!("CARGO_PKG_NAME").replace('-', "_").as_str())
+      && metadata.name().contains(QRLOG_EVENT_NAME)
+  }
+}
+
+#[cfg(feature = "qrlog")]
+#[inline]
+fn qrlog_file(path: &str) -> std::fs::File {
+  // crate a file if it does not exist
+  std::fs::OpenOptions::new()
+    .create(true)
+    .append(true)
+    .open(path)
+    .expect("Failed to open qrlog file")
 }
 
 /// Tracing config
@@ -113,4 +211,11 @@ impl Drop for MetricsGuard {
     }
     opentelemetry::global::shutdown_tracer_provider();
   }
+}
+
+/// Configuration for query-response logging
+pub(crate) struct QrlogConfig {
+  #[cfg(feature = "qrlog")]
+  pub(crate) qrlog_path: Option<String>,
+  pub(crate) _marker: std::marker::PhantomData<fn() -> ()>,
 }

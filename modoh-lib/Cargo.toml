@@ -25,6 +25,7 @@ evil-trace = [
 native-tls = ["dep:hyper-tls"]
 rustls = ["dep:hyper-rustls"]
 rustls-webpki-roots = ["rustls", "hyper-rustls/webpki-tokio"]
+qrlog = []
 
 [dependencies]
 futures = { version = "0.3.30", default-features = false, features = [
