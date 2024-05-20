@@ -25,6 +25,10 @@ pub struct Globals {
   #[cfg(feature = "metrics")]
   /// Metrics
   pub meters: Arc<crate::metrics::Meters>,
+
+  #[cfg(feature = "qrlog")]
+  /// Query-response logging tx
+  pub qrlog_tx: crossbeam_channel::Sender<crate::trace::QrLoggingBase>,
 }
 
 #[derive(Clone)]

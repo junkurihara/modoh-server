@@ -1,5 +1,6 @@
 mod constants;
 mod count;
+mod dns;
 mod error;
 mod globals;
 mod httpsig_handler;
@@ -42,6 +43,16 @@ pub async fn entrypoint(
   // build meters from global meters
   let meters = Arc::new(crate::metrics::Meters::new());
 
+  #[cfg(feature = "qrlog")]
+  // build qrlog logger
+  let qrlog_tx = {
+    let (tx, mut logger) = QrLogger::new(term_notify.clone());
+    runtime_handle.spawn(async move {
+      logger.start().await;
+    });
+    tx
+  };
+
   // build globals
   let globals = Arc::new(Globals {
     service_config: service_config.clone(),
@@ -50,6 +61,8 @@ pub async fn entrypoint(
     request_count: RequestCount::default(),
     #[cfg(feature = "metrics")]
     meters,
+    #[cfg(feature = "qrlog")]
+    qrlog_tx,
   });
   // build http client
   let http_client = Arc::new(HttpClient::try_new(runtime_handle.clone())?);

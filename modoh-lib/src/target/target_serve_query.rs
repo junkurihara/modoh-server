@@ -1,9 +1,10 @@
-use super::{dns, target_main::build_http_response, InnerTarget};
+use super::{target_main::build_http_response, InnerTarget};
 use crate::{
   constants::{
     DNS_QUERY_PARAM, DOH_CONTENT_TYPE, MAX_DNS_QUESTION_LEN, MAX_DNS_RESPONSE_LEN, MIN_DNS_PACKET_LEN, ODOH_CONTENT_TYPE,
     TARGET_UDP_TCP_RATIO,
   },
+  dns,
   error::*,
   hyper_body::BoxBody,
   message_util::{check_content_type, inspect_host, read_request_body, RequestType},
@@ -39,7 +40,7 @@ impl InnerTarget {
   /// 3. retrieve query and check if it is a valid doh/odoh query
   /// 4. forward request to upstream resolver and receive a response.
   /// 5. build response and return it to client
-  pub async fn serve<B>(&self, req: Request<B>) -> HttpResult<Response<BoxBody>>
+  pub async fn serve<B>(&self, req: Request<B>, _peer_addr: &SocketAddr) -> HttpResult<Response<BoxBody>>
   where
     B: Body + Unpin,
   {
@@ -49,6 +50,11 @@ impl InnerTarget {
     if req.uri().path() != self.target_path {
       return Err(HttpError::InvalidPath);
     };
+
+    #[cfg(feature = "qrlog")]
+    // headers for logging
+    let req_headers = req.headers().clone();
+
     // check method
     match *req.method() {
       Method::POST => {
@@ -64,6 +70,10 @@ impl InnerTarget {
             let res = timeout(self.timeout, self.resolve(&mut query))
               .await
               .map_err(|_| HttpError::UpstreamTimeout)??;
+
+            #[cfg(feature = "qrlog")]
+            self.log_dns_message(_peer_addr, &res.packet, &req_headers);
+
             let resp = build_http_response(&res.packet, res.ttl as u64, DOH_CONTENT_TYPE, true)?;
             Ok(resp)
           }
@@ -81,6 +91,10 @@ impl InnerTarget {
             let res = timeout(self.timeout, self.resolve(&mut query))
               .await
               .map_err(|_| HttpError::UpstreamTimeout)??;
+
+            #[cfg(feature = "qrlog")]
+            self.log_dns_message(_peer_addr, &res.packet, &req_headers);
+
             let encrypted_body = context.encrypt_response(res.packet)?;
             let resp = build_http_response(&encrypted_body, 0u64, ODOH_CONTENT_TYPE, false)?;
             Ok(resp)
@@ -100,6 +114,10 @@ impl InnerTarget {
             let res = timeout(self.timeout, self.resolve(&mut query))
               .await
               .map_err(|_| HttpError::UpstreamTimeout)??;
+
+            #[cfg(feature = "qrlog")]
+            self.log_dns_message(_peer_addr, &res.packet, &req_headers);
+
             let resp = build_http_response(&res.packet, res.ttl as u64, DOH_CONTENT_TYPE, true)?;
             Ok(resp)
           }
@@ -255,4 +273,18 @@ fn query_from_query_string<B>(req: Request<B>) -> HttpResult<Vec<u8>> {
     .decode(question_str)
     .map_err(|_| HttpError::InvalidDnsQuery)?;
   Ok(query)
+}
+
+impl InnerTarget {
+  #[cfg(feature = "qrlog")]
+  /// Log DNS message
+  fn log_dns_message(&self, peer_addr: &SocketAddr, raw_packet: &[u8], http_req_headers: &http::HeaderMap) {
+    if let Err(e) = self.qrlog_tx.send(QrLoggingBase::from((
+      *peer_addr,
+      raw_packet.to_vec(),
+      http_req_headers.clone(),
+    ))) {
+      error!("Failed to send qrlog message: {e}")
+    }
+  }
 }

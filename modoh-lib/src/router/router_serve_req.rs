@@ -49,7 +49,7 @@ where
       }
     };
     debug!(
-      sub = claims.custom.get("sub").and_then(|v| v.as_str()).unwrap_or(""),
+      sub_id = claims.custom.get("sub").and_then(|v| v.as_str()).unwrap_or(""),
       "passed token validation",
     );
     token_validated = true;
@@ -233,7 +233,7 @@ where
       }
     }
 
-    return match target.unwrap().serve(req).await {
+    return match target.unwrap().serve(req, &peer_addr).await {
       Ok(res) => {
         #[cfg(feature = "metrics")]
         count_with_http_status_code(&meters.query_target_result_responded, &res.status());

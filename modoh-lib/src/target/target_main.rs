@@ -74,6 +74,10 @@ pub struct InnerTarget {
   #[cfg(feature = "metrics")]
   /// Metrics
   pub meters: Arc<crate::metrics::Meters>,
+
+  #[cfg(feature = "qrlog")]
+  /// Query-response logging tx
+  pub qrlog_tx: crossbeam_channel::Sender<crate::trace::QrLoggingBase>,
 }
 
 impl InnerTarget {
@@ -195,6 +199,9 @@ impl InnerTarget {
 
       #[cfg(feature = "metrics")]
       meters: globals.meters.clone(),
+
+      #[cfg(feature = "qrlog")]
+      qrlog_tx: globals.qrlog_tx.clone(),
     });
 
     let target_clone = target.clone();

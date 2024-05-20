@@ -17,6 +17,12 @@ const DNS_PTYPE_PADDING: u16 = 12;
 const DNS_RCODE_SERVFAIL: u8 = 2;
 const DNS_RCODE_REFUSED: u8 = 5;
 
+#[allow(unused)]
+#[inline]
+pub fn qr(packet: &[u8]) -> u8 {
+  packet[2] >> 7
+}
+
 #[inline]
 pub fn rcode(packet: &[u8]) -> u8 {
   packet[3] & 0x0f
@@ -156,6 +162,43 @@ pub fn min_ttl(packet: &[u8], min_ttl: u32, max_ttl: u32, failure_ttl: u32) -> R
   Ok(found_min_ttl)
 }
 
+#[allow(unused)]
+pub fn qname_qtype_qclass(packet: &[u8]) -> Result<(String, u16, u16), Error> {
+  let packet_len = packet.len();
+  ensure!(packet_len > DNS_OFFSET_QUESTION, "Short packet");
+  ensure!(packet_len <= DNS_MAX_PACKET_SIZE, "Large packet");
+  ensure!(qdcount(packet) == 1, "No question");
+
+  let offset = skip_name(packet, DNS_OFFSET_QUESTION)?;
+  let qtype = BigEndian::read_u16(&packet[offset..]);
+  ensure!(qtype != DNS_TYPE_OPT, "OPT record found");
+  let qclass = BigEndian::read_u16(&packet[offset + 2..]);
+  ensure!(qclass == 1, "Unsupported class");
+
+  let qname_bin = packet[DNS_OFFSET_QUESTION..offset].to_vec();
+  ensure!(qname_bin.ends_with(&[0u8]), "Malformed packet");
+  let mut qname = String::new();
+  let mut current = 0;
+  loop {
+    let label_len = qname_bin[current] as usize;
+    ensure!(label_len < 0x40, "Long label");
+    ensure!(
+      qname_bin.len() > current + label_len,
+      "Malformed packet with an out-of-bounds name"
+    );
+    if label_len == 0 {
+      break;
+    }
+    if !qname.is_empty() {
+      qname.push('.');
+    }
+    qname.push_str(&String::from_utf8(qname_bin[current + 1..current + 1 + label_len].to_vec())?);
+    current += label_len + 1;
+    ensure!(current <= DNS_MAX_HOSTNAME_SIZE, "Name too long");
+  }
+  Ok((qname, qtype, qclass))
+}
+
 fn add_edns_section(packet: &mut Vec<u8>, max_payload_size: u16) -> Result<(), Error> {
   let opt_rr: [u8; 11] = [
     0,
@@ -255,19 +298,13 @@ pub fn add_edns_padding(packet: &mut Vec<u8>) -> Result<(), Error> {
   let edns_rdlen_offset: usize = edns_offset + 8;
   ensure!(packet_len - edns_rdlen_offset >= 2, "Short packet");
   let edns_rdlen = BigEndian::read_u16(&packet[edns_rdlen_offset..]);
-  ensure!(
-    edns_offset + edns_rdlen as usize <= packet_len,
-    "Out of range EDNS size"
-  );
+  ensure!(edns_offset + edns_rdlen as usize <= packet_len, "Out of range EDNS size");
   ensure!(
     0xffff - edns_rdlen as usize >= edns_padding_prr_len,
     "EDNS section too large for padding"
   );
   ensure!(DNS_MAX_PACKET_SIZE - packet_len >= edns_padding_prr_len, "Large packet");
-  BigEndian::write_u16(
-    &mut packet[edns_rdlen_offset..],
-    edns_rdlen + edns_padding_prr_len as u16,
-  );
+  BigEndian::write_u16(&mut packet[edns_rdlen_offset..], edns_rdlen + edns_padding_prr_len as u16);
   packet.extend(&edns_padding_prr);
   Ok(())
 }

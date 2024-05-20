@@ -89,3 +89,10 @@ pub const EVIL_TRACE_HEADER_NAME: &str = "traceparent";
 pub const EVIL_TRACE_FLAGS: &str = "01";
 #[cfg(feature = "evil-trace")]
 pub const EVIL_TRACE_VERSION: &str = "00";
+
+#[cfg(feature = "qrlog")]
+/// Query-response logging channel size
+pub const QRLOG_CHANNEL_SIZE: usize = 1024;
+#[cfg(feature = "qrlog")]
+/// Query-response logging event name
+pub const QRLOG_EVENT_NAME: &str = "qrlog";

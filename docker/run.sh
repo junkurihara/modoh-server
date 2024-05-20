@@ -1,6 +1,7 @@
 #!/usr/bin/env sh
 CONFIG_FILE=/etc/modoh-server.toml
 DEFAULT_OTLP_ENDPOINT=http://localhost:4317
+QRLOG_FILE=/modoh/log/qrlog.log
 
 # debug level logging
 if [ -z $LOG_LEVEL ]; then
@@ -40,8 +41,19 @@ else
   OTEL_ARG="--otel-trace --otel-metrics --otlp-endpoint ${OTLP_ENDPOINT}"
 fi
 
+# query-response logging
+QRLOG_ARG=""
+if [ -z $ENABLE_QRLOG ]; then
+  ENABLE_QRLOG=false
+fi
+if $ENABLE_QRLOG ; then
+  echo "modoh-server: Query-Response logging enabled with file ${QRLOG_FILE}"
+  QRLOG_ARG="--qrlog ${QRLOG_FILE}"
+fi
+
+
 if  $WATCH ; then
-  RUST_LOG=${LOG_LEVEL} /modoh/bin/modoh-server --config ${CONFIG_FILE} -w ${OTEL_ARG}
+  RUST_LOG=${LOG_LEVEL} /modoh/bin/modoh-server --config ${CONFIG_FILE} -w ${OTEL_ARG} ${QRLOG_ARG}
 else
-  RUST_LOG=${LOG_LEVEL} /modoh/bin/modoh-server --config ${CONFIG_FILE} ${OTEL_ARG}
+  RUST_LOG=${LOG_LEVEL} /modoh/bin/modoh-server --config ${CONFIG_FILE} ${OTEL_ARG} ${QRLOG_ARG}
 fi

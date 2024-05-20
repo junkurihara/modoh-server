@@ -21,6 +21,7 @@ services:
       # - WATCH=true
       # - DISABLE_OTEL=true # opentelemetry is disabled if DISABLE_OTEL=true (default: false)
       - OTLP_ENDPOINT=http://otel-collector:4317 # opentelemetry endpoint (default: http://localhost:4317)
+      # - ENABLE_QRLOG=true # qrlog is enabled if ENABLE_QRLOG is set. Record in `/modoh/log/qrlog.log` [default=false]
     tty: false
     privileged: true
     volumes:

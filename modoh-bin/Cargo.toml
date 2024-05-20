@@ -15,7 +15,7 @@ publish.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["otel-full", "otel-evil-trace"]
+default = ["otel-full", "otel-evil-trace", "qrlog"]
 otel-full = ["otel-trace", "otel-metrics", "otel-instance-id"]
 otel-trace = [
   "opentelemetry/trace",
@@ -38,6 +38,11 @@ otel-base = [
   "dep:opentelemetry-semantic-conventions",
 ]
 otel-instance-id = ["dep:uuid"]
+qrlog = [
+  "modoh-server-lib/qrlog",
+  "tracing-subscriber/json",
+  "tracing-subscriber/chrono",
+]
 
 # DO NOT USE THIS IN PRODUCTION
 otel-evil-trace = ["modoh-server-lib/evil-trace", "otel-trace"]
@@ -47,7 +52,7 @@ modoh-server-lib = { path = "../modoh-lib", default-features = false, features =
   "rustls",
 ] }
 
-anyhow = "1.0.83"
+anyhow = "1.0.86"
 mimalloc = { version = "*", default-features = false }
 serde = { version = "1.0.202", default-features = false, features = ["derive"] }
 derive_builder = "0.20.0"
@@ -68,7 +73,7 @@ hot_reload = "0.1.5"
 
 # tracing and metrics
 tracing = { version = "0.1.40" }
-tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json"] }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter", "fmt"] }
 tracing-opentelemetry = { version = "0.23.0", optional = true }
 opentelemetry = { version = "0.22.0", optional = true }
 opentelemetry_sdk = { version = "0.22.1", features = [
