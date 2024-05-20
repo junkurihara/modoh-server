@@ -44,7 +44,9 @@ pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>, _qrlog_confi
     .with_target(false)
     .with_level(false)
     .with_timer(fmt::time::ChronoLocal::new("%s".to_string()))
-    .json();
+    .json()
+    .with_span_list(false)
+    .with_current_span(false);
 
   // metrics
   // tracing-opentelemetry for metrics is disabled and we use opentelemetry directly for metrics.

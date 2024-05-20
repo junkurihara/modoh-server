@@ -164,12 +164,10 @@ pub fn min_ttl(packet: &[u8], min_ttl: u32, max_ttl: u32, failure_ttl: u32) -> R
 
 #[allow(unused)]
 pub fn qname_qtype_qclass(packet: &[u8]) -> Result<(String, u16, u16), Error> {
-  // -> Result<String, Error> {
   let packet_len = packet.len();
   ensure!(packet_len > DNS_OFFSET_QUESTION, "Short packet");
   ensure!(packet_len <= DNS_MAX_PACKET_SIZE, "Large packet");
   ensure!(qdcount(packet) == 1, "No question");
-  // let rcode = rcode(packet);
 
   let offset = skip_name(packet, DNS_OFFSET_QUESTION)?;
   let qtype = BigEndian::read_u16(&packet[offset..]);

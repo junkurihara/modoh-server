@@ -7,6 +7,8 @@ use base64::{engine::general_purpose, Engine as _};
 #[cfg(feature = "qrlog")]
 use crossbeam_channel::{Receiver, Sender};
 #[cfg(feature = "qrlog")]
+use hickory_proto::op::Message;
+#[cfg(feature = "qrlog")]
 use http::HeaderMap;
 #[cfg(feature = "qrlog")]
 use std::{net::SocketAddr, sync::Arc};
@@ -40,6 +42,10 @@ impl QrLoggingBase {
   #[cfg(feature = "qrlog")]
   /// Log the query-response through tracing
   pub fn log(&self) {
+    use hickory_proto::serialize::binary::BinDecodable;
+
+    use crate::constants::QRLOG_EVENT_NAME;
+
     let span = tracing::info_span!(crate::constants::QRLOG_EVENT_NAME);
     let _guard = span.enter();
 
@@ -75,14 +81,41 @@ impl QrLoggingBase {
       .map(|v| v.to_str().unwrap_or_default())
       .unwrap_or_default();
 
+    let qr = dns::qr(&self.raw_packet);
     let rcode = dns::rcode(&self.raw_packet);
     let (qname, qtype, qclass) = dns::qname_qtype_qclass(&self.raw_packet).unwrap_or_default();
     let peer_addr = &self.peer_addr.to_string();
-    if dns::qr(&self.raw_packet) != 0 {
-      tracing::event!(name: "qrlog", tracing::Level::INFO, rcode, qname, qtype, qclass, peer_addr, sub_id, x_forwarded_for, forwarded, content_type, "DNS response");
+
+    let text_message = if dns::qr(&self.raw_packet) == 0 {
+      "DNS query"
+    } else {
+      "DNS response"
+    };
+
+    // parse raw message
+    let Ok(raw_message) = Message::from_bytes(&self.raw_packet) else {
+      tracing::event!(name: QRLOG_EVENT_NAME, tracing::Level::ERROR, qr, rcode, qname, qtype, qclass, peer_addr, sub_id, x_forwarded_for, forwarded, content_type, "{text_message}: Message::from_bytes failed");
       return;
-    }
-    tracing::event!(name: "qrlog", tracing::Level::INFO, rcode, qname, qtype, qclass, peer_addr, sub_id, x_forwarded_for, forwarded, content_type, "DNS query");
+    };
+    let raw_message = RawMessage::from(raw_message).to_string();
+
+    tracing::event!(name: QRLOG_EVENT_NAME, tracing::Level::INFO, rcode, qname, qtype, qclass, peer_addr, sub_id, x_forwarded_for, forwarded, content_type, raw_message, "{text_message}");
+  }
+}
+
+#[cfg(feature = "qrlog")]
+struct RawMessage {
+  inner: hickory_proto::op::Message,
+}
+#[cfg(feature = "qrlog")]
+impl From<hickory_proto::op::Message> for RawMessage {
+  fn from(inner: hickory_proto::op::Message) -> Self {
+    Self { inner }
+  }
+}
+impl ToString for RawMessage {
+  fn to_string(&self) -> String {
+    format!("{}", self.inner)
   }
 }
 
