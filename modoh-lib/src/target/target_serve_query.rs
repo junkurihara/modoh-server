@@ -1,9 +1,10 @@
-use super::{dns, target_main::build_http_response, InnerTarget};
+use super::{target_main::build_http_response, InnerTarget};
 use crate::{
   constants::{
     DNS_QUERY_PARAM, DOH_CONTENT_TYPE, MAX_DNS_QUESTION_LEN, MAX_DNS_RESPONSE_LEN, MIN_DNS_PACKET_LEN, ODOH_CONTENT_TYPE,
     TARGET_UDP_TCP_RATIO,
   },
+  dns,
   error::*,
   hyper_body::BoxBody,
   message_util::{check_content_type, inspect_host, read_request_body, RequestType},
@@ -71,7 +72,7 @@ impl InnerTarget {
               .map_err(|_| HttpError::UpstreamTimeout)??;
 
             #[cfg(feature = "qrlog")]
-            log_dns_message(_peer_addr, &res.packet, &req_headers);
+            self.log_dns_message(_peer_addr, &res.packet, &req_headers);
 
             let resp = build_http_response(&res.packet, res.ttl as u64, DOH_CONTENT_TYPE, true)?;
             Ok(resp)
@@ -92,7 +93,7 @@ impl InnerTarget {
               .map_err(|_| HttpError::UpstreamTimeout)??;
 
             #[cfg(feature = "qrlog")]
-            log_dns_message(_peer_addr, &res.packet, &req_headers);
+            self.log_dns_message(_peer_addr, &res.packet, &req_headers);
 
             let encrypted_body = context.encrypt_response(res.packet)?;
             let resp = build_http_response(&encrypted_body, 0u64, ODOH_CONTENT_TYPE, false)?;
@@ -115,7 +116,7 @@ impl InnerTarget {
               .map_err(|_| HttpError::UpstreamTimeout)??;
 
             #[cfg(feature = "qrlog")]
-            log_dns_message(_peer_addr, &res.packet, &req_headers);
+            self.log_dns_message(_peer_addr, &res.packet, &req_headers);
 
             let resp = build_http_response(&res.packet, res.ttl as u64, DOH_CONTENT_TYPE, true)?;
             Ok(resp)
@@ -274,52 +275,16 @@ fn query_from_query_string<B>(req: Request<B>) -> HttpResult<Vec<u8>> {
   Ok(query)
 }
 
-#[cfg(feature = "qrlog")]
-/// Log DNS message
-fn log_dns_message(peer_addr: &SocketAddr, raw_packet: &[u8], http_req_headers: &http::HeaderMap) {
-  let span = tracing::info_span!("qrlog");
-  let _guard = span.enter();
-  /* ------------------------------------- */
-  // TODO: implement query logger async task
-  // 今はここで地味に実験。channelか何かでheader valueをlogger serviceへdispatchするようにした方が良さそう
-  let authorization_header = http_req_headers
-    .get("authorization")
-    .map(|v| v.to_str().unwrap_or_default())
-    .and_then(|v| {
-      if v.starts_with("Bearer ") {
-        Some(v.trim_start_matches("Bearer ").to_string())
-      } else {
-        None
-      }
-    });
-  let sub_id = authorization_header.as_ref().map(|v| {
-    let claims = v.split('.').nth(1).unwrap_or_default();
-    let claims = general_purpose::URL_SAFE_NO_PAD.decode(claims).unwrap_or_default();
-    let claims = String::from_utf8(claims).unwrap_or_default();
-    let claims: serde_json::Value = serde_json::from_str(&claims).unwrap_or_default();
-    claims.get("sub").and_then(|v| v.as_str()).unwrap_or_default().to_string()
-  });
-  let x_forwarded_for = http_req_headers
-    .get("x-forwarded-for")
-    .map(|v| v.to_str().unwrap_or_default())
-    .unwrap_or_default();
-  let forwarded = http_req_headers
-    .get("forwarded")
-    .map(|v| v.to_str().unwrap_or_default())
-    .unwrap_or_default();
-  let content_type = http_req_headers
-    .get("content-type")
-    .map(|v| v.to_str().unwrap_or_default())
-    .unwrap_or_default();
-
-  let rcode = dns::rcode(raw_packet);
-  let (qname, qtype, qclass) = dns::qname_qtype_qclass(raw_packet).unwrap_or_default();
-  let peer_addr = peer_addr.to_string();
-  if dns::qr(raw_packet) != 0 {
-    tracing::event!(name: "qrlog", tracing::Level::INFO, rcode, qname, qtype, qclass, peer_addr, sub_id, x_forwarded_for, forwarded, content_type, "DNS response");
-    return;
+impl InnerTarget {
+  #[cfg(feature = "qrlog")]
+  /// Log DNS message
+  fn log_dns_message(&self, peer_addr: &SocketAddr, raw_packet: &[u8], http_req_headers: &http::HeaderMap) {
+    if let Err(e) = self.qrlog_tx.send(QrLoggingBase::from((
+      *peer_addr,
+      raw_packet.to_vec(),
+      http_req_headers.clone(),
+    ))) {
+      error!("Failed to send qrlog message: {e}")
+    }
   }
-  tracing::event!(name: "qrlog", tracing::Level::INFO, rcode, qname, qtype, qclass, peer_addr, sub_id, x_forwarded_for, forwarded, content_type, "DNS query");
-
-  /* ------------------------------------- */
 }

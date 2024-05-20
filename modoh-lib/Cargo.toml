@@ -25,7 +25,7 @@ evil-trace = [
 native-tls = ["dep:hyper-tls"]
 rustls = ["dep:hyper-rustls"]
 rustls-webpki-roots = ["rustls", "hyper-rustls/webpki-tokio"]
-qrlog = []
+qrlog = ["crossbeam-channel"]
 
 [dependencies]
 futures = { version = "0.3.30", default-features = false, features = [
@@ -96,3 +96,6 @@ httpsig-registry = { path = "../httpsig-registry", default-features = false, pac
 indexmap = { version = "2.2.6" }
 httpsig = { version = "0.0.15" }
 httpsig-hyper = { version = "0.0.15" }
+
+# logging
+crossbeam-channel = { version = "0.5.13", optional = true }
