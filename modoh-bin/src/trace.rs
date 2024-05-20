@@ -1,6 +1,7 @@
+use std::str::FromStr;
 #[allow(unused)]
 pub use tracing::{debug, error, info, warn};
-use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+use tracing_subscriber::{fmt, prelude::*};
 
 #[cfg(feature = "otel-trace")]
 use crate::otel::init_tracer;
@@ -17,7 +18,8 @@ use crate::constants::QRLOG_EVENT_NAME;
 
 /// Initialize tracing subscriber
 pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>, _qrlog_config: &QrlogConfig) -> MetricsGuard {
-  let global_level_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+  let level_string = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
+  let level = tracing::Level::from_str(level_string.as_str()).unwrap_or(tracing::Level::INFO);
 
   // This limits the logger to emits only this crate with any level, for included crates it will emit only INFO or above level.
   let stdio_layer = fmt::layer()
@@ -28,14 +30,14 @@ pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>, _qrlog_confi
     .with_level(true)
     .compact()
     .with_filter(tracing_subscriber::filter::filter_fn(move |metadata| {
-      metadata
+      (metadata
         .target()
         .starts_with(env!("CARGO_PKG_NAME").replace('-', "_").as_str())
-        || metadata.level() <= &tracing::Level::INFO
+        && metadata.level() <= &level)
+        || metadata.level() <= &tracing::Level::INFO.min(level)
     }));
 
-  let reg = tracing_subscriber::registry().with(global_level_filter).with(stdio_layer);
-
+  let reg = tracing_subscriber::registry().with(stdio_layer);
   #[cfg(feature = "qrlog")]
   let qlog_layer_base = fmt::layer()
     .with_line_number(false)
