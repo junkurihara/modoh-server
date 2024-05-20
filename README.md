@@ -74,6 +74,7 @@ Options:
   -t, --otel-trace                    Enable opentelemetry for trace. Unless explicitly specified with '-e', collector endpoint is 'http://localhost:4317'.
   -m, --otel-metrics                  Enable opentelemetry for metrics. Unless explicitly specified with '-e', collector endpoint is 'http://localhost:4317'.
   -e, --otlp-endpoint <ENDPOINT_URL>  Opentelemetry collector endpoint url connected via gRPC
+  -q, --qrlog <PATH>                  Enable query-response logging. Unless specified, it is disabled.
   -h, --help                          Print help
   -V, --version                       Print version
 ```

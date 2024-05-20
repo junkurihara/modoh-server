@@ -74,7 +74,7 @@ pub fn parse_opts() -> Result<Opts, anyhow::Error> {
       .long("qrlog")
       .short('q')
       .value_name("PATH")
-      .help("Enable query-response logging. If not specified, it is dsabled"),
+      .help("Enable query-response logging. Unless specified, it is disabled."),
   );
 
   let matches = options.get_matches();
