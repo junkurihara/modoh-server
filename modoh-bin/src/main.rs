@@ -108,8 +108,12 @@ async fn relay_service_with_watcher(
   // Continuous monitoring
   loop {
     tokio::select! {
-      _ = entrypoint(&relay_conf, &runtime_handle, Some(term_notify.clone())) => {
-        error!("MODoH service entrypoint exited");
+      res = entrypoint(&relay_conf, &runtime_handle, Some(term_notify.clone())) => {
+        if let Err(e) = res {
+          error!("MODoH service exited: {e}")
+        } else {
+          error!("MODoH service entrypoint exited");
+        }
         break;
       }
       _ = config_rx.changed() => {

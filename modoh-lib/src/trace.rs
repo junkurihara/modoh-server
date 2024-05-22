@@ -38,8 +38,8 @@ impl From<(SocketAddr, Vec<u8>, HeaderMap)> for QrLoggingBase {
   }
 }
 
+#[cfg(feature = "qrlog")]
 impl QrLoggingBase {
-  #[cfg(feature = "qrlog")]
   /// Log the query-response through tracing
   pub fn log(&self) {
     use hickory_proto::serialize::binary::BinDecodable;
@@ -113,9 +113,10 @@ impl From<hickory_proto::op::Message> for RawMessage {
     Self { inner }
   }
 }
-impl ToString for RawMessage {
-  fn to_string(&self) -> String {
-    format!("{}", self.inner)
+#[cfg(feature = "qrlog")]
+impl std::fmt::Display for RawMessage {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "{:?}", self.inner)
   }
 }
 

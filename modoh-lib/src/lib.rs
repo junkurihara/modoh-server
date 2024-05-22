@@ -45,12 +45,12 @@ pub async fn entrypoint(
 
   #[cfg(feature = "qrlog")]
   // build qrlog logger
-  let qrlog_tx = {
+  let (qrlog_tx, logger_service) = {
     let (tx, mut logger) = QrLogger::new(term_notify.clone());
-    runtime_handle.spawn(async move {
+    let service = runtime_handle.spawn(async move {
       logger.start().await;
     });
-    tx
+    (tx, service)
   };
 
   // build globals
@@ -74,11 +74,26 @@ pub async fn entrypoint(
   let router = Router::try_new(&globals, &http_server, &http_client).await?;
 
   // start router
-  if let Err(e) = router.start().await {
-    warn!("(M)ODoH service stopped: {e}");
+  #[cfg(feature = "qrlog")]
+  tokio::select! {
+    router_res = router.start() => {
+      if let Err(e) = router_res.as_ref() {
+        warn!("(M)ODoH service stopped: {e}");
+      }
+      router_res
+    },
+    _ = #[cfg(feature = "qrlog")] logger_service => {
+      Ok(())
+    }
   }
-
-  Ok(())
+  #[cfg(not(feature = "qrlog"))]
+  {
+    let router_res = router.start().await;
+    if let Err(e) = router_res.as_ref() {
+      warn!("(M)ODoH service stopped: {e}");
+    }
+    router_res
+  }
 }
 
 /// build hyper server
