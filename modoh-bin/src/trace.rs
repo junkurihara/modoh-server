@@ -38,17 +38,6 @@ pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>, _qrlog_confi
     }));
 
   let reg = tracing_subscriber::registry().with(stdio_layer);
-  #[cfg(feature = "qrlog")]
-  let qlog_layer_base = fmt::layer()
-    .with_line_number(false)
-    .with_thread_ids(false)
-    .with_thread_names(false)
-    .with_target(false)
-    .with_level(false)
-    .with_timer(fmt::time::ChronoLocal::new("%s".to_string()))
-    .json()
-    .with_span_list(false)
-    .with_current_span(false);
 
   // metrics
   // tracing-opentelemetry for metrics is disabled and we use opentelemetry directly for metrics.
@@ -69,6 +58,26 @@ pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>, _qrlog_confi
     },
   };
 
+  #[cfg(feature = "otel-trace")]
+  let otel_filter = tracing_subscriber::filter::filter_fn(move |metadata| {
+    metadata
+      .target()
+      .starts_with(env!("CARGO_PKG_NAME").replace('-', "_").as_str())
+      && metadata.level() <= &level
+  });
+
+  #[cfg(feature = "qrlog")]
+  let qlog_layer_base = fmt::layer()
+    .with_line_number(false)
+    .with_thread_ids(false)
+    .with_thread_names(false)
+    .with_target(false)
+    .with_level(false)
+    .with_timer(fmt::time::ChronoLocal::new("%s".to_string()))
+    .json()
+    .with_span_list(false)
+    .with_current_span(false);
+
   #[cfg(all(any(feature = "otel-trace", feature = "otel-metrics"), feature = "qrlog"))]
   {
     match (_trace_config.otel_config.as_ref(), _qrlog_config.qrlog_path.as_ref()) {
@@ -81,7 +90,10 @@ pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>, _qrlog_confi
         #[cfg(feature = "otel-trace")]
         if otel_config.trace_enabled {
           println!("Opentelemetry is enabled for traces");
-          reg.with(OpenTelemetryLayer::new(init_tracer(otel_config))).init();
+
+          reg
+            .with(OpenTelemetryLayer::new(init_tracer(otel_config)).with_filter(otel_filter))
+            .init();
         } else {
           reg.init();
         }
@@ -107,7 +119,9 @@ pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>, _qrlog_confi
         #[cfg(feature = "otel-trace")]
         if otel_config.trace_enabled {
           println!("Opentelemetry is enabled for traces");
-          reg.with(OpenTelemetryLayer::new(init_tracer(otel_config))).init();
+          reg
+            .with(OpenTelemetryLayer::new(init_tracer(otel_config)).with_filter(otel_filter))
+            .init();
         } else {
           reg.init();
         }
@@ -127,7 +141,9 @@ pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>, _qrlog_confi
       #[cfg(feature = "otel-trace")]
       if otel_config.trace_enabled {
         println!("Opentelemetry is enabled for traces");
-        reg.with(OpenTelemetryLayer::new(init_tracer(otel_config))).init();
+        reg
+          .with(OpenTelemetryLayer::new(init_tracer(otel_config)).with_filter(otel_filter))
+          .init();
       } else {
         reg.init();
       }
