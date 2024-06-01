@@ -8,7 +8,7 @@ use opentelemetry_semantic_conventions::{
 };
 
 #[cfg(feature = "otel-trace")]
-use opentelemetry_sdk::trace::{BatchConfig, RandomIdGenerator, Sampler, Tracer};
+use opentelemetry_sdk::trace::{BatchConfigBuilder, RandomIdGenerator, Sampler, Tracer};
 
 #[cfg(feature = "otel-metrics")]
 use opentelemetry_sdk::metrics::{
@@ -117,7 +117,11 @@ where
         .with_id_generator(RandomIdGenerator::default())
         .with_resource(resource(otel_config)),
     )
-    .with_batch_config(BatchConfig::default())
+    .with_batch_config(
+      BatchConfigBuilder::default()
+        .with_max_queue_size(crate::constants::OTEL_TRACE_BATCH_QUEUE_SIZE)
+        .build(),
+    )
     .with_exporter(opentelemetry_otlp::new_exporter().tonic().with_endpoint(otlp_endpoint))
     .install_batch(runtime::Tokio)
     .unwrap()
