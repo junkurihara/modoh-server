@@ -116,7 +116,7 @@ impl From<hickory_proto::op::Message> for RawMessage {
 #[cfg(feature = "qrlog")]
 impl std::fmt::Display for RawMessage {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "{:?}", self.inner)
+    write!(f, "{}", self.inner)
   }
 }
 

@@ -28,7 +28,7 @@ futures = { version = "0.3.30", default-features = false, features = [
   "std",
   "async-await",
 ] }
-tokio = { version = "1.37.0", features = [
+tokio = { version = "1.38.0", features = [
   "net",
   "rt-multi-thread",
   "time",

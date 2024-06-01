@@ -34,7 +34,7 @@ pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>, _qrlog_confi
         .target()
         .starts_with(env!("CARGO_PKG_NAME").replace('-', "_").as_str())
         && metadata.level() <= &level)
-        || metadata.level() <= &tracing::Level::INFO.min(level)
+        || metadata.level() <= &tracing::Level::WARN.min(level)
     }));
 
   let reg = tracing_subscriber::registry().with(stdio_layer);
@@ -164,6 +164,7 @@ impl<S> tracing_subscriber::layer::Filter<S> for QrlogFilter {
       .target()
       .starts_with(env!("CARGO_PKG_NAME").replace('-', "_").as_str())
       && metadata.name().contains(QRLOG_EVENT_NAME)
+      && metadata.level() <= &tracing::Level::INFO
   }
 }
 
