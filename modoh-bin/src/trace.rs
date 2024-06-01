@@ -64,6 +64,7 @@ pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>, _qrlog_confi
       .target()
       .starts_with(env!("CARGO_PKG_NAME").replace('-', "_").as_str())
       && metadata.level() <= &level
+      && !metadata.name().contains(QRLOG_EVENT_NAME)
   });
 
   #[cfg(feature = "qrlog")]
