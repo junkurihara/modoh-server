@@ -86,29 +86,17 @@ where
   #[instrument(name = "validate_request", skip_all)]
   /// Validate an id token. Return Ok(()) if validation is successful with any one of validation keys.
   pub async fn validate_request<T>(&self, req: &Request<T>) -> HttpResult<Claims> {
-    let token = if let Some(auth_header) = req.headers().get(header::AUTHORIZATION) {
-      // Authorization header case, this is the most common case, prioritize this
-      let Ok(auth_header) = auth_header.to_str() else {
-        return Err(HttpError::InvalidAuthorizationHeader);
-      };
-      if !auth_header.starts_with("Bearer ") {
-        return Err(HttpError::InvalidAuthorizationHeader);
-      }
-
-      auth_header.trim_start_matches("Bearer ")
-    } else if let Some(query) = req.uri().query() {
-      // Query parameter case, this is uncommon
-      if !query.split('&').any(|v| v.starts_with("token=")) {
-        return Err(HttpError::InvalidAuthorizationHeader);
-      }
-      query
-        .split('&')
-        .find(|v| v.starts_with("token="))
-        .unwrap()
-        .trim_start_matches("token=")
-    } else {
+    let Some(auth_header) = req.headers().get(header::AUTHORIZATION) else {
       return Err(HttpError::NoAuthorizationHeader);
     };
+    let Ok(auth_header) = auth_header.to_str() else {
+      return Err(HttpError::InvalidAuthorizationHeader);
+    };
+    if !auth_header.starts_with("Bearer ") {
+      return Err(HttpError::InvalidAuthorizationHeader);
+    }
+
+    let token = auth_header.trim_start_matches("Bearer ");
     let claims = match self.inner.validate(token).await {
       Ok(claims) => claims,
       Err(_) => return Err(HttpError::InvalidToken),

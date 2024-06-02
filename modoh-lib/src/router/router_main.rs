@@ -74,7 +74,7 @@ where
         server_clone.serve_connection(
           stream,
           service_fn(move |req: Request<Incoming>| {
-            let current_span = tracing::info_span!("router_serve", method = ?req.method(), path = ?req.uri().path(), peer_addr = ?peer_addr, xff = ?req.headers().get("x-forwarded-for"), forwarded = ?req.headers().get("forwarded"), traceparent = ?req.headers().get("traceparent"));
+            let current_span = tracing::info_span!("router_serve", method = ?req.method(), uri = ?req.uri(), peer_addr = ?peer_addr, xff = ?req.headers().get("x-forwarded-for"), forwarded = ?req.headers().get("forwarded"), traceparent = ?req.headers().get("traceparent"));
 
             #[cfg(feature = "evil-trace")]
             {
