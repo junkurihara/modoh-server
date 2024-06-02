@@ -8,6 +8,16 @@ use hyper::{body::Incoming, header, Request, StatusCode};
 use hyper_util::client::legacy::connect::Connect;
 use std::net::SocketAddr;
 
+/// Check if the request can be validated
+fn can_be_validated(req: &Request<Incoming>) -> bool {
+  let token_contained_in_query = req
+    .uri()
+    .query()
+    .and_then(|q| q.split('&').find(|v| v.starts_with("token=")))
+    .is_some();
+  req.headers().contains_key(header::AUTHORIZATION) || token_contained_in_query
+}
+
 /// Service wrapper with validation
 pub async fn serve_request_with_validation<C>(
   req: Request<Incoming>,
@@ -30,7 +40,7 @@ where
 
   // validation with header
   let mut token_validated = false;
-  if let (Some(validator), true) = (validator, req.headers().contains_key(header::AUTHORIZATION)) {
+  if let (Some(validator), true) = (validator, can_be_validated(&req)) {
     debug!("execute token validation");
 
     #[cfg(feature = "metrics")]
