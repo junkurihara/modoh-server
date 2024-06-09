@@ -65,7 +65,7 @@ impl TryInto<ServiceConfig> for &TargetConfig {
     info!("Listening on {}", service_conf.listener_socket);
 
     if let Some(hostname) = &self.config_toml.hostname {
-      service_conf.hostname.clone_from(hostname);
+      service_conf.hostname.clone_from(&hostname.to_ascii_lowercase());
     }
     info!("Hostname: {}", service_conf.hostname);
 
