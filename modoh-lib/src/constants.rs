@@ -48,7 +48,7 @@ pub const MIN_DNS_PACKET_LEN: usize = 17;
 
 // Validation
 
-/// JWKS refetch delay in seconds for validation
+/// Jwks/BlindJwks refetch delay in seconds for validation
 pub const JWKS_REFETCH_DELAY_SEC: u64 = 300;
 /// HTTP request timeout for refetching JWKS
 pub const JWKS_REFETCH_TIMEOUT_SEC: u64 = 3;
