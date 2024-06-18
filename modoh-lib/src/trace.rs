@@ -62,6 +62,7 @@ impl QrLoggingBase {
         }
       });
     let sub_id = authorization_header.as_ref().map(|v| {
+      // If the token is an anonymous token or no token is supplied, the sub_id is empty.
       let claims = v.split('.').nth(1).unwrap_or_default();
       let claims = general_purpose::URL_SAFE_NO_PAD.decode(claims).unwrap_or_default();
       let claims = String::from_utf8(claims).unwrap_or_default();
