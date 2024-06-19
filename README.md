@@ -225,7 +225,7 @@ For the secure deployment of `modoh-server`, the access control mechanisms shoul
 
 ### Client Authentication using Bearer Token
 
-For the client authentication, we can use the Bearer token in HTTP Authorization header, which is issued by [`rust-token-server`](https://github.com/junkurihara/rust-token-server) in the context of OpenID Connect. The authentication through the token validation is configured in the `[validation]` directive in `config.toml` as follows.
+For the client authentication, we can use the Bearer token in HTTP Authorization header, which is issued by [`rust-token-server`](https://github.com/junkurihara/rust-token-server) in the form of **OpenID Connect ID Token** or **Anonymous Token based on the blind RSA signatures ([RFC9474](https://www.rfc-editor.org/rfc/rfc9474.html))**. The authentication through the token validation is configured in the `[validation]` directive in `config.toml` as follows.
 
 ```toml
 ## Validation of source, typically user clients, using Id token
@@ -244,7 +244,7 @@ token_issuer = "https://example.com/v1.0"
 client_ids = ["client_id_1", "client_id_2"]
 ```
 
-`modoh-server` allows multiple `[[validation.token]]` directives to accepts multiple clients authorized under various authorities. `modoh-server` periodically fetches their validation keys (public keys) through the token APIs' `jwks` endpoints, and concurrently verifies a request with the retrieved keys.
+`modoh-server` allows multiple `[[validation.token]]` directives to accepts multiple clients authorized under various authorities. `modoh-server` periodically fetches their validation keys (public keys) through the token APIs' `jwks` (for ID tokens) and `blindjwks` (for anonymous token) endpoints, and concurrently verifies a request with the retrieved keys.
 
 Note that *when the bearer token does not exist in the HTTP request header, the request filtering based on the token validation is always bypassed*. This is because requests not from clients but from other relays have no such token in their header [^1]. Thus, *you should employ the source IP filtering mechanism for pre-authorized relays simultaneously with token validation.*
 
