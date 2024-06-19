@@ -16,6 +16,7 @@ use std::{sync::Arc, time::Duration};
 use tracing::instrument;
 use url::Url;
 
+/* ------------------------------------------------------------- */
 #[async_trait]
 /// JwksHttpClient trait implementation for HttpClient
 impl<C> JwksHttpClient for HttpClient<C, IncomingOr<BoxBody>>
@@ -63,6 +64,16 @@ where
   }
 }
 
+/* ------------------------------------------------------------- */
+/// Token type validated by Validator
+pub enum ValidatedTokenType {
+  /// Id token
+  IdToken(Claims),
+  /// Anonymous token based on blind RSA signature
+  AnonymousToken,
+}
+
+/* ------------------------------------------------------------- */
 /// Wrapper of TokenValidator
 pub struct Validator<C, B = IncomingOr<BoxBody>>
 where
@@ -84,8 +95,9 @@ where
   HttpClient<C, B>: JwksHttpClient,
 {
   #[instrument(name = "validate_request", skip_all)]
-  /// Validate an id token. Return Ok(()) if validation is successful with any one of validation keys.
-  pub async fn validate_request<T>(&self, req: &Request<T>) -> HttpResult<Claims> {
+  /// Validate an id token or anonymous token.
+  /// Return Ok(ValidatedTokenType) if validation is successful.
+  pub async fn validate_request<T>(&self, req: &Request<T>) -> HttpResult<ValidatedTokenType> {
     let Some(auth_header) = req.headers().get(header::AUTHORIZATION) else {
       return Err(HttpError::NoAuthorizationHeader);
     };
@@ -97,15 +109,25 @@ where
     }
 
     let token = auth_header.trim_start_matches("Bearer ");
-    let claims = match self.inner.validate(token).await {
-      Ok(claims) => claims,
-      Err(_) => return Err(HttpError::InvalidToken),
-    };
-    if claims.is_empty() {
-      return Err(HttpError::InvalidToken);
+
+    // validate id token if token looks like JWT
+    if maybe_jwt(token) {
+      let claims = match self.inner.validate(token).await {
+        Ok(claims) => claims,
+        Err(_) => return Err(HttpError::InvalidToken),
+      };
+      if claims.is_empty() {
+        return Err(HttpError::InvalidToken);
+      }
+
+      return Ok(ValidatedTokenType::IdToken(claims.first().unwrap().clone()));
     }
 
-    Ok(claims.first().unwrap().clone())
+    // validate anonymous token if token does not look like JWT
+    if self.inner.validate_anonymous_token(token).await.is_err() {
+      return Err(HttpError::InvalidToken);
+    }
+    return Ok(ValidatedTokenType::AnonymousToken);
   }
 
   /// Create a new validator
@@ -128,4 +150,11 @@ where
 
     Ok(validator)
   }
+}
+
+/// Check if the token is an id token, i.e., JWT
+/// This simply checks if the token has 3 parts separated by '.'
+fn maybe_jwt(token: &str) -> bool {
+  let parts: Vec<&str> = token.split('.').collect();
+  parts.len() == 3
 }

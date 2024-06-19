@@ -45,11 +45,11 @@ thiserror = "1.0.61"
 async-trait = "0.1.80"
 
 # http handling for both client and server
-url = "2.5.0"
+url = "2.5.1"
 rustc-hash = "1.1.0"
 hyper = { version = "1.3.1", default-features = false }
 http = "1.1.0"
-http-body-util = "0.1.1"
+http-body-util = "0.1.2"
 hyper-util = { version = "0.1.5", features = ["full"] }
 
 # http handling for client
@@ -72,13 +72,15 @@ byteorder = "1.5.0"
 
 # validation of id token
 serde = { version = "1.0.203", default-features = false }
-auth-validator = { git = "https://github.com/junkurihara/rust-token-server", package = "rust-token-server-validator", branch = "develop" }
+auth-validator = { git = "https://github.com/junkurihara/rust-token-server", package = "rust-token-server-validator", branch = "develop", default-features = false, features = [
+  "blind-signatures",
+] }
 serde_json = { version = "1.0.117" }
 
 # access control
 ipnet = { version = "2.9.0" }
 cedarwood = { version = "0.4.6" }
-regex = { version = "1.10.4" }
+regex = { version = "1.10.5" }
 
 # metrics
 opentelemetry = { version = "0.23.0", optional = true }

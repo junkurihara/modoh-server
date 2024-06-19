@@ -3,6 +3,7 @@ use crate::{
   error::*,
   hyper_body::{passthrough_response, synthetic_error_response, synthetic_response, BoxBody, IncomingOr},
   trace::*,
+  validator::ValidatedTokenType,
 };
 use hyper::{body::Incoming, header, Request, StatusCode};
 use hyper_util::client::legacy::connect::Connect;
@@ -36,8 +37,8 @@ where
     #[cfg(feature = "metrics")]
     meters.token_validation.add(1_u64, &[]);
 
-    let claims = match validator.validate_request(&req).await {
-      Ok(claims) => claims,
+    let validated_token_type = match validator.validate_request(&req).await {
+      Ok(vtt) => vtt,
       Err(e) => {
         warn!("token validation failed: {e}");
         let status_code = StatusCode::from(e);
@@ -48,10 +49,18 @@ where
         return synthetic_error_response(status_code);
       }
     };
-    debug!(
-      sub_id = claims.custom.get("sub").and_then(|v| v.as_str()).unwrap_or(""),
-      "passed token validation",
-    );
+    match validated_token_type {
+      ValidatedTokenType::IdToken(claims) => {
+        debug!(
+          sub_id = claims.custom.get("sub").and_then(|v| v.as_str()).unwrap_or(""),
+          "passed token validation",
+        );
+      }
+      ValidatedTokenType::AnonymousToken => {
+        debug!("passed anonymous token validation");
+      }
+    }
+
     token_validated = true;
   }
 
