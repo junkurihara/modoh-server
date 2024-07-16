@@ -83,7 +83,7 @@ cedarwood = { version = "0.4.6" }
 regex = { version = "1.10.5" }
 
 # metrics
-opentelemetry = { version = "0.23.0", optional = true }
+opentelemetry = { version = "0.24.0", optional = true }
 opentelemetry_sdk = { version = "0.23.0", features = [
   "rt-tokio",
 ], optional = true }
