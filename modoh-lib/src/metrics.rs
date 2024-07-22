@@ -1,6 +1,6 @@
 use opentelemetry::{
   global,
-  metrics::{Counter, Histogram, MeterProvider, Unit},
+  metrics::{Counter, Histogram, MeterProvider},
 };
 
 #[derive(Debug)]
@@ -173,7 +173,7 @@ impl Meters {
     let latency_target_upstream = meter
       .u64_histogram("latency_target_upstream")
       .with_description("Histogram of target upstream latency (msec)")
-      .with_unit(Unit::new("msec"))
+      .with_unit("msec")
       .init();
     let subsequent_relay_num = meter
       .u64_histogram("subsequent_relay_num")
@@ -190,7 +190,7 @@ impl Meters {
     let latency_relay_upstream = meter
       .u64_histogram("latency_relay_upstream")
       .with_description("Histogram of relaying upstream latency (msec)")
-      .with_unit(Unit::new("msec"))
+      .with_unit("msec")
       .init();
     // TODO: define more
 

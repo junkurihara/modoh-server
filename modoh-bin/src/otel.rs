@@ -1,5 +1,5 @@
 use crate::{constants::OTEL_SERVICE_NAMESPACE, trace::OtelConfig};
-use opentelemetry::KeyValue;
+use opentelemetry::{trace::TracerProvider, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{runtime, Resource};
 use opentelemetry_semantic_conventions::{
@@ -107,7 +107,7 @@ where
   opentelemetry::Value: From<T>,
 {
   let otlp_endpoint = otel_config.otlp_endpoint.clone();
-  opentelemetry_otlp::new_pipeline()
+  let provider = opentelemetry_otlp::new_pipeline()
     .tracing()
     .with_trace_config(
       opentelemetry_sdk::trace::Config::default()
@@ -124,5 +124,8 @@ where
     )
     .with_exporter(opentelemetry_otlp::new_exporter().tonic().with_endpoint(otlp_endpoint))
     .install_batch(runtime::Tokio)
-    .unwrap()
+    .unwrap();
+
+  global::set_tracer_provider(provider.clone());
+  provider.tracer("modoh-server")
 }
