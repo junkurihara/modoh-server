@@ -14,10 +14,10 @@ publish.workspace = true
 
 [dependencies]
 anyhow = "1.0.86"
-thiserror = "1.0.61"
+thiserror = "1.0.63"
 rand = "0.8.5"
 hpke = "0.12.0"
-bytes = "1.6.0"
+bytes = "1.6.1"
 byteorder = "1.5.0"
 p256 = { version = "0.13.2" }
 elliptic-curve = { version = "0.13.8", features = ["ecdh"] }
