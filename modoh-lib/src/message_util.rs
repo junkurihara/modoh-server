@@ -18,7 +18,7 @@ pub(crate) fn inspect_host<B>(req: &Request<B>, hostname: &str) -> HttpResult<()
     v.split(':')
       .next()
       .ok_or_else(|| HttpError::InvalidHost)
-      .map(|s| s.to_string())
+      .map(|s| s.to_ascii_lowercase())
   };
 
   let host_header = req.headers().get(header::HOST).map(|v| v.to_str().map(drop_port));
@@ -35,6 +35,7 @@ pub(crate) fn inspect_host<B>(req: &Request<B>, hostname: &str) -> HttpResult<()
     (None, Some(Ok(hu))) => hu,
     _ => return Err(HttpError::InvalidHost),
   };
+  // hostname is already ascii lowercase set in modoh-bin
   if h != hostname {
     return Err(HttpError::InvalidHost);
   }

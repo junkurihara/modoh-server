@@ -124,20 +124,22 @@ where
     match &self.globals.term_notify {
       Some(term) => {
         tokio::select! {
-          _ = self.router_service() => {
+          res = self.router_service() => {
             warn!("Http routing service got down");
+            res
           }
           _ = term.notified() => {
             info!("Http routing service receives term signal");
+            Ok(())
           }
         }
       }
       None => {
-        self.router_service().await.ok();
+        let res = self.router_service().await;
         warn!("Http routing service got down");
+        res
       }
     }
-    Ok(())
   }
 
   /// build router

@@ -1,5 +1,5 @@
 use crate::{constants::OTEL_SERVICE_NAMESPACE, trace::OtelConfig};
-use opentelemetry::KeyValue;
+use opentelemetry::{trace::TracerProvider, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{runtime, Resource};
 use opentelemetry_semantic_conventions::{
@@ -8,7 +8,7 @@ use opentelemetry_semantic_conventions::{
 };
 
 #[cfg(feature = "otel-trace")]
-use opentelemetry_sdk::trace::{BatchConfig, RandomIdGenerator, Sampler, Tracer};
+use opentelemetry_sdk::trace::{BatchConfigBuilder, RandomIdGenerator, Sampler, Tracer};
 
 #[cfg(feature = "otel-metrics")]
 use opentelemetry_sdk::metrics::{
@@ -107,7 +107,7 @@ where
   opentelemetry::Value: From<T>,
 {
   let otlp_endpoint = otel_config.otlp_endpoint.clone();
-  opentelemetry_otlp::new_pipeline()
+  let provider = opentelemetry_otlp::new_pipeline()
     .tracing()
     .with_trace_config(
       opentelemetry_sdk::trace::Config::default()
@@ -117,8 +117,15 @@ where
         .with_id_generator(RandomIdGenerator::default())
         .with_resource(resource(otel_config)),
     )
-    .with_batch_config(BatchConfig::default())
+    .with_batch_config(
+      BatchConfigBuilder::default()
+        .with_max_queue_size(crate::constants::OTEL_TRACE_BATCH_QUEUE_SIZE)
+        .build(),
+    )
     .with_exporter(opentelemetry_otlp::new_exporter().tonic().with_endpoint(otlp_endpoint))
     .install_batch(runtime::Tokio)
-    .unwrap()
+    .unwrap();
+
+  global::set_tracer_provider(provider.clone());
+  provider.tracer("modoh-server")
 }

@@ -1,5 +1,6 @@
 mod constants;
 mod count;
+mod dns;
 mod error;
 mod globals;
 mod httpsig_handler;
@@ -42,6 +43,16 @@ pub async fn entrypoint(
   // build meters from global meters
   let meters = Arc::new(crate::metrics::Meters::new());
 
+  #[cfg(feature = "qrlog")]
+  // build qrlog logger
+  let (qrlog_tx, logger_service) = {
+    let (tx, mut logger) = QrLogger::new(term_notify.clone());
+    let service = runtime_handle.spawn(async move {
+      logger.start().await;
+    });
+    (tx, service)
+  };
+
   // build globals
   let globals = Arc::new(Globals {
     service_config: service_config.clone(),
@@ -50,6 +61,8 @@ pub async fn entrypoint(
     request_count: RequestCount::default(),
     #[cfg(feature = "metrics")]
     meters,
+    #[cfg(feature = "qrlog")]
+    qrlog_tx,
   });
   // build http client
   let http_client = Arc::new(HttpClient::try_new(runtime_handle.clone())?);
@@ -61,11 +74,26 @@ pub async fn entrypoint(
   let router = Router::try_new(&globals, &http_server, &http_client).await?;
 
   // start router
-  if let Err(e) = router.start().await {
-    warn!("(M)ODoH service stopped: {e}");
+  #[cfg(feature = "qrlog")]
+  tokio::select! {
+    router_res = router.start() => {
+      if let Err(e) = router_res.as_ref() {
+        warn!("(M)ODoH service stopped: {e}");
+      }
+      router_res
+    },
+    _ = #[cfg(feature = "qrlog")] logger_service => {
+      Ok(())
+    }
   }
-
-  Ok(())
+  #[cfg(not(feature = "qrlog"))]
+  {
+    let router_res = router.start().await;
+    if let Err(e) = router_res.as_ref() {
+      warn!("(M)ODoH service stopped: {e}");
+    }
+    router_res
+  }
 }
 
 /// build hyper server

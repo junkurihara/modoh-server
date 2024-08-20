@@ -13,6 +13,9 @@ CONFIG_FILE=/etc/modoh-server.toml
 CONFIG_DIR=/modoh/config
 CONFIG_FILE_IN_DIR=${CONFIG_FILENAME:-modoh-server.toml}
 
+QRLOG_FILE=${LOG_DIR}/qrlog.log
+QRLOGGING=${ENABLE_QRLOG:-false}
+
 #######################################
 # Setup logrotate
 function setup_logrotate () {
@@ -43,7 +46,8 @@ include /etc/logrotate.d
 # system-specific logs may be also be configured here.
 EOF
 
-  cat > /etc/logrotate.d/modoh-server.conf << EOF
+  if "${LOGGING}"; then
+    cat > /etc/logrotate.d/modoh-server.conf << EOF
 ${LOG_FILE} {
     dateext
     daily
@@ -58,6 +62,25 @@ ${LOG_FILE} {
     su ${USER} ${USER}
 }
 EOF
+  fi
+
+  if "${QRLOGGING}"; then
+    cat > /etc/logrotate.d/qrlog.conf << EOF
+${QRLOG_FILE} {
+    dateext
+    daily
+    missingok
+    rotate ${LOG_NUM}
+    notifempty
+    compress
+    delaycompress
+    dateformat -%Y-%m-%d-%s
+    size ${LOG_SIZE}
+    copytruncate
+    su ${USER} ${USER}
+}
+EOF
+  fi
 }
 
 #######################################
@@ -71,7 +94,7 @@ function setup_ubuntu () {
   fi
 
   # for crontab when logging
-  if "${LOGGING}"; then
+  if ${LOGGING} || ${QRLOGGING} ; then
     # Set up logrotate
     setup_logrotate
 
@@ -95,7 +118,7 @@ function setup_alpine () {
   fi
 
   # for crontab when logging
-  if "${LOGGING}"; then
+  if ${LOGGING} || ${QRLOGGING} ; then
     # Set up logrotate
     setup_logrotate
 

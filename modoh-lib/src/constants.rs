@@ -48,7 +48,7 @@ pub const MIN_DNS_PACKET_LEN: usize = 17;
 
 // Validation
 
-/// JWKS refetch delay in seconds for validation
+/// Jwks/BlindJwks refetch delay in seconds for validation
 pub const JWKS_REFETCH_DELAY_SEC: u64 = 300;
 /// HTTP request timeout for refetching JWKS
 pub const JWKS_REFETCH_TIMEOUT_SEC: u64 = 3;
@@ -89,3 +89,10 @@ pub const EVIL_TRACE_HEADER_NAME: &str = "traceparent";
 pub const EVIL_TRACE_FLAGS: &str = "01";
 #[cfg(feature = "evil-trace")]
 pub const EVIL_TRACE_VERSION: &str = "00";
+
+#[cfg(feature = "qrlog")]
+/// Query-response logging channel size
+pub const QRLOG_CHANNEL_SIZE: usize = 1024;
+#[cfg(feature = "qrlog")]
+/// Query-response logging event name
+pub const QRLOG_EVENT_NAME: &str = "qrlog";

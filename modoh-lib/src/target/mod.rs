@@ -1,4 +1,3 @@
-mod dns;
 mod odoh;
 mod target_main;
 mod target_serve_query;

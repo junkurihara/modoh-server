@@ -1,4 +1,5 @@
 use crate::trace::TraceConfig;
+use crate::QrlogConfig;
 use clap::{Arg, ArgAction};
 
 #[cfg(any(feature = "otel-trace", feature = "otel-metrics"))]
@@ -13,6 +14,7 @@ pub struct Opts {
   pub config_file_path: String,
   pub watch: bool,
   pub trace_config: TraceConfig<String>,
+  pub qrlog_config: QrlogConfig,
 }
 
 /// Parse arg values passed from cli
@@ -40,7 +42,9 @@ pub fn parse_opts() -> Result<Opts, anyhow::Error> {
       .long("otel-trace")
       .short('t')
       .action(ArgAction::SetTrue)
-      .help("Enable opentelemetry for trace. Unless explicitly specified with '-e', collector endpoint is 'http://localhost:4317'."),
+      .help(
+        "Enable opentelemetry for trace. Unless explicitly specified with '-e', collector endpoint is 'http://localhost:4317'.",
+      ),
   );
   #[cfg(feature = "otel-metrics")]
   let options = options.arg(
@@ -48,7 +52,9 @@ pub fn parse_opts() -> Result<Opts, anyhow::Error> {
       .long("otel-metrics")
       .short('m')
       .action(ArgAction::SetTrue)
-      .help("Enable opentelemetry for metrics. Unless explicitly specified with '-e', collector endpoint is 'http://localhost:4317'."),
+      .help(
+        "Enable opentelemetry for metrics. Unless explicitly specified with '-e', collector endpoint is 'http://localhost:4317'.",
+      ),
   );
   #[cfg(any(feature = "otel-trace", feature = "otel-metrics"))]
   let options = options.arg(
@@ -61,6 +67,14 @@ pub fn parse_opts() -> Result<Opts, anyhow::Error> {
         ("otel_metrics", ArgPredicate::IsPresent, DEFAULT_OTLP_ENDPOINT),
       ])
       .help("Opentelemetry collector endpoint url connected via gRPC"),
+  );
+  #[cfg(feature = "qrlog")]
+  let options = options.arg(
+    Arg::new("qrlog")
+      .long("qrlog")
+      .short('q')
+      .value_name("PATH")
+      .help("Enable query-response logging. Unless specified, it is disabled."),
   );
 
   let matches = options.get_matches();
@@ -86,9 +100,17 @@ pub fn parse_opts() -> Result<Opts, anyhow::Error> {
     _marker: std::marker::PhantomData,
   };
 
+  ///////////////////////////////////
+  let qrlog_config = QrlogConfig {
+    #[cfg(feature = "qrlog")]
+    qrlog_path: { matches.get_one::<String>("qrlog").map(|s| s.to_owned()) },
+    _marker: std::marker::PhantomData,
+  };
+
   Ok(Opts {
     config_file_path,
     watch,
     trace_config,
+    qrlog_config,
   })
 }
