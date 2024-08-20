@@ -32,7 +32,7 @@ futures = { version = "0.3.30", default-features = false, features = [
   "std",
   "async-await",
 ] }
-tokio = { version = "1.38.1", features = [
+tokio = { version = "1.39.3", features = [
   "net",
   "rt-multi-thread",
   "time",
@@ -50,7 +50,7 @@ rustc-hash = "2.0.0"
 hyper = { version = "1.4.1", default-features = false }
 http = "1.1.0"
 http-body-util = "0.1.2"
-hyper-util = { version = "0.1.6", features = ["full"] }
+hyper-util = { version = "0.1.7", features = ["full"] }
 
 # http handling for client
 hyper-tls = { version = "0.6.0", features = [
@@ -71,16 +71,16 @@ base64 = "0.22.1"
 byteorder = "1.5.0"
 
 # validation of id token
-serde = { version = "1.0.204", default-features = false }
+serde = { version = "1.0.208", default-features = false }
 auth-validator = { git = "https://github.com/junkurihara/rust-token-server", package = "rust-token-server-validator", branch = "develop", default-features = false, features = [
   "blind-signatures",
 ] }
-serde_json = { version = "1.0.120" }
+serde_json = { version = "1.0.125" }
 
 # access control
 ipnet = { version = "2.9.0" }
 cedarwood = { version = "0.4.6" }
-regex = { version = "1.10.5" }
+regex = { version = "1.10.6" }
 
 # metrics
 opentelemetry = { version = "0.24.0", optional = true }
@@ -95,7 +95,7 @@ tracing-opentelemetry = { version = "0.25.0", optional = true }
 # httpsig
 httpsig-proto = { path = "../httpsig-wire-proto", default-features = false, package = "httpsig-proto" }
 httpsig-registry = { path = "../httpsig-registry", default-features = false, package = "httpsig-registry" }
-indexmap = { version = "2.2.6" }
+indexmap = { version = "2.4.0" }
 httpsig = { version = "0.0.15" }
 httpsig-hyper = { version = "0.0.15" }
 

@@ -54,9 +54,9 @@ modoh-server-lib = { path = "../modoh-lib", default-features = false, features =
 
 anyhow = "1.0.86"
 mimalloc = { version = "*", default-features = false }
-serde = { version = "1.0.204", default-features = false, features = ["derive"] }
+serde = { version = "1.0.208", default-features = false, features = ["derive"] }
 derive_builder = "0.20.0"
-tokio = { version = "1.38.1", default-features = false, features = [
+tokio = { version = "1.39.3", default-features = false, features = [
   "net",
   "rt-multi-thread",
   "time",
@@ -67,8 +67,8 @@ async-trait = "0.1.81"
 url = "2.5.2"
 
 # config
-clap = { version = "4.5.9", features = ["std", "cargo", "wrap_help"] }
-toml = { version = "0.8.15", default-features = false, features = ["parse"] }
+clap = { version = "4.5.16", features = ["std", "cargo", "wrap_help"] }
+toml = { version = "0.8.19", default-features = false, features = ["parse"] }
 hot_reload = "0.1.6"
 
 # tracing and metrics

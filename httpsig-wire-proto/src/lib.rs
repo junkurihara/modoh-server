@@ -23,9 +23,9 @@ pub const HTTPSIG_PROTO_VERSION_PK: u16 = 0x0020;
 /// Key types used for httpsig verification
 /// - Asymmetric key for public-key-based signature like ed25519, ecdsa-p256-sha256 (es256).
 /// - Asymmetric key to perform Diffie-Hellman key exchange for hmac-sha256 (hs256) signature.
-/// These are automatically generated and exposed at `/.well-known/httpsigconfigs` endpoint.
-///   default = ["hs256-x25519-hkdf-sha256"],
-///  supported = "hs256-p256-hkdf-sha256" (hmac-sha256 with hkdf via ecdh), "hs256-x25519-hkdf-sha256" (hmac-sha256 with hkdf via ecdh), "ed25519", and "es256"
+///   These are automatically generated and exposed at `/.well-known/httpsigconfigs` endpoint.
+///   default: ["hs256-x25519-hkdf-sha256"],
+///   supported: "hs256-p256-hkdf-sha256" (hmac-sha256 with hkdf via ecdh), "hs256-x25519-hkdf-sha256" (hmac-sha256 with hkdf via ecdh), "ed25519", and "es256"
 pub enum HttpSigKeyTypes {
   #[default]
   /// hs256-x25519-hkdf-sha256
