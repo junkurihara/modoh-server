@@ -112,8 +112,8 @@ pub struct AccessConfig {
 /// Configuration for HTTP message signatures, which is used to
 /// - verify if the incoming request is from one of the httpsig-enabled domains,
 /// - sign outgoing (relayed) requests when the next node is one of the httpsig-enabled domains.
-/// Note that Source IP address is prioritized over the signature verification.
-/// When the destination domain is not in the list, it is not signed and dispatched without signature.
+///   Note that Source IP address is prioritized over the signature verification.
+///   When the destination domain is not in the list, it is not signed and dispatched without signature.
 pub struct HttpSigConfig {
   /// Public key types exposed at the `httpsigconfigs` endpoint.
   /// - Public key, KEM and KDF types used for Diffie-Hellman key exchange for httpsig's hmac-sha256 signature.
