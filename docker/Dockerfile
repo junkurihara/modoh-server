@@ -47,7 +47,7 @@ COPY ./docker/entrypoint.sh /modoh
 RUN chmod +x /modoh/run.sh && \
     chmod +x /modoh/entrypoint.sh
 
-EXPOSE 53/udp 53/tcp
+EXPOSE 8080
 
 CMD ["/usr/bin/bash", "/modoh/entrypoint.sh"]
 
