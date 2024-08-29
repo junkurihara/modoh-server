@@ -1,0 +1,54 @@
+########################################
+FROM rust:alpine AS builder
+
+ARG CFLAGS=-Ofast
+ARG BUILD_DEPS=musl-dev
+
+# ARG BUILD_DEPS="curl make ca-certificates build-essential pkg-config libssl-dev"
+
+WORKDIR /tmp
+
+COPY . /tmp/
+
+ARG RUSTFLAGS="-C link-arg=-s"
+
+RUN update-ca-certificates 2> /dev/null || true
+
+# TODO: do not enable otel-evil-trace for production
+RUN apk add --no-cache ${BUILD_DEPS} &&\
+    echo "Building Mutualized Oblivious DNS relay and target from source" && \
+    cargo build --release --no-default-features --features=otel-full,otel-evil-trace,qrlog --package modoh-server && \
+    strip --strip-all /tmp/target/release/modoh-server
+
+########################################
+FROM alpine:latest AS runner
+
+LABEL maintainer="Jun Kurihara"
+
+SHELL ["/bin/sh", "-x", "-c"]
+ENV SERIAL=2
+
+ARG RUNTIME_DEPS="logrotate ca-certificates su-exec bash"
+
+RUN apk add --no-cache ${RUNTIME_DEPS} && \
+    update-ca-certificates && \
+    find / -type d -path /proc -prune -o -type f -perm /u+s -exec chmod u-s {} \; && \
+    find / -type d -path /proc -prune -o -type f -perm /g+s -exec chmod g-s {} \; && \
+    mkdir -p /modoh/bin &&\
+    mkdir -p /modoh/log
+
+COPY --from=builder /tmp/target/release/modoh-server /modoh/bin/modoh-server
+COPY ./docker/run.sh /modoh
+COPY ./docker/entrypoint.sh /modoh
+
+RUN chmod +x /modoh/run.sh && \
+    chmod +x /modoh/entrypoint.sh
+
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+ENV SSL_CERT_DIR=/etc/ssl/certs
+
+EXPOSE 53/udp 53/tcp
+
+CMD ["/modoh/entrypoint.sh"]
+
+ENTRYPOINT ["/modoh/entrypoint.sh"]

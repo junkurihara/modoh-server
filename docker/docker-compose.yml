@@ -1,6 +1,7 @@
 services:
   modoh-server:
-    image: jqtype/modoh-server:latest # ghcr.io/junkurihara/modoh-server:latest also works
+    # image: jqtype/modoh-server:latest # ghcr.io/junkurihara/modoh-server:latest also works
+    image: jqtype/modoh-server:slim
     container_name: modoh-server
     init: true
     restart: unless-stopped
@@ -8,7 +9,8 @@ services:
       - 127.0.0.1:8080:8080/tcp
     build: # Uncomment if you build yourself
       context: ../
-      dockerfile: ./docker/Dockerfile # based on ubuntu 22.04 and build x86_64-unknown-linux-gnu
+      # dockerfile: ./docker/Dockerfile # based on ubuntu 24.04 and build x86_64-unknown-linux-gnu
+      dockerfile: ./docker/Dockerfile-slim # based on alpine and build x86_64-unknown-linux-musl
       # platforms: # Choose your platforms
       # - "linux/amd64"
       # - "linux/arm64"
