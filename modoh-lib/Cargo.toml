@@ -90,7 +90,7 @@ opentelemetry_sdk = { version = "0.24.1", features = [
 
 # tracing requests traveled among relays and targets
 # NOTE: DO NOT USE THIS IN PRODUCTION
-tracing-opentelemetry = { version = "0.25.0", optional = true }
+tracing-opentelemetry = { version = "0.26.0", optional = true }
 
 # httpsig
 httpsig-proto = { path = "../httpsig-wire-proto", default-features = false, package = "httpsig-proto" }
