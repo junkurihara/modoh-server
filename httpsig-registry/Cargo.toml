@@ -13,12 +13,12 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
-anyhow = { version = "1.0.86" }
+anyhow = { version = "1.0.87" }
 thiserror = { version = "1.0.63" }
-pulldown-cmark = { version = "0.12.0", default-features = false }
+pulldown-cmark = { version = "0.12.1", default-features = false }
 http = { version = "1.1.0" }
-indexmap = { version = "2.4.0" }
-minisign-verify = { version = "0.2.1" }
+indexmap = { version = "2.5.0" }
+minisign-verify = { version = "0.2.2" }
 reqwest = { version = "0.12.7", default-features = false, features = [
   "rustls-tls",
   "http2",
@@ -28,7 +28,7 @@ futures = { version = "0.3.30", default-features = false, features = [
   "std",
   "async-await",
 ] }
-tokio = { version = "1.39.3", features = [
+tokio = { version = "1.40.0", features = [
   "net",
   "rt-multi-thread",
   "time",
