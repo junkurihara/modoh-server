@@ -52,10 +52,10 @@ modoh-server-lib = { path = "../modoh-lib", default-features = false, features =
   "rustls",
 ] }
 
-anyhow = "1.0.87"
+anyhow = "1.0.89"
 mimalloc = { version = "*", default-features = false }
 serde = { version = "1.0.210", default-features = false, features = ["derive"] }
-derive_builder = "0.20.1"
+derive_builder = "0.20.2"
 tokio = { version = "1.40.0", default-features = false, features = [
   "net",
   "rt-multi-thread",
@@ -63,25 +63,25 @@ tokio = { version = "1.40.0", default-features = false, features = [
   "sync",
   "macros",
 ] }
-async-trait = "0.1.82"
+async-trait = "0.1.83"
 url = "2.5.2"
 
 # config
-clap = { version = "4.5.17", features = ["std", "cargo", "wrap_help"] }
+clap = { version = "4.5.20", features = ["std", "cargo", "wrap_help"] }
 toml = { version = "0.8.19", default-features = false, features = ["parse"] }
 hot_reload = "0.1.6"
 
 # tracing and metrics
 tracing = { version = "0.1.40" }
 tracing-subscriber = { version = "0.3.18", features = ["fmt"] }
-tracing-opentelemetry = { version = "0.25.0", optional = true }
-opentelemetry = { version = "0.24.0", optional = true }
-opentelemetry_sdk = { version = "0.24.1", features = [
+tracing-opentelemetry = { version = "0.27.0", optional = true }
+opentelemetry = { version = "0.26.0", optional = true }
+opentelemetry_sdk = { version = "0.26.0", features = [
   "rt-tokio",
 ], optional = true }
-opentelemetry-stdout = { version = "0.5.0", optional = true }
-opentelemetry-otlp = { version = "0.17.0", optional = true }
-opentelemetry-semantic-conventions = { version = "0.16.0", optional = true }
+opentelemetry-stdout = { version = "0.26.0", optional = true }
+opentelemetry-otlp = { version = "0.26.0", optional = true }
+opentelemetry-semantic-conventions = { version = "0.25.0", optional = true }
 
 # add random otel service id whenever restarting
 uuid = { version = "1.10.0", default-features = false, features = [
@@ -90,4 +90,4 @@ uuid = { version = "1.10.0", default-features = false, features = [
 ], optional = true }
 
 # ip address
-ipnet = { version = "2.10.0" }
+ipnet = { version = "2.10.1" }

@@ -13,18 +13,18 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
-anyhow = { version = "1.0.87" }
-thiserror = { version = "1.0.63" }
+anyhow = { version = "1.0.89" }
+thiserror = { version = "1.0.64" }
 pulldown-cmark = { version = "0.12.1", default-features = false }
 http = { version = "1.1.0" }
-indexmap = { version = "2.5.0" }
+indexmap = { version = "2.6.0" }
 minisign-verify = { version = "0.2.2" }
-reqwest = { version = "0.12.7", default-features = false, features = [
+reqwest = { version = "0.12.8", default-features = false, features = [
   "rustls-tls",
   "http2",
   "hickory-dns",
 ] }
-futures = { version = "0.3.30", default-features = false, features = [
+futures = { version = "0.3.31", default-features = false, features = [
   "std",
   "async-await",
 ] }

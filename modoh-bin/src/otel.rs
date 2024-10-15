@@ -11,10 +11,7 @@ use opentelemetry_semantic_conventions::{
 use opentelemetry_sdk::trace::{BatchConfigBuilder, RandomIdGenerator, Sampler, Tracer};
 
 #[cfg(feature = "otel-metrics")]
-use opentelemetry_sdk::metrics::{
-  reader::{DefaultAggregationSelector, DefaultTemporalitySelector},
-  Instrument, PeriodicReader, SdkMeterProvider, Stream,
-};
+use opentelemetry_sdk::metrics::{reader::DefaultTemporalitySelector, Instrument, PeriodicReader, SdkMeterProvider, Stream};
 
 #[cfg(feature = "otel-metrics")]
 use opentelemetry::global;
@@ -54,10 +51,7 @@ where
   let exporter = opentelemetry_otlp::new_exporter()
     .tonic()
     .with_endpoint(otlp_endpoint)
-    .build_metrics_exporter(
-      Box::new(DefaultAggregationSelector::new()),
-      Box::new(DefaultTemporalitySelector::new()),
-    )
+    .build_metrics_exporter(Box::new(DefaultTemporalitySelector::new()))
     .unwrap();
 
   let reader = PeriodicReader::builder(exporter, runtime::Tokio)
