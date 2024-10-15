@@ -1,6 +1,6 @@
 use opentelemetry::{
   global,
-  metrics::{Counter, Histogram, MeterProvider},
+  metrics::{Counter, Histogram},
 };
 
 #[derive(Debug)]
