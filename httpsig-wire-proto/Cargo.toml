@@ -13,8 +13,8 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
-anyhow = "1.0.92"
-thiserror = "1.0.68"
+anyhow = "1.0.93"
+thiserror = "2.0.3"
 rand = "0.8.5"
 hpke = "0.12.0"
 bytes = "1.8.0"
