@@ -8,7 +8,7 @@ use opentelemetry_semantic_conventions::{
 };
 
 #[cfg(feature = "otel-trace")]
-use opentelemetry_sdk::trace::{BatchConfigBuilder, RandomIdGenerator, Sampler, Tracer, TracerProvider as SdkTracerProvider};
+use opentelemetry_sdk::trace::{BatchConfigBuilder, Builder as SdkBuilder, RandomIdGenerator, Sampler, Tracer};
 
 #[cfg(feature = "otel-trace")]
 use opentelemetry::trace::TracerProvider;
@@ -118,15 +118,10 @@ where
     )
     .build();
 
-  let provider = SdkTracerProvider::builder()
-    .with_config(
-      opentelemetry_sdk::trace::Config::default()
-        // Customize sampling strategy
-        .with_sampler(Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(1.0))))
-        // If export trace to AWS X-Ray, you can use XrayIdGenerator
-        .with_id_generator(RandomIdGenerator::default())
-        .with_resource(resource(otel_config)),
-    )
+  let provider = SdkBuilder::default()
+    .with_sampler(Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(1.0))))
+    .with_id_generator(RandomIdGenerator::default())
+    .with_resource(resource(otel_config))
     .with_span_processor(batch_processor)
     .build();
 
