@@ -1,5 +1,5 @@
 use crate::{constants::OTEL_SERVICE_NAMESPACE, trace::OtelConfig};
-use opentelemetry::{trace::TracerProvider, KeyValue};
+use opentelemetry::KeyValue;
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{runtime, Resource};
 use opentelemetry_semantic_conventions::{
@@ -8,15 +8,15 @@ use opentelemetry_semantic_conventions::{
 };
 
 #[cfg(feature = "otel-trace")]
-use opentelemetry_sdk::trace::{BatchConfigBuilder, RandomIdGenerator, Sampler, Tracer};
+use opentelemetry_sdk::trace::{BatchConfigBuilder, Builder as SdkBuilder, RandomIdGenerator, Sampler, Tracer};
+
+#[cfg(feature = "otel-trace")]
+use opentelemetry::trace::TracerProvider;
 
 #[cfg(feature = "otel-metrics")]
-use opentelemetry_sdk::metrics::{
-  reader::{DefaultAggregationSelector, DefaultTemporalitySelector},
-  Instrument, PeriodicReader, SdkMeterProvider, Stream,
-};
+use opentelemetry_sdk::metrics::{Instrument, PeriodicReader, SdkMeterProvider, Stream, Temporality};
 
-#[cfg(feature = "otel-metrics")]
+#[cfg(any(feature = "otel-metrics", feature = "otel-trace"))]
 use opentelemetry::global;
 
 #[cfg(feature = "otel-instance-id")]
@@ -51,13 +51,11 @@ where
 
   let otlp_endpoint = otel_config.otlp_endpoint.clone();
   // exporter via otlp
-  let exporter = opentelemetry_otlp::new_exporter()
-    .tonic()
+  let exporter = opentelemetry_otlp::MetricExporter::builder()
+    .with_tonic()
     .with_endpoint(otlp_endpoint)
-    .build_metrics_exporter(
-      Box::new(DefaultAggregationSelector::new()),
-      Box::new(DefaultTemporalitySelector::new()),
-    )
+    .with_temporality(Temporality::default())
+    .build()
     .unwrap();
 
   let reader = PeriodicReader::builder(exporter, runtime::Tokio)
@@ -65,7 +63,7 @@ where
     .build();
 
   // For debugging in development
-  let stdout_exporter = opentelemetry_stdout::MetricsExporter::default();
+  let stdout_exporter = opentelemetry_stdout::MetricExporter::default();
   let stdout_reader = PeriodicReader::builder(stdout_exporter, runtime::Tokio).build();
 
   // define view
@@ -107,24 +105,25 @@ where
   opentelemetry::Value: From<T>,
 {
   let otlp_endpoint = otel_config.otlp_endpoint.clone();
-  let provider = opentelemetry_otlp::new_pipeline()
-    .tracing()
-    .with_trace_config(
-      opentelemetry_sdk::trace::Config::default()
-        // Customize sampling strategy
-        .with_sampler(Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(1.0))))
-        // If export trace to AWS X-Ray, you can use XrayIdGenerator
-        .with_id_generator(RandomIdGenerator::default())
-        .with_resource(resource(otel_config)),
-    )
+  let exporter = opentelemetry_otlp::SpanExporter::builder()
+    .with_tonic()
+    .with_endpoint(otlp_endpoint)
+    .build()
+    .unwrap();
+  let batch_processor = opentelemetry_sdk::trace::BatchSpanProcessor::builder(exporter, runtime::Tokio)
     .with_batch_config(
       BatchConfigBuilder::default()
         .with_max_queue_size(crate::constants::OTEL_TRACE_BATCH_QUEUE_SIZE)
         .build(),
     )
-    .with_exporter(opentelemetry_otlp::new_exporter().tonic().with_endpoint(otlp_endpoint))
-    .install_batch(runtime::Tokio)
-    .unwrap();
+    .build();
+
+  let provider = SdkBuilder::default()
+    .with_sampler(Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(1.0))))
+    .with_id_generator(RandomIdGenerator::default())
+    .with_resource(resource(otel_config))
+    .with_span_processor(batch_processor)
+    .build();
 
   global::set_tracer_provider(provider.clone());
   provider.tracer("modoh-server")

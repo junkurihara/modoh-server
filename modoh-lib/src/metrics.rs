@@ -1,6 +1,6 @@
 use opentelemetry::{
   global,
-  metrics::{Counter, Histogram, MeterProvider},
+  metrics::{Counter, Histogram},
 };
 
 #[derive(Debug)]
@@ -76,122 +76,122 @@ impl Meters {
     let token_validation = meter
       .u64_counter("token_validation")
       .with_description("Count of token validation")
-      .init();
+      .build();
     let token_validation_result_error = meter
       .u64_counter("token_validation_result_error")
       .with_description("Count of failure result of token validation")
-      .init();
+      .build();
     let query_odoh_configs = meter
       .u64_counter("query_odoh_configs")
       .with_description("Count of queries for odoh_configs")
-      .init();
+      .build();
     let query_odoh_configs_result_error = meter
       .u64_counter("query_odoh_configs_result_error")
       .with_description("Count of queries for odoh_configs error")
-      .init();
+      .build();
 
     let query_httpsig_configs = meter
       .u64_counter("query_httpsig_configs")
       .with_description("Count of queries for httpsig_configs")
-      .init();
+      .build();
     let query_httpsig_configs_result_error = meter
       .u64_counter("query_httpsig_configs_result_error")
       .with_description("Count of queries for httpsig_configs error")
-      .init();
+      .build();
 
     let src_ip_access_control = meter
       .u64_counter("src_ip_access_control")
       .with_description("Count of source ip access control execution")
-      .init();
+      .build();
     let src_ip_access_control_result_rejected = meter
       .u64_counter("src_ip_access_control_result_rejected")
       .with_description("Count of rejection by source ip access control")
-      .init();
+      .build();
 
     let httpsig_verification = meter
       .u64_counter("httpsig_verification")
       .with_description("Count of httpsig verification")
-      .init();
+      .build();
     let httpsig_verification_rejected = meter
       .u64_counter("httpsig_verification_rejected")
       .with_description("Count of rejection by httpsig verification")
-      .init();
+      .build();
 
     let query_relaying = meter
       .u64_counter("query_relaying")
       .with_description("Count of anonymized/relaying query")
-      .init();
+      .build();
     let query_token_validated_relaying = meter
       .u64_counter("query_token_validated_relaying")
       .with_description("Count of token-validated anonymized/relaying query")
-      .init();
+      .build();
     let query_relaying_result_responded = meter
       .u64_counter("query_relaying_result_responded")
       .with_description("Count of responded result by the upstream servers for anonymized/relaying query")
-      .init();
+      .build();
     let query_relaying_result_error = meter
       .u64_counter("query_relaying_result_error")
       .with_description("Count of failure result for relaying anonymized/relaying query")
-      .init();
+      .build();
     let query_target = meter
       .u64_counter("query_target")
       .with_description("Count of query as target")
-      .init();
+      .build();
     let query_token_validated_target = meter
       .u64_counter("query_token_validated_target")
       .with_description("Count of token-validated targeted query")
-      .init();
+      .build();
     let query_target_result_responded = meter
       .u64_counter("query_target_result_responded")
       .with_description("Count of responded result by the upstream DNS servers for targeted query")
-      .init();
+      .build();
     let query_target_result_error = meter
       .u64_counter("query_target_result_error")
       .with_description("Count of failure result for targeted query")
-      .init();
+      .build();
 
     let query_target_doh_get = meter
       .u64_counter("query_target_doh_get")
       .with_description("Count of DoH query via GET as target")
-      .init();
+      .build();
     let query_target_doh_post = meter
       .u64_counter("query_target_doh_post")
       .with_description("Count of DoH query via POST as target")
-      .init();
+      .build();
     let query_target_modoh = meter
       .u64_counter("query_target_modoh")
       .with_description("Count of (M)ODoH query as target")
-      .init();
+      .build();
     let upstream_raw_dns_server_error = meter
       .u64_counter("upstream_raw_dns_server_error")
       .with_description("Count of upstream raw DNS server error")
-      .init();
+      .build();
     let upstream_query_tcp = meter
       .u64_counter("upstream_query_tcp")
       .with_description("Count of upstream query via TCP due to the truncation of UDP packet")
-      .init();
+      .build();
     let latency_target_upstream = meter
       .u64_histogram("latency_target_upstream")
       .with_description("Histogram of target upstream latency (msec)")
       .with_unit("msec")
-      .init();
+      .build();
     let subsequent_relay_num = meter
       .u64_histogram("subsequent_relay_num")
       .with_description("Histogram of subsequent relay number")
-      .init();
+      .build();
     let dst_domain_access_control = meter
       .u64_counter("dst_domain_access_control")
       .with_description("Count of destination domain access control")
-      .init();
+      .build();
     let dst_domain_access_control_result_rejected = meter
       .u64_counter("dst_domain_access_control_result_rejected")
       .with_description("Count of rejection by destination domain access control")
-      .init();
+      .build();
     let latency_relay_upstream = meter
       .u64_histogram("latency_relay_upstream")
       .with_description("Histogram of relaying upstream latency (msec)")
       .with_unit("msec")
-      .init();
+      .build();
     // TODO: define more
 
     Meters {

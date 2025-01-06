@@ -1,8 +1,8 @@
 use super::relay_main::InnerRelay;
 use crate::{constants::HOSTNAME, error::*, trace::*};
+use ahash::HashMap;
 use hyper::body::Body;
 use hyper_util::client::legacy::connect::Connect;
-use rustc_hash::FxHashMap as HashMap;
 use tracing::instrument;
 use url::Url;
 
