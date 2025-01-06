@@ -42,11 +42,11 @@ tokio = { version = "1.42.0", features = [
 anyhow = "1.0.95"
 tracing = "0.1.41"
 thiserror = "2.0.9"
-async-trait = "0.1.83"
+async-trait = "0.1.84"
 
 # http handling for both client and server
 url = "2.5.4"
-rustc-hash = "2.1.0"
+ahash = "0.8.11"
 hyper = { version = "1.5.2", default-features = false }
 http = "1.2.0"
 http-body-util = "0.1.2"
@@ -71,7 +71,7 @@ base64 = "0.22.1"
 byteorder = "1.5.0"
 
 # validation of id token
-serde = { version = "1.0.216", default-features = false }
+serde = { version = "1.0.217", default-features = false }
 auth-validator = { git = "https://github.com/junkurihara/rust-token-server", package = "rust-token-server-validator", branch = "develop", default-features = false, features = [
   "blind-signatures",
 ] }

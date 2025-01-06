@@ -1,12 +1,12 @@
 use super::HttpSigKeyRotationState;
 use crate::trace::*;
+use ahash::HashMap;
 use cedarwood::Cedar;
 use httpsig::prelude::{PublicKey as RawPublicKey, SecretKey as RawSecretKey, SigningKey, VerifyingKey};
 use httpsig_proto::{DeriveKeyId, HmacSha256HkdfSha256, HttpSigConfigContents, HttpSigKeyPair, KemKdfDerivedSecret};
 use httpsig_registry::HttpSigDomainInfo;
 use indexmap::IndexMap;
 use regex::Regex;
-use rustc_hash::FxHashMap as HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
