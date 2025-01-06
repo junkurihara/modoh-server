@@ -136,7 +136,7 @@ where
     #[cfg(not(feature = "rustls-webpki-roots"))]
     let builder = hyper_rustls::HttpsConnectorBuilder::new().with_native_roots()?;
 
-    let connector = builder.https_only().enable_http1().enable_http2().build();
+    let connector = builder.https_or_http().enable_http1().enable_http2().build();
     let executor = LocalExecutor::new(runtime_handle.clone());
     let inner = Client::builder(executor).build::<_, B>(connector);
     Ok(Self { inner })
