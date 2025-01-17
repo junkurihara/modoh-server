@@ -14,7 +14,7 @@ publish.workspace = true
 
 [dependencies]
 anyhow = { version = "1.0.95" }
-thiserror = { version = "2.0.9" }
+thiserror = { version = "2.0.11" }
 pulldown-cmark = { version = "0.12.2", default-features = false }
 http = { version = "1.2.0" }
 indexmap = { version = "2.7.0" }
@@ -28,7 +28,7 @@ futures = { version = "0.3.31", default-features = false, features = [
   "std",
   "async-await",
 ] }
-tokio = { version = "1.42.0", features = [
+tokio = { version = "1.43.0", features = [
   "net",
   "rt-multi-thread",
   "time",
