@@ -65,7 +65,7 @@ hyper-rustls = { version = "0.27.5", default-features = false, features = [
 ], optional = true }
 
 # modoh target handling
-odoh-rs = { git = "https://github.com/junkurihara/odoh-rs" }
+odoh-rs = { git = "https://github.com/junkurihara/odoh-rs", rev = "f324e3e0f90e205d0c200d2820ecafb549819d65" }
 rand = "0.8.5"
 base64 = "0.22.1"
 byteorder = "1.5.0"
@@ -75,10 +75,10 @@ serde = { version = "1.0.217", default-features = false }
 auth-validator = { git = "https://github.com/junkurihara/rust-token-server", package = "rust-token-server-validator", branch = "develop", default-features = false, features = [
   "blind-signatures",
 ] }
-serde_json = { version = "1.0.135" }
+serde_json = { version = "1.0.137" }
 
 # access control
-ipnet = { version = "2.10.1" }
+ipnet = { version = "2.11.0" }
 cedarwood = { version = "0.4.6" }
 regex = { version = "1.11.1" }
 
@@ -95,7 +95,7 @@ tracing-opentelemetry = { version = "0.28.0", optional = true }
 # httpsig
 httpsig-proto = { path = "../httpsig-wire-proto", default-features = false, package = "httpsig-proto" }
 httpsig-registry = { path = "../httpsig-registry", default-features = false, package = "httpsig-registry" }
-indexmap = { version = "2.7.0" }
+indexmap = { version = "2.7.1" }
 httpsig = { version = "0.0.17" }
 httpsig-hyper = { version = "0.0.17" }
 
