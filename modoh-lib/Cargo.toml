@@ -84,7 +84,7 @@ regex = { version = "1.11.1" }
 
 # metrics
 opentelemetry = { version = "0.27.1", optional = true }
-opentelemetry_sdk = { version = "0.27.1", features = [
+opentelemetry_sdk = { version = "0.28.0", features = [
   "rt-tokio",
 ], optional = true }
 
