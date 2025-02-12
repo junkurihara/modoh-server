@@ -42,12 +42,12 @@ tokio = { version = "1.43.0", features = [
 anyhow = "1.0.95"
 tracing = "0.1.41"
 thiserror = "2.0.11"
-async-trait = "0.1.85"
+async-trait = "0.1.86"
 
 # http handling for both client and server
 url = "2.5.4"
 ahash = "0.8.11"
-hyper = { version = "1.5.2", default-features = false }
+hyper = { version = "1.6.0", default-features = false }
 http = "1.2.0"
 http-body-util = "0.1.2"
 hyper-util = { version = "0.1.10", features = ["full"] }
@@ -75,7 +75,7 @@ serde = { version = "1.0.217", default-features = false }
 auth-validator = { git = "https://github.com/junkurihara/rust-token-server", package = "rust-token-server-validator", branch = "develop", default-features = false, features = [
   "blind-signatures",
 ] }
-serde_json = { version = "1.0.137" }
+serde_json = { version = "1.0.138" }
 
 # access control
 ipnet = { version = "2.11.0" }
@@ -101,4 +101,4 @@ httpsig-hyper = { version = "0.0.17" }
 
 # logging
 crossbeam-channel = { version = "0.5.14", optional = true }
-hickory-proto = { version = "0.24.2", default-features = false, optional = true }
+hickory-proto = { version = "0.24.3", default-features = false, optional = true }
