@@ -66,7 +66,7 @@ hyper-rustls = { version = "0.27.5", default-features = false, features = [
 
 # modoh target handling
 odoh-rs = { git = "https://github.com/junkurihara/odoh-rs", rev = "f324e3e0f90e205d0c200d2820ecafb549819d65" }
-rand = "0.8.5"
+rand = "0.9.0"
 base64 = "0.22.1"
 byteorder = "1.5.0"
 
