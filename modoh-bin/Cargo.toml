@@ -75,7 +75,7 @@ hot_reload = "0.1.8"
 tracing = { version = "0.1.41" }
 tracing-subscriber = { version = "0.3.19", features = ["fmt"] }
 tracing-opentelemetry = { version = "0.28.0", optional = true }
-opentelemetry = { version = "0.27.1", optional = true }
+opentelemetry = { version = "0.28.0", optional = true }
 opentelemetry_sdk = { version = "0.27.1", features = [
   "rt-tokio",
   "spec_unstable_metrics_views",
