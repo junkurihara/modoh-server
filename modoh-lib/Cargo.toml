@@ -65,8 +65,8 @@ hyper-rustls = { version = "0.27.5", default-features = false, features = [
 ], optional = true }
 
 # modoh target handling
-odoh-rs = { git = "https://github.com/junkurihara/odoh-rs", rev = "f324e3e0f90e205d0c200d2820ecafb549819d65" }
-rand = "0.8.5"
+odoh-rs = { git = "https://github.com/junkurihara/odoh-rs", rev = "789848b0e0fe77d409fb08fcbfffc32899a71697" }
+rand = "0.9.0"
 base64 = "0.22.1"
 byteorder = "1.5.0"
 
@@ -101,4 +101,4 @@ httpsig-hyper = { version = "0.0.17" }
 
 # logging
 crossbeam-channel = { version = "0.5.14", optional = true }
-hickory-proto = { version = "0.24.3", default-features = false, optional = true }
+hickory-proto = { version = "0.24.4", default-features = false, optional = true }

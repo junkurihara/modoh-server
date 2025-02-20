@@ -228,7 +228,7 @@ impl HttpSigPublicKeys {
     let key_pairs = key_types
       .iter()
       .map(|t| {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         match t {
           HttpSigKeyTypes::Hs256X25519HkdfSha256 => {
             HttpSigKeyPair::Dh(HttpSigDhTypes::Hs256X25519HkdfSha256.generate_key_pair(&mut rng))
@@ -408,7 +408,7 @@ mod tests {
     // derive session key and random nonce at alice side
     let alice_session_key_nonce = alice_secrets
       .iter()
-      .map(|s| s.derive_session_key_with_random_nonce(&mut rand::thread_rng()))
+      .map(|s| s.derive_session_key_with_random_nonce(&mut rand::rng()))
       .collect::<Result<Vec<_>, _>>()
       .unwrap();
     let nonces = alice_session_key_nonce.iter().map(|s| s.nonce().to_vec()).collect::<Vec<_>>();

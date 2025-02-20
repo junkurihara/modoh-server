@@ -151,7 +151,7 @@ mod tests {
   fn test_generate_key_pair() {
     let pk_types = vec![HttpSigPkTypes::Ed25519, HttpSigPkTypes::EcdsaP256Sha256];
     for pk_type in pk_types {
-      let mut rng = rand::thread_rng();
+      let mut rng = rand::rng();
       let key_pair = pk_type.generate_key_pair(&mut rng);
       assert_eq!(key_pair.public_key.alg_id, pk_type.alg_id());
     }
@@ -161,7 +161,7 @@ mod tests {
   fn test_serialize_ph_config() {
     let pk_types = vec![HttpSigPkTypes::Ed25519, HttpSigPkTypes::EcdsaP256Sha256];
     for pk_type in pk_types {
-      let mut rng = rand::thread_rng();
+      let mut rng = rand::rng();
       let key_pair = pk_type.generate_key_pair(&mut rng);
       let mut buf = BytesMut::new();
       key_pair.public_key.serialize(&mut buf).unwrap();
