@@ -101,4 +101,4 @@ httpsig-hyper = { version = "0.0.18" }
 
 # logging
 crossbeam-channel = { version = "0.5.14", optional = true }
-hickory-proto = { version = "0.24.4", default-features = false, optional = true }
+hickory-proto = { version = "0.25.1", default-features = false, optional = true }
