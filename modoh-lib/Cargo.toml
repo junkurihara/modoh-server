@@ -32,7 +32,7 @@ futures = { version = "0.3.31", default-features = false, features = [
   "std",
   "async-await",
 ] }
-tokio = { version = "1.44.0", features = [
+tokio = { version = "1.44.1", features = [
   "net",
   "rt-multi-thread",
   "time",
@@ -42,7 +42,7 @@ tokio = { version = "1.44.0", features = [
 anyhow = "1.0.97"
 tracing = "0.1.41"
 thiserror = "2.0.12"
-async-trait = "0.1.87"
+async-trait = "0.1.88"
 
 # http handling for both client and server
 url = "2.5.4"
@@ -101,4 +101,4 @@ httpsig-hyper = { version = "0.0.18" }
 
 # logging
 crossbeam-channel = { version = "0.5.14", optional = true }
-hickory-proto = { version = "0.24.4", default-features = false, optional = true }
+hickory-proto = { version = "0.25.1", default-features = false, optional = true }
