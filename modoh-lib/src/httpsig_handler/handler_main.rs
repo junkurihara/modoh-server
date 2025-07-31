@@ -537,6 +537,7 @@ where
     available_secret_keys.first().map(|v| v.to_owned())
   }
 
+  #[allow(unused)]
   #[instrument(name = "get_hmac_verification_key_by_key_id", skip_all)]
   /// **VerificationAPI**: Search a hmac master key for the given key id
   /// If found, derive the session key for given nonce from the master key
@@ -560,6 +561,7 @@ where
     Some(session_key)
   }
 
+  #[allow(unused)]
   #[instrument(name = "get_pk_verification_key_by_key_id", skip_all)]
   /// **VerificationAPI**: Get a public key for the given key id for verification (case if no hmac key is found)
   pub(crate) async fn get_pk_verification_key_by_key_id(&self, key_id: &str) -> Option<PublicKey> {
