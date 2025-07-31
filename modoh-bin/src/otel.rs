@@ -75,19 +75,21 @@ where
   // define view
   let view = |instrument: &Instrument| -> Option<Stream> {
     // add prefix to metrics names
-    let stream = Stream::new()
-      .name(format!("{}_{}", OTEL_SERVICE_NAMESPACE, instrument.name)) // add prefix to metrics names
-      .description(instrument.description.clone())
-      .unit(instrument.unit.clone());
+    let instrument_name = instrument.name().to_string();
+    let instrument_unit = instrument.unit().to_string();
 
-    if instrument.name.contains("latency_") {
-      Some(stream.aggregation(Aggregation::ExplicitBucketHistogram {
+    let mut stream_builder = Stream::builder()
+      .with_name(format!("{}_{}", OTEL_SERVICE_NAMESPACE, instrument_name)) // add prefix to metrics names
+      // .with_description(instrument.description().clone())
+      .with_unit(instrument_unit);
+
+    if instrument_name.contains("latency_") {
+      stream_builder = stream_builder.with_aggregation(Aggregation::ExplicitBucketHistogram {
         boundaries: vec![25.0, 50.0, 100.0, 200.0, 400.0, 800.0, 1600.0, 3200.0],
         record_min_max: true,
-      }))
-    } else {
-      Some(stream)
+      });
     }
+    stream_builder.build().ok()
   };
 
   let meter_provider = SdkMeterProvider::builder()
