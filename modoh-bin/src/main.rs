@@ -10,12 +10,12 @@ mod trace;
 mod otel;
 
 use crate::{
-  config::{parse_opts, ConfigReloader, TargetConfig},
+  config::{ConfigReloader, TargetConfig, parse_opts},
   constants::CONFIG_WATCH_DELAY_SECS,
   trace::*,
 };
 use hot_reload::{ReloaderReceiver, ReloaderService};
-use modoh_server_lib::{entrypoint, ServiceConfig};
+use modoh_server_lib::{ServiceConfig, entrypoint};
 
 fn main() {
   let mut runtime_builder = tokio::runtime::Builder::new_multi_thread();
@@ -42,7 +42,7 @@ fn main() {
       }
     } else {
       let (config_service, config_rx) =
-        ReloaderService::<ConfigReloader, TargetConfig>::new(&parsed_opts.config_file_path, CONFIG_WATCH_DELAY_SECS, false)
+        ReloaderService::<ConfigReloader, TargetConfig>::with_delay(&parsed_opts.config_file_path, CONFIG_WATCH_DELAY_SECS)
           .await
           .unwrap();
 

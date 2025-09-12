@@ -13,16 +13,16 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
-anyhow = "1.0.95"
-thiserror = "2.0.9"
-rand = "0.8.5"
-hpke = "0.12.0"
-bytes = "1.9.0"
+anyhow = "1.0.99"
+thiserror = "2.0.16"
+rand = "0.9.2"
+hpke = "0.13.0"
+bytes = "1.10.1"
 byteorder = "1.5.0"
 p256 = { version = "0.13.2" }
 elliptic-curve = { version = "0.13.8", features = ["ecdh"] }
 ed25519-compact = { version = "2.1.1" }
 digest = "0.10.7"
-sha2 = "0.10.8"
+sha2 = "0.10.9"
 hkdf = "0.12.4"
-httpsig = "0.0.16"
+httpsig = "0.0.19"

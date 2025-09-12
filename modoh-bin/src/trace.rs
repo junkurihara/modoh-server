@@ -238,7 +238,12 @@ impl Drop for MetricsGuard {
     if let Err(err) = mp.shutdown() {
       eprintln!("{err:?}");
     }
-    opentelemetry::global::shutdown_tracer_provider();
+    // opentelemetry::global::shutdown_tracer_provider();
+    let tracer_provider = opentelemetry_sdk::trace::SdkTracerProvider::builder().build();
+    // Clone and set the tracer provider globally. Retain the original to invoke shutdown later.
+    opentelemetry::global::set_tracer_provider(tracer_provider.clone());
+    // Shutdown the provider when application is exiting.
+    let _ = tracer_provider.shutdown();
   }
 }
 

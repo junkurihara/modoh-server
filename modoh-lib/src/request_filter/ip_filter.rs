@@ -1,5 +1,5 @@
-use crate::{error::*, trace::*, AccessConfig};
-use http::{header, HeaderMap};
+use crate::{AccessConfig, error::*, trace::*};
+use http::{HeaderMap, header};
 use ipnet::IpNet;
 use std::net::{IpAddr, SocketAddr};
 use tracing::instrument;
@@ -168,7 +168,7 @@ fn retrieve_for_from_forwarded(header: &HeaderMap) -> HttpResult<Vec<IpAddr>> {
   let entries_extracted_for = entries
     .iter()
     .filter_map(|entry| entry.split(';').find(|x| x.trim().starts_with("for=")))
-    .map(|v| v.split('=').last().unwrap_or_default().trim().trim_matches('"'))
+    .map(|v| v.split('=').next_back().unwrap_or_default().trim().trim_matches('"'))
     .filter_map(manipulate_ip_string)
     .collect::<Vec<_>>();
   if entries.len() != entries_extracted_for.len() {
@@ -239,14 +239,8 @@ mod tests {
     let retrieved = retrieve_for_from_forwarded(&req_header).unwrap();
     assert_eq!(retrieved.len(), 2);
     let mut iter = retrieved.iter();
-    assert_eq!(
-      iter.next(),
-      Some(&IpAddr::from([0x2001, 0xdb8, 0xcafe, 0, 0, 0, 0, 0x17]))
-    );
-    assert_eq!(
-      iter.next(),
-      Some(&IpAddr::from([0x2001, 0xdb8, 0xcafe, 0, 0, 0, 0, 0x18]))
-    );
+    assert_eq!(iter.next(), Some(&IpAddr::from([0x2001, 0xdb8, 0xcafe, 0, 0, 0, 0, 0x17])));
+    assert_eq!(iter.next(), Some(&IpAddr::from([0x2001, 0xdb8, 0xcafe, 0, 0, 0, 0, 0x18])));
     assert_eq!(iter.next(), None);
   }
   #[test]

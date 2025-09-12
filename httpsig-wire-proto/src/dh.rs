@@ -246,12 +246,12 @@ pub fn derive_secret<M: MacKdf>(
 mod tests {
   use super::super::mac_kdf::DeriveSessionKey;
   use super::*;
-  use rand::thread_rng;
+  use rand::rng;
 
   #[test]
   fn test_generate_key_pair() {
-    let x25519 = HttpSigDhTypes::Hs256X25519HkdfSha256.generate_key_pair(&mut thread_rng());
-    let dhp256 = HttpSigDhTypes::Hs256DhP256HkdfSha256.generate_key_pair(&mut thread_rng());
+    let x25519 = HttpSigDhTypes::Hs256X25519HkdfSha256.generate_key_pair(&mut rng());
+    let dhp256 = HttpSigDhTypes::Hs256DhP256HkdfSha256.generate_key_pair(&mut rng());
 
     assert_eq!(x25519.private_key.len(), 32);
     assert_eq!(x25519.public_key.kem_id, X25519HkdfSha256::KEM_ID);
@@ -270,8 +270,8 @@ mod tests {
   fn test_derive_secret() {
     let dh_types = [HttpSigDhTypes::Hs256DhP256HkdfSha256, HttpSigDhTypes::Hs256X25519HkdfSha256];
     dh_types.iter().for_each(|t| {
-      let alice_kp = t.generate_key_pair(&mut thread_rng());
-      let bob_kp = t.generate_key_pair(&mut thread_rng());
+      let alice_kp = t.generate_key_pair(&mut rng());
+      let bob_kp = t.generate_key_pair(&mut rng());
 
       let shared_1 = alice_kp.derive_secret(&bob_kp.public_key).unwrap();
       let shared_2 = bob_kp.derive_secret(&alice_kp.public_key).unwrap();
@@ -280,7 +280,7 @@ mod tests {
       let shared_1 = alice_kp.public_key.derive_secret(&bob_kp).unwrap();
       let shared_2 = bob_kp.public_key.derive_secret(&alice_kp).unwrap();
       assert_eq!(shared_1.secret, shared_2.secret);
-      let session_key_1 = shared_1.derive_session_key_with_random_nonce(&mut thread_rng()).unwrap();
+      let session_key_1 = shared_1.derive_session_key_with_random_nonce(&mut rng()).unwrap();
       let session_key_2 = shared_2.derive_session_key_with_nonce(session_key_1.nonce()).unwrap();
       assert_eq!(session_key_1.session_key(), session_key_2.session_key());
       assert_eq!(session_key_1.nonce(), session_key_2.nonce());
@@ -291,7 +291,7 @@ mod tests {
   fn test_serialize_dh_config() {
     let dh_types = [HttpSigDhTypes::Hs256DhP256HkdfSha256, HttpSigDhTypes::Hs256X25519HkdfSha256];
     dh_types.iter().for_each(|t| {
-      let kp = t.generate_key_pair(&mut thread_rng());
+      let kp = t.generate_key_pair(&mut rng());
       let mut serialized_config = Vec::new();
       kp.public_key.serialize(&mut serialized_config).unwrap();
 

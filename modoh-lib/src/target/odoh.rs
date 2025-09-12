@@ -3,8 +3,8 @@
 use crate::error::*;
 use hyper::body::Bytes;
 use odoh_rs::{
-  Deserialize, ObliviousDoHConfig, ObliviousDoHConfigs, ObliviousDoHKeyPair, ObliviousDoHMessage,
-  ObliviousDoHMessagePlaintext, OdohSecret, ResponseNonce, Serialize,
+  Deserialize, ObliviousDoHConfig, ObliviousDoHConfigs, ObliviousDoHKeyPair, ObliviousDoHMessage, ObliviousDoHMessagePlaintext,
+  OdohSecret, ResponseNonce, Serialize,
 };
 use rand::Rng;
 use tracing::instrument;
@@ -19,7 +19,7 @@ pub struct ODoHPublicKey {
 impl ODoHPublicKey {
   /// Create a new ODoH public key
   pub fn new() -> Result<ODoHPublicKey> {
-    let key_pair = ObliviousDoHKeyPair::new(&mut rand::thread_rng());
+    let key_pair = ObliviousDoHKeyPair::new(&mut rand::rng());
     let config = ObliviousDoHConfig::from(key_pair.public().clone());
     let mut serialized_configs = Vec::new();
     ObliviousDoHConfigs::from(vec![config])
@@ -75,11 +75,10 @@ impl ODoHQueryContext {
   #[instrument(level = "debug", skip_all)]
   /// Encrypt raw DNS response
   pub fn encrypt_response(self, response_body: Vec<u8>) -> HttpResult<Vec<u8>> {
-    let response_nonce = rand::thread_rng().gen::<ResponseNonce>();
+    let response_nonce = rand::rng().random::<ResponseNonce>();
     let response_body_ = ObliviousDoHMessagePlaintext::new(response_body, 0);
-    let encrypted_response =
-      odoh_rs::encrypt_response(&self.query, &response_body_, self.server_secret, response_nonce)
-        .map_err(|_| HttpError::InvalidODoHResponse)?;
+    let encrypted_response = odoh_rs::encrypt_response(&self.query, &response_body_, self.server_secret, response_nonce)
+      .map_err(|_| HttpError::InvalidODoHResponse)?;
     let mut encrypted_response_bytes = Vec::new();
     encrypted_response
       .serialize(&mut encrypted_response_bytes)

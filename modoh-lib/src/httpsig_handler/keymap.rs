@@ -225,7 +225,7 @@ async fn derive_and_set_dh(
   let key_id_to_dhkex_master = dhkex_res_for_generation
     .iter()
     .flatten()
-    .map(|(derived, key_id, _, gen)| (key_id.to_owned(), derived.to_owned(), gen.to_owned()));
+    .map(|(derived, key_id, _, genx)| (key_id.to_owned(), derived.to_owned(), genx.to_owned()));
   key_id_map.set_dh_inner(key_id_to_dhkex_master);
   // domain map includes only the keys generated with with self state for each generation
   let master_id_to_domain_for_gen = dhkex_res_for_generation

@@ -1,5 +1,5 @@
 [workspace.package]
-version = "0.3.1"
+version = "0.3.2"
 authors = ["Jun Kurihara"]
 homepage = "https://github.com/junkurihara/modoh-server"
 repository = "https://github.com/junkurihara/modoh-server"
@@ -24,7 +24,7 @@ keywords = [
   "relay",
   "authorization",
 ]
-edition = "2021"
+edition = "2024"
 publish = false
 
 [workspace]
