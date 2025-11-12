@@ -16,11 +16,7 @@ fn is_looped(current_url: &Url) -> bool {
   let mut seen = vec![current_url.host_str().unwrap_or(HOSTNAME).to_ascii_lowercase()];
   let hostnames = current_url.query_pairs().filter_map(|(k, v)| {
     // filter "targethost" or "relayhost"
-    if k.contains("host") {
-      Some(v)
-    } else {
-      None
-    }
+    if k.contains("host") { Some(v) } else { None }
   });
   for h in hostnames {
     let hostname = h.to_ascii_lowercase();
@@ -37,7 +33,7 @@ where
   C: Send + Sync + Connect + Clone + 'static,
   B: Body + Send + Unpin + 'static,
   <B as Body>::Data: Send,
-  <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
+  <B as Body>::Error: Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
 {
   #[instrument(level = "debug", skip_all)]
   /// build next-hop url with loop detection and max subsequent nodes check
@@ -118,7 +114,7 @@ where
 mod tests {
   use super::*;
   use crate::hyper_client::HttpClient;
-  use hyper::{body::Incoming, HeaderMap};
+  use hyper::{HeaderMap, body::Incoming};
   use std::sync::Arc;
 
   #[test]
@@ -179,7 +175,10 @@ mod tests {
 
     let url = Url::parse("https://example1.com/proxy?targethost=example2.com&targetpath=/dns-query&relayhost[1]=example3.com&relaypath[1]=/proxy&relayhost[2]=example4.com&relaypath[2]=/proxy").unwrap();
     let next_hop_url = inner.build_nexthop_url(&url).unwrap();
-    assert_eq!(next_hop_url.as_str(), "https://example3.com/proxy?relayhost%5B1%5D=example4.com&relaypath%5B1%5D=%2Fproxy&targethost=example2.com&targetpath=%2Fdns-query");
+    assert_eq!(
+      next_hop_url.as_str(),
+      "https://example3.com/proxy?relayhost%5B1%5D=example4.com&relaypath%5B1%5D=%2Fproxy&targethost=example2.com&targetpath=%2Fdns-query"
+    );
 
     let url = Url::parse("https://example1.com/proxy?targethost=example2.com&targetpath=/dns-query&relayhost[1]=example3.com&relaypath[1]=/proxy&relayhost[2]=example4.com&relaypath[2]=/proxy&relayhost[3]=example5.com&relaypath[3]=/proxy").unwrap();
     let next_hop_url = inner.build_nexthop_url(&url);

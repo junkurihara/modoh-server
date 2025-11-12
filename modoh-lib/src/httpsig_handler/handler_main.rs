@@ -45,7 +45,7 @@ where
   C: Send + Sync + Connect + Clone + 'static,
   B: Body + Send + Unpin + 'static,
   <B as Body>::Data: Send,
-  <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
+  <B as Body>::Error: Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
 {
   /// force to refetch notifier for the public keys
   pub(super) force_refetch_notify: Arc<tokio::sync::Notify>,

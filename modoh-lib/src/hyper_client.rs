@@ -8,8 +8,8 @@ use crate::{
 use http::{Request, Response};
 use hyper::body::{Body, Incoming};
 use hyper_util::client::legacy::{
-  connect::{Connect, HttpConnector},
   Client,
+  connect::{Connect, HttpConnector},
 };
 use tracing::instrument;
 
@@ -20,7 +20,7 @@ where
   C: Send + Sync + Connect + Clone + 'static,
   B: Body + Send + Unpin + 'static,
   <B as Body>::Data: Send,
-  <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
+  <B as Body>::Error: Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
 {
   pub inner: Client<C, B>,
 }
@@ -30,7 +30,7 @@ where
   C: Send + Sync + Connect + Clone + 'static,
   B: Body + Send + Unpin + 'static,
   <B as Body>::Data: Send,
-  <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
+  <B as Body>::Error: Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
 {
   #[instrument(level = "debug", name = "http_request", skip_all)]
   /// wrapper request fn
@@ -71,7 +71,7 @@ impl<B> HttpClient<HttpConnector, B>
 where
   B: Body + Send + Unpin + 'static,
   <B as Body>::Data: Send,
-  <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
+  <B as Body>::Error: Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
 {
   /// Build inner client with http
   pub fn try_new(runtime_handle: tokio::runtime::Handle) -> Result<Self> {
@@ -96,7 +96,7 @@ impl<B> HttpClient<hyper_tls::HttpsConnector<HttpConnector>, B>
 where
   B: Body + Send + Unpin + 'static,
   <B as Body>::Data: Send,
-  <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
+  <B as Body>::Error: Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
 {
   /// Build inner client with hyper-tls
   pub fn try_new(runtime_handle: tokio::runtime::Handle) -> Result<Self> {
@@ -126,7 +126,7 @@ impl<B> HttpClient<hyper_rustls::HttpsConnector<HttpConnector>, B>
 where
   B: Body + Send + Unpin + 'static,
   <B as Body>::Data: Send,
-  <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
+  <B as Body>::Error: Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
 {
   /// Build forwarder
   pub fn try_new(runtime_handle: tokio::runtime::Handle) -> Result<Self> {

@@ -6,8 +6,8 @@ use crate::{
   hyper_client::HttpClient,
 };
 use async_trait::async_trait;
-use auth_validator::{reexports::Claims, JwksHttpClient, TokenValidator};
-use http::{header, HeaderValue, Method, Request};
+use auth_validator::{JwksHttpClient, TokenValidator, reexports::Claims};
+use http::{HeaderValue, Method, Request, header};
 use http_body_util::{BodyExt, Empty};
 use hyper::body::{Body, Buf, Bytes};
 use hyper_util::client::legacy::connect::Connect;
@@ -80,7 +80,7 @@ where
   C: Send + Sync + Connect + Clone + 'static,
   B: Body + Send + Unpin + 'static,
   <B as Body>::Data: Send,
-  <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
+  <B as Body>::Error: Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
   HttpClient<C, B>: JwksHttpClient,
 {
   pub(super) inner: TokenValidator<HttpClient<C, B>>,
@@ -91,7 +91,7 @@ where
   C: Send + Sync + Connect + Clone + 'static,
   B: Body + Send + Unpin + 'static,
   <B as Body>::Data: Send,
-  <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
+  <B as Body>::Error: Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
   HttpClient<C, B>: JwksHttpClient,
 {
   #[instrument(name = "validate_request", skip_all)]
