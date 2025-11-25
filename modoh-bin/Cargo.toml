@@ -67,12 +67,12 @@ async-trait = "0.1.89"
 url = "2.5.7"
 
 # config
-clap = { version = "4.5.51", features = ["std", "cargo", "wrap_help"] }
+clap = { version = "4.5.53", features = ["std", "cargo", "wrap_help"] }
 toml = { version = "0.9.8", default-features = false, features = [
   "parse",
   "serde",
 ] }
-hot_reload = "0.2.0"
+hot_reload = "0.3.5"
 
 # tracing and metrics
 tracing = { version = "0.1.41" }
