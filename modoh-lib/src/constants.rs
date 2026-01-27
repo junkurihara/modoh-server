@@ -19,7 +19,7 @@ pub const ERROR_TTL: u32 = 2;
 pub const MAX_TTL: u32 = 604800;
 pub const MIN_TTL: u32 = 10;
 pub const STALE_IF_ERROR_SECS: u32 = 300;
-pub const STALE_WHILE_REVALIDATE_SECS: u32 = 30;
+pub const STALE_WHILE_REVALIDATE_SECS: u32 = 5;
 /// ODoH Config cache is expired after at least 10 seconds
 pub const MAX_ODOH_CONFIG_TTL_SECS: u64 = 10;
 /// HTTPSig Config cache is expired after at least 10 seconds
