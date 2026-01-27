@@ -18,8 +18,12 @@ pub const UPSTREAM: &str = "8.8.8.8:53";
 pub const ERROR_TTL: u32 = 2;
 pub const MAX_TTL: u32 = 604800;
 pub const MIN_TTL: u32 = 10;
-pub const STALE_IF_ERROR_SECS: u32 = 86400;
-pub const STALE_WHILE_REVALIDATE_SECS: u32 = 60;
+pub const STALE_IF_ERROR_SECS: u32 = 300;
+pub const STALE_WHILE_REVALIDATE_SECS: u32 = 5;
+/// ODoH Config cache is expired after at least 10 seconds
+pub const MAX_ODOH_CONFIG_TTL_SECS: u64 = 10;
+/// HTTPSig Config cache is expired after at least 10 seconds
+pub const MAX_HTTPSIG_CONFIG_TTL_SECS: u64 = 10;
 
 /// Maximum ratio of TCP sessions to UDP sessions
 pub const TARGET_UDP_TCP_RATIO: usize = 8;
