@@ -1,11 +1,11 @@
 use crate::{
-  common::{read_lengthed, to_u16, Deserialize, Serialize},
+  common::{Deserialize, Serialize, read_lengthed, to_u16},
   error::HttpSigError,
 };
 use bytes::{Buf, BufMut, Bytes};
 use hpke::{
-  kem::{DhP256HkdfSha256, X25519HkdfSha256},
   Kem, Serializable,
+  kem::{DhP256HkdfSha256, X25519HkdfSha256},
 };
 use httpsig::prelude::{AlgorithmName, PublicKey, SecretKey};
 use rand::{CryptoRng, RngCore};
@@ -76,7 +76,7 @@ impl HttpSigPkKeyPair {
   /// export private key as `httpsig` crate's `SecretKey`
   pub fn try_export_sk(&self) -> Result<SecretKey, HttpSigError> {
     let alg_name = self.public_key.alg_name();
-    let res = SecretKey::from_bytes(alg_name, self.private_key.to_vec().as_slice())?;
+    let res = SecretKey::from_bytes(&alg_name, self.private_key.to_vec().as_slice())?;
     Ok(res)
   }
 }
@@ -92,7 +92,7 @@ impl HttpSigPkConfigContents {
   /// export public key as `httpsig` crate's `PublicKey`
   pub fn try_export(&self) -> Result<PublicKey, HttpSigError> {
     let alg_name = self.alg_name();
-    let res = PublicKey::from_bytes(alg_name, self.public_key.to_vec().as_slice())?;
+    let res = PublicKey::from_bytes(&alg_name, self.public_key.to_vec().as_slice())?;
     Ok(res)
   }
   /// Get the algorithm name in `httpsig` crate

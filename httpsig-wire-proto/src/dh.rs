@@ -7,10 +7,10 @@ use byteorder::{BigEndian, ByteOrder};
 use bytes::{Buf, BufMut, Bytes};
 use elliptic_curve::ecdh;
 use hpke::{
-  generic_array::GenericArray,
-  kdf::{extract_and_expand, HkdfSha256, Kdf},
-  kem::{DhP256HkdfSha256, Kem, SharedSecret, X25519HkdfSha256},
   Serializable,
+  generic_array::GenericArray,
+  kdf::{HkdfSha256, Kdf, extract_and_expand},
+  kem::{DhP256HkdfSha256, Kem, SharedSecret, X25519HkdfSha256},
 };
 use rand::{CryptoRng, RngCore};
 
