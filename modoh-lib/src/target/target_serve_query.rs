@@ -1,4 +1,4 @@
-use super::{target_main::build_http_response, InnerTarget};
+use super::{InnerTarget, target_main::build_http_response};
 use crate::{
   constants::{
     DNS_QUERY_PARAM, DOH_CONTENT_TYPE, MAX_DNS_QUESTION_LEN, MAX_DNS_RESPONSE_LEN, MIN_DNS_PACKET_LEN, ODOH_CONTENT_TYPE,
@@ -7,10 +7,11 @@ use crate::{
   dns,
   error::*,
   hyper_body::BoxBody,
-  message_util::{check_content_type, inspect_host, read_request_body, RequestType},
+  message_util::{RequestType, check_content_type, inspect_host, read_request_body},
+  target::target_main::build_http_response_no_store,
   trace::*,
 };
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 use byteorder::{BigEndian, ByteOrder};
 use futures::TryFutureExt;
 use http::{Method, Request, Response};
@@ -21,7 +22,7 @@ use tokio::{
   net::{TcpSocket, UdpSocket},
   time::timeout,
 };
-use tracing::{instrument, Instrument as _};
+use tracing::{Instrument as _, instrument};
 
 #[derive(Debug)]
 /// Dns response object
@@ -96,7 +97,7 @@ impl InnerTarget {
             self.log_dns_message(_peer_addr, &res.packet, &req_headers);
 
             let encrypted_body = context.encrypt_response(res.packet)?;
-            let resp = build_http_response(&encrypted_body, 0u64, ODOH_CONTENT_TYPE, false)?;
+            let resp = build_http_response_no_store(&encrypted_body, ODOH_CONTENT_TYPE, false)?;
             Ok(resp)
           }
         }

@@ -1,18 +1,19 @@
 use super::odoh::ODoHPublicKey;
 use crate::{
   constants::{
-    HTTPSIG_CONFIGS_PATH, ODOH_CONFIGS_PATH, ODOH_KEY_ROTATION_SECS, STALE_IF_ERROR_SECS, STALE_WHILE_REVALIDATE_SECS,
+    HTTPSIG_CONFIGS_PATH, MAX_HTTPSIG_CONFIG_TTL_SECS, MAX_ODOH_CONFIG_TTL_SECS, ODOH_CONFIGS_PATH, ODOH_KEY_ROTATION_SECS,
+    STALE_IF_ERROR_SECS, STALE_WHILE_REVALIDATE_SECS,
   },
   count::RequestCount,
   error::*,
   globals::Globals,
   httpsig_handler::HttpSigKeyRotationState,
-  hyper_body::{full, BoxBody},
+  hyper_body::{BoxBody, full},
   message_util::inspect_host,
   trace::*,
 };
-use futures::{select, FutureExt};
-use http::{header, Method, Request, Response};
+use futures::{FutureExt, select};
+use http::{Method, Request, Response, header};
 use hyper::body::Bytes;
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{
@@ -23,6 +24,23 @@ use tracing::instrument;
 
 #[instrument(level = "debug", skip_all)]
 /// build http response from given packet
+pub(super) fn build_http_response_no_store(packet: &[u8], content_type: &str, cors: bool) -> HttpResult<Response<BoxBody>> {
+  let packet_len = packet.len();
+  let mut response_builder = Response::builder()
+    .header(header::CONTENT_LENGTH, packet_len)
+    .header(header::CONTENT_TYPE, content_type)
+    .header(header::CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0")
+    .header(header::PRAGMA, "no-cache")
+    .header(header::EXPIRES, "0");
+  if cors {
+    response_builder = response_builder.header(hyper::header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+  }
+  let body = full(Bytes::copy_from_slice(packet));
+  response_builder.body(body).map_err(|_| HttpError::InvalidODoHConfig)
+}
+
+#[instrument(level = "debug", skip_all)]
+/// build http response from given packet
 pub(super) fn build_http_response(packet: &[u8], ttl: u64, content_type: &str, cors: bool) -> HttpResult<Response<BoxBody>> {
   let packet_len = packet.len();
   let mut response_builder = Response::builder()
@@ -30,8 +48,7 @@ pub(super) fn build_http_response(packet: &[u8], ttl: u64, content_type: &str, c
     .header(header::CONTENT_TYPE, content_type)
     .header(
       header::CACHE_CONTROL,
-      format!("max-age={ttl}, stale-if-error={STALE_IF_ERROR_SECS}, stale-while-revalidate={STALE_WHILE_REVALIDATE_SECS}")
-        .as_str(),
+      format!("max-age={ttl}, stale-if-error={STALE_IF_ERROR_SECS}, stale-while-revalidate={STALE_WHILE_REVALIDATE_SECS}, must-revalidate").as_str(),
     );
   if cors {
     response_builder = response_builder.header(hyper::header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
@@ -98,7 +115,12 @@ impl InnerTarget {
     let lock = self.odoh_configs.read().await;
     let configs = lock.as_config().to_owned();
     drop(lock);
-    build_http_response(&configs, ODOH_KEY_ROTATION_SECS, "application/octet-stream", true)
+    build_http_response(
+      &configs,
+      ODOH_KEY_ROTATION_SECS.min(MAX_ODOH_CONFIG_TTL_SECS),
+      "application/octet-stream",
+      true,
+    )
   }
 
   /// Serve httpsig config via GET method
@@ -123,7 +145,12 @@ impl InnerTarget {
     let configs = lock.as_config().to_owned();
     let rotation_period = httpsig_state.rotation_period.as_secs();
     drop(lock);
-    build_http_response(&configs, rotation_period, "application/octet-stream", true)
+    build_http_response(
+      &configs,
+      rotation_period.min(MAX_HTTPSIG_CONFIG_TTL_SECS),
+      "application/octet-stream",
+      true,
+    )
   }
 
   /// Start odoh config rotation service

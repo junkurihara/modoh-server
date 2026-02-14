@@ -5,14 +5,14 @@ use crate::{
   httpsig_handler::HttpSigKeysHandler,
   hyper_body::{BoxBody, IncomingOr},
   hyper_client::HttpClient,
-  message_util::{check_content_type, inspect_host, inspect_request_body, RequestType},
+  message_util::{RequestType, check_content_type, inspect_host, inspect_request_body},
   request_filter::RequestFilter,
   trace::*,
 };
 use http::{
+  Method, Request, Response,
   header::{self, HeaderMap, HeaderValue},
   request::Parts,
-  Method, Request, Response,
 };
 use hyper::body::{Body, Incoming};
 use hyper_util::client::legacy::connect::Connect;
@@ -26,7 +26,7 @@ where
   C: Send + Sync + Connect + Clone + 'static,
   B: Body + Send + Unpin + 'static,
   <B as Body>::Data: Send,
-  <B as Body>::Error: Into<Box<(dyn std::error::Error + Send + Sync + 'static)>>,
+  <B as Body>::Error: Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
 {
   /// hyper client
   pub(super) inner: Arc<HttpClient<C, B>>,

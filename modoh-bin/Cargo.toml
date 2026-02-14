@@ -52,11 +52,11 @@ modoh-server-lib = { path = "../modoh-lib", default-features = false, features =
   "rustls",
 ] }
 
-anyhow = "1.0.99"
+anyhow = "1.0.101"
 mimalloc = { version = "*", default-features = false }
-serde = { version = "1.0.219", default-features = false, features = ["derive"] }
+serde = { version = "1.0.228", default-features = false, features = ["derive"] }
 derive_builder = "0.20.2"
-tokio = { version = "1.47.1", default-features = false, features = [
+tokio = { version = "1.49.0", default-features = false, features = [
   "net",
   "rt-multi-thread",
   "time",
@@ -64,35 +64,35 @@ tokio = { version = "1.47.1", default-features = false, features = [
   "macros",
 ] }
 async-trait = "0.1.89"
-url = "2.5.7"
+url = "2.5.8"
 
 # config
-clap = { version = "4.5.47", features = ["std", "cargo", "wrap_help"] }
-toml = { version = "0.9.5", default-features = false, features = [
+clap = { version = "4.5.58", features = ["std", "cargo", "wrap_help"] }
+toml = { version = "1.0.1+spec-1.1.0", default-features = false, features = [
   "parse",
   "serde",
 ] }
-hot_reload = "0.2.0"
+hot_reload = "0.3.5"
 
 # tracing and metrics
-tracing = { version = "0.1.41" }
-tracing-subscriber = { version = "0.3.20", features = ["fmt"] }
-tracing-opentelemetry = { version = "0.31.0", optional = true }
-opentelemetry = { version = "0.30.0", optional = true }
-opentelemetry_sdk = { version = "0.30.0", features = [
+tracing = { version = "0.1.44" }
+tracing-subscriber = { version = "0.3.22", features = ["fmt"] }
+tracing-opentelemetry = { version = "0.32.1", optional = true }
+opentelemetry = { version = "0.31.0", optional = true }
+opentelemetry_sdk = { version = "0.31.0", features = [
   "rt-tokio",
   "spec_unstable_metrics_views",
 ], optional = true }
-opentelemetry-stdout = { version = "0.30.0", optional = true }
-opentelemetry-otlp = { version = "0.30.0", optional = true, features = [
+opentelemetry-stdout = { version = "0.31.0", optional = true }
+opentelemetry-otlp = { version = "0.31.0", optional = true, features = [
   "grpc-tonic",
 ] }
-opentelemetry-semantic-conventions = { version = "0.30.0", optional = true, features = [
+opentelemetry-semantic-conventions = { version = "0.31.0", optional = true, features = [
   "semconv_experimental",
 ] }
 
 # add random otel service id whenever restarting
-uuid = { version = "1.18.1", default-features = false, features = [
+uuid = { version = "1.21.0", default-features = false, features = [
   "v4",
   "fast-rng",
 ], optional = true }

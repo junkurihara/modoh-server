@@ -5,14 +5,14 @@
 target: all,alertmanager,overrides-exporter
 
 common:
-  storage:
-    backend: s3
-    s3:
-      endpoint: rclone:58080
-      secret_access_key: "${SECRET_ACCESS_KEY}" # This is a secret injected via an environment variable
-      access_key_id: "${ACCESS_KEY_ID}" # This is a secret injected via an environment variable
-      bucket_name: "${S3_BUCKET_NAME}" # This is a secret injected via an environment variable
-      insecure: true
+  # storage:
+  #   backend: s3
+  #   s3:
+  #     endpoint: rclone:58080
+  #     secret_access_key: "${SECRET_ACCESS_KEY}" # This is a secret injected via an environment variable
+  #     access_key_id: "${ACCESS_KEY_ID}" # This is a secret injected via an environment variable
+  #     bucket_name: "${S3_BUCKET_NAME}" # This is a secret injected via an environment variable
+  #     insecure: true
 
 # Blocks storage requires a prefix when using a common object storage bucket.
 blocks_storage:

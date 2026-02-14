@@ -13,10 +13,10 @@ use crate::{
   validator::Validator,
 };
 use hyper::{
+  Request,
   body::Incoming,
   rt::{Read, Write},
   service::service_fn,
-  Request,
 };
 use hyper_util::{client::legacy::connect::Connect, rt::TokioIo, server::conn::auto::Builder as ConnectionBuilder};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
@@ -85,7 +85,7 @@ where
                 let span_cx = span_cx.unwrap();
                 debug!(trace_id = span_cx.trace_id().to_string(), parent_span_id = span_cx.span_id().to_string(), "evil-trace enabled. received traceparent header.");
                 let context = Context::new().with_remote_span_context(span_cx);
-                current_span.set_parent(context);
+                let _ = current_span.set_parent(context);
                 current_span.context().span().span_context().trace_id();
                 debug!(trace_id = current_span.context().span().span_context().trace_id().to_string(), child_span_id = current_span.context().span().span_context().span_id().to_string(), "evil-trace enabled. get into child span");
               }
