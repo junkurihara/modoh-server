@@ -96,8 +96,8 @@ tracing-opentelemetry = { version = "0.32.1", optional = true }
 httpsig-proto = { path = "../httpsig-wire-proto", default-features = false, package = "httpsig-proto" }
 httpsig-registry = { path = "../httpsig-registry", default-features = false, package = "httpsig-registry" }
 indexmap = { version = "2.13.0" }
-httpsig = { version = "0.0.23" }
-httpsig-hyper = { version = "0.0.23" }
+httpsig = { version = "0.0.24" }
+httpsig-hyper = { version = "0.0.24" }
 
 # logging
 crossbeam-channel = { version = "0.5.15", optional = true }
