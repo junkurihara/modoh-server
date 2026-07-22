@@ -452,7 +452,7 @@ impl TargetDomainToKeyIdMap {
       .map(|(idx, (domain, _))| (domain.as_ref(), idx.to_owned() as i32))
       .collect::<Vec<_>>();
     let mut suffix_idx_cedar = Cedar::new();
-    suffix_idx_cedar.build(&suffix_idx_kv);
+    suffix_idx_cedar.build(&suffix_idx_kv).ok();
     let suffix_idx_map = suffix_dict_with_index
       .iter()
       .map(|(idx, (domain, _))| (idx.to_owned(), domain.to_owned()))

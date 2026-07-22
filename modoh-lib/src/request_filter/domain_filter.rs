@@ -50,7 +50,7 @@ impl DomainFilter {
       .map(|(k, s)| (s, k as i32))
       .collect();
     let mut prefix_cedar = Cedar::new();
-    prefix_cedar.build(&prefix_kv);
+    prefix_cedar.build(&prefix_kv).ok();
 
     let suffix_kv: Vec<(&str, i32)> = suffix_dict
       .iter()
@@ -59,7 +59,7 @@ impl DomainFilter {
       .map(|(k, s)| (s, k as i32))
       .collect();
     let mut suffix_cedar = Cedar::new();
-    suffix_cedar.build(&suffix_kv);
+    suffix_cedar.build(&suffix_kv).ok();
 
     Self {
       prefix_cedar,
