@@ -56,19 +56,19 @@ anyhow = "1.0.104"
 mimalloc = { version = "*", default-features = false }
 serde = { version = "1.0.229", default-features = false, features = ["derive"] }
 derive_builder = "0.20.2"
-tokio = { version = "1.53.1", default-features = false, features = [
+tokio = { version = "1.54.1", default-features = false, features = [
   "net",
   "rt-multi-thread",
   "time",
   "sync",
   "macros",
 ] }
-async-trait = "0.1.91"
+async-trait = "0.1.92"
 url = "2.5.8"
 
 # config
-clap = { version = "4.6.4", features = ["std", "cargo", "wrap_help"] }
-toml = { version = "1.1.3", default-features = false, features = [
+clap = { version = "4.6.7", features = ["std", "cargo", "wrap_help"] }
+toml = { version = "1.2.1", default-features = false, features = [
   "parse",
   "serde",
 ] }
@@ -92,10 +92,10 @@ opentelemetry-semantic-conventions = { version = "0.32.1", optional = true, feat
 ] }
 
 # add random otel service id whenever restarting
-uuid = { version = "1.24.0", default-features = false, features = [
+uuid = { version = "1.29.0", default-features = false, features = [
   "v4",
   "fast-rng",
 ], optional = true }
 
 # ip address
-ipnet = { version = "2.12.0" }
+ipnet = { version = "2.12.2" }
