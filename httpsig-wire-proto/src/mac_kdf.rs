@@ -1,6 +1,6 @@
 use crate::{dh::KemKdfDerivedSecret, error::HttpSigError};
 use hkdf::Hkdf;
-use rand::{CryptoRng, RngCore};
+use rand::CryptoRng;
 use sha2::Sha256;
 
 /// Info for HKDF for derivation of session key
@@ -68,7 +68,7 @@ impl DeriveKeyId for KemKdfDerivedSecret<HmacSha256HkdfSha256> {
 pub trait DeriveSessionKey {
   fn derive_session_key_with_random_nonce<R>(&self, rng: &mut R) -> Result<SessionKeyNonce, HttpSigError>
   where
-    R: RngCore + CryptoRng;
+    R: CryptoRng;
   fn derive_session_key_with_nonce(&self, nonce: &[u8]) -> Result<SessionKeyNonce, HttpSigError>;
 }
 /* ---------------------------------- */
@@ -76,7 +76,7 @@ impl DeriveSessionKey for KemKdfDerivedSecret<HmacSha256HkdfSha256> {
   /// Derive session key with random nonce
   fn derive_session_key_with_random_nonce<R>(&self, rng: &mut R) -> Result<SessionKeyNonce, HttpSigError>
   where
-    R: RngCore + CryptoRng,
+    R: CryptoRng,
   {
     let kem_kdf_derived_key_id = self.key_id();
     let mut nonce = vec![0u8; HmacSha256HkdfSha256::KDF_SALT_LEN];

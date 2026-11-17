@@ -8,7 +8,7 @@ use hpke::{
   Kem, Serializable,
 };
 use httpsig::prelude::{AlgorithmName, PublicKey, SecretKey};
-use rand::{CryptoRng, RngCore};
+use rand::CryptoRng;
 
 /* ------------------------------------------- */
 #[derive(Clone, Default, Debug, PartialEq, Eq)]
@@ -31,9 +31,9 @@ impl HttpSigPkTypes {
   }
 
   /// Generate new key pair
-  pub(crate) fn generate_key_pair<R>(&self, mut rng: &mut R) -> HttpSigPkKeyPair
+  pub(crate) fn generate_key_pair<R>(&self, rng: &mut R) -> HttpSigPkKeyPair
   where
-    R: RngCore + CryptoRng,
+    R: CryptoRng,
   {
     let (sk_bytes, pk_bytes) = match self {
       HttpSigPkTypes::Ed25519 => {
@@ -43,7 +43,7 @@ impl HttpSigPkTypes {
         (kp.sk.seed().to_vec(), kp.pk.as_slice().to_vec())
       }
       HttpSigPkTypes::EcdsaP256Sha256 => {
-        let (sk, pk) = DhP256HkdfSha256::gen_keypair(&mut rng);
+        let (sk, pk) = DhP256HkdfSha256::gen_keypair_with_rng(rng);
         (sk.to_bytes().to_vec(), pk.to_bytes().to_vec())
       }
     };
@@ -76,7 +76,7 @@ impl HttpSigPkKeyPair {
   /// export private key as `httpsig` crate's `SecretKey`
   pub fn try_export_sk(&self) -> Result<SecretKey, HttpSigError> {
     let alg_name = self.public_key.alg_name();
-    let res = SecretKey::from_bytes(alg_name, self.private_key.to_vec().as_slice())?;
+    let res = SecretKey::from_bytes(&alg_name, self.private_key.to_vec().as_slice())?;
     Ok(res)
   }
 }
@@ -92,7 +92,7 @@ impl HttpSigPkConfigContents {
   /// export public key as `httpsig` crate's `PublicKey`
   pub fn try_export(&self) -> Result<PublicKey, HttpSigError> {
     let alg_name = self.alg_name();
-    let res = PublicKey::from_bytes(alg_name, self.public_key.to_vec().as_slice())?;
+    let res = PublicKey::from_bytes(&alg_name, self.public_key.to_vec().as_slice())?;
     Ok(res)
   }
   /// Get the algorithm name in `httpsig` crate
