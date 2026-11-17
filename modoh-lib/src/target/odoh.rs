@@ -6,7 +6,7 @@ use odoh_rs::{
   Deserialize, ObliviousDoHConfig, ObliviousDoHConfigs, ObliviousDoHKeyPair, ObliviousDoHMessage, ObliviousDoHMessagePlaintext,
   OdohSecret, ResponseNonce, Serialize,
 };
-use rand::Rng;
+use rand::RngExt;
 use tracing::instrument;
 
 #[derive(Clone)]

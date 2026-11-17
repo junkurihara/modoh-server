@@ -67,11 +67,17 @@ pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>, _qrlog_confi
 
   #[cfg(feature = "otel-trace")]
   let otel_filter = tracing_subscriber::filter::filter_fn(move |metadata| {
+    // qrlog events are emitted only with `qrlog` feature, and they must not be exported as traces
+    #[cfg(feature = "qrlog")]
+    let is_qrlog_event = metadata.name().contains(QRLOG_EVENT_NAME);
+    #[cfg(not(feature = "qrlog"))]
+    let is_qrlog_event = false;
+
     metadata
       .target()
       .starts_with(env!("CARGO_PKG_NAME").replace('-', "_").as_str())
       && metadata.level() <= &level
-      && !metadata.name().contains(QRLOG_EVENT_NAME)
+      && !is_qrlog_event
   });
 
   #[cfg(feature = "qrlog")]
@@ -93,14 +99,14 @@ pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>, _qrlog_confi
         reg.init();
       }
       /* --------------------------------- */
-      (Some(otel_config), None) => {
+      (Some(_otel_config), None) => {
         // traces
         #[cfg(feature = "otel-trace")]
-        if otel_config.trace_enabled {
+        if _otel_config.trace_enabled {
           println!("Opentelemetry is enabled for traces");
 
           reg
-            .with(OpenTelemetryLayer::new(init_tracer(otel_config)).with_filter(otel_filter))
+            .with(OpenTelemetryLayer::new(init_tracer(_otel_config)).with_filter(otel_filter))
             .init();
         } else {
           reg.init();
@@ -117,7 +123,7 @@ pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>, _qrlog_confi
         reg.init();
       }
       /* --------------------------------- */
-      (Some(otel_config), Some(qrlog_path)) => {
+      (Some(_otel_config), Some(qrlog_path)) => {
         let qrlog_file = qrlog_file(qrlog_path);
         // Query and response logger in json format
         let reg = reg.with(qlog_layer_base.with_writer(qrlog_file).with_filter(QrlogFilter));
@@ -125,10 +131,10 @@ pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>, _qrlog_confi
 
         // traces
         #[cfg(feature = "otel-trace")]
-        if otel_config.trace_enabled {
+        if _otel_config.trace_enabled {
           println!("Opentelemetry is enabled for traces");
           reg
-            .with(OpenTelemetryLayer::new(init_tracer(otel_config)).with_filter(otel_filter))
+            .with(OpenTelemetryLayer::new(init_tracer(_otel_config)).with_filter(otel_filter))
             .init();
         } else {
           reg.init();
@@ -143,14 +149,14 @@ pub fn init_tracing_subscriber(_trace_config: &TraceConfig<String>, _qrlog_confi
     if _trace_config.otel_config.is_none() {
       reg.init();
     } else {
-      let otel_config = _trace_config.otel_config.as_ref().unwrap();
+      let _otel_config = _trace_config.otel_config.as_ref().unwrap();
 
       // traces
       #[cfg(feature = "otel-trace")]
-      if otel_config.trace_enabled {
+      if _otel_config.trace_enabled {
         println!("Opentelemetry is enabled for traces");
         reg
-          .with(OpenTelemetryLayer::new(init_tracer(otel_config)).with_filter(otel_filter))
+          .with(OpenTelemetryLayer::new(init_tracer(_otel_config)).with_filter(otel_filter))
           .init();
       } else {
         reg.init();

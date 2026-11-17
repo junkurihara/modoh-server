@@ -8,11 +8,10 @@ use bytes::{Buf, BufMut, Bytes};
 use elliptic_curve::ecdh;
 use hpke::{
   Serializable,
-  generic_array::GenericArray,
-  kdf::{HkdfSha256, Kdf, extract_and_expand},
+  kdf::{HkdfSha256, Kdf},
   kem::{DhP256HkdfSha256, Kem, SharedSecret, X25519HkdfSha256},
 };
-use rand::{CryptoRng, RngCore};
+use rand::CryptoRng;
 
 /* ------------------------------------------- */
 #[derive(Clone, Default, Debug, PartialEq, Eq)]
@@ -42,17 +41,17 @@ impl HttpSigDhTypes {
     HmacSha256HkdfSha256::MAC_KDF_ID
   }
   /// Generate new key pair
-  pub(crate) fn generate_key_pair<R>(&self, mut rng: &mut R) -> HttpSigDhKeyPair<HmacSha256HkdfSha256>
+  pub(crate) fn generate_key_pair<R>(&self, rng: &mut R) -> HttpSigDhKeyPair<HmacSha256HkdfSha256>
   where
-    R: RngCore + CryptoRng,
+    R: CryptoRng,
   {
     let (sk_bytes, pk_bytes) = match self {
       HttpSigDhTypes::Hs256X25519HkdfSha256 => {
-        let (sk, pk) = X25519HkdfSha256::gen_keypair(&mut rng);
+        let (sk, pk) = X25519HkdfSha256::gen_keypair_with_rng(rng);
         (sk.to_bytes().to_vec(), pk.to_bytes().to_vec())
       }
       HttpSigDhTypes::Hs256DhP256HkdfSha256 => {
-        let (sk, pk) = DhP256HkdfSha256::gen_keypair(&mut rng);
+        let (sk, pk) = DhP256HkdfSha256::gen_keypair_with_rng(rng);
         (sk.to_bytes().to_vec(), pk.to_bytes().to_vec())
       }
     };
@@ -218,17 +217,19 @@ pub fn derive_secret<M: MacKdf>(
       let my_sk = ed25519_compact::x25519::SecretKey::from_slice(&key_pair_self.private_key).unwrap();
       let kex_res = your_pk.dh(&my_sk)?.to_vec();
       let mut buf = <SharedSecret<X25519HkdfSha256> as Default>::default();
-      let _ = extract_and_expand::<HkdfSha256>(kex_res.as_slice(), &suite_id, &kem_context, &mut buf.0);
+      let _ = HkdfSha256::extract_and_expand(kex_res.as_slice(), &suite_id, &kem_context, &mut buf.0);
       buf.0.to_vec()
     }
     DhP256HkdfSha256::KEM_ID => {
       let suite_id = kem_suite_id::<DhP256HkdfSha256>();
       let your_pk = p256::PublicKey::from_sec1_bytes(&config_other.public_key)?;
-      let my_sk = p256::SecretKey::from_bytes(&GenericArray::clone_from_slice(&key_pair_self.private_key))?;
+      let my_sk_bytes =
+        p256::FieldBytes::try_from(key_pair_self.private_key.as_ref()).map_err(|_| HttpSigError::InvalidInputLength)?;
+      let my_sk = p256::SecretKey::from_bytes(&my_sk_bytes)?;
       let kex_res = ecdh::diffie_hellman(my_sk.to_nonzero_scalar(), your_pk.as_affine());
 
       let mut buf = <SharedSecret<DhP256HkdfSha256> as Default>::default();
-      let _ = extract_and_expand::<HkdfSha256>(kex_res.raw_secret_bytes().as_slice(), &suite_id, &kem_context, &mut buf.0);
+      let _ = HkdfSha256::extract_and_expand(kex_res.raw_secret_bytes().as_slice(), &suite_id, &kem_context, &mut buf.0);
       buf.0.to_vec()
     }
     _ => unreachable!(),

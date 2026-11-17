@@ -441,6 +441,8 @@ impl TargetDomainToKeyIdMap {
         let domain = domain.to_ascii_lowercase();
         (domain, key_ids_for_generation.to_owned())
       })
+      // cedarwood rejects empty keys and keys containing NUL bytes, so exclude them as invalid domains
+      .filter(|(domain, _)| !domain.is_empty() && !domain.contains('\0'))
       .filter(|(domain, _)| re.is_match(domain) || (domain.split('.').count() == 1))
       .map(|(domain, key_ids)| (reverse_string(&domain), key_ids))
       .enumerate()
@@ -452,7 +454,11 @@ impl TargetDomainToKeyIdMap {
       .map(|(idx, (domain, _))| (domain.as_ref(), idx.to_owned() as i32))
       .collect::<Vec<_>>();
     let mut suffix_idx_cedar = Cedar::new();
-    suffix_idx_cedar.build(&suffix_idx_kv).ok();
+    // Invalid keys are filtered out above, so this is not expected to fail.
+    // On failure, cedarwood leaves the trie empty, which means no key ids are found for any target domain.
+    if let Err(e) = suffix_idx_cedar.build(&suffix_idx_kv) {
+      error!("Failed to build target domain trie for httpsig keys: {e}");
+    }
     let suffix_idx_map = suffix_dict_with_index
       .iter()
       .map(|(idx, (domain, _))| (idx.to_owned(), domain.to_owned()))
@@ -543,5 +549,20 @@ mod tests {
     let target_domain = "not_matched.example.com";
     let matched_indices = target_domain_key_ids_map.get_key_ids(target_domain);
     assert!(matched_indices.is_empty());
+  }
+
+  #[test]
+  fn test_target_domain_key_ids_map_ignores_invalid_domains() {
+    let key_ids_map_current = [vec![
+      ("test_key_id_00".to_string(), "".to_string()),
+      ("test_key_id_10".to_string(), "test.example.com".to_string()),
+    ]];
+
+    let mut target_domain_key_ids_map = TargetDomainToKeyIdMap::new();
+    target_domain_key_ids_map.set_trie(key_ids_map_current.iter());
+
+    let target_domain = "test.example.com";
+    let matched_indices = target_domain_key_ids_map.get_key_ids(target_domain);
+    assert!(matched_indices.get(&0).unwrap().contains(&"test_key_id_10".to_string()));
   }
 }

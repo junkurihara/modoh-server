@@ -8,7 +8,7 @@ use hpke::{
   kem::{DhP256HkdfSha256, X25519HkdfSha256},
 };
 use httpsig::prelude::{AlgorithmName, PublicKey, SecretKey};
-use rand::{CryptoRng, RngCore};
+use rand::CryptoRng;
 
 /* ------------------------------------------- */
 #[derive(Clone, Default, Debug, PartialEq, Eq)]
@@ -31,9 +31,9 @@ impl HttpSigPkTypes {
   }
 
   /// Generate new key pair
-  pub(crate) fn generate_key_pair<R>(&self, mut rng: &mut R) -> HttpSigPkKeyPair
+  pub(crate) fn generate_key_pair<R>(&self, rng: &mut R) -> HttpSigPkKeyPair
   where
-    R: RngCore + CryptoRng,
+    R: CryptoRng,
   {
     let (sk_bytes, pk_bytes) = match self {
       HttpSigPkTypes::Ed25519 => {
@@ -43,7 +43,7 @@ impl HttpSigPkTypes {
         (kp.sk.seed().to_vec(), kp.pk.as_slice().to_vec())
       }
       HttpSigPkTypes::EcdsaP256Sha256 => {
-        let (sk, pk) = DhP256HkdfSha256::gen_keypair(&mut rng);
+        let (sk, pk) = DhP256HkdfSha256::gen_keypair_with_rng(rng);
         (sk.to_bytes().to_vec(), pk.to_bytes().to_vec())
       }
     };

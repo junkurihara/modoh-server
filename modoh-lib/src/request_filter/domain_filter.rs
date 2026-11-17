@@ -29,6 +29,8 @@ impl DomainFilter {
     let dict: Vec<String> = allowed_domains
       .iter()
       .map(|d| if start_with_star.is_match(d) { &d[2..] } else { d })
+      // cedarwood rejects empty keys and keys containing NUL bytes, so exclude them as invalid domains
+      .filter(|x| !x.is_empty() && !x.contains('\0'))
       .filter(|x| re.is_match(x) || (x.split('.').count() == 1))
       .map(|y| y.to_ascii_lowercase())
       .collect();
@@ -50,7 +52,11 @@ impl DomainFilter {
       .map(|(k, s)| (s, k as i32))
       .collect();
     let mut prefix_cedar = Cedar::new();
-    prefix_cedar.build(&prefix_kv).ok();
+    // Invalid keys are filtered out above, so this is not expected to fail.
+    // On failure, cedarwood leaves the trie empty, which makes the filter deny all prefix matches.
+    if let Err(e) = prefix_cedar.build(&prefix_kv) {
+      error!("Failed to build prefix trie for domain filter: {e}");
+    }
 
     let suffix_kv: Vec<(&str, i32)> = suffix_dict
       .iter()
@@ -59,7 +65,11 @@ impl DomainFilter {
       .map(|(k, s)| (s, k as i32))
       .collect();
     let mut suffix_cedar = Cedar::new();
-    suffix_cedar.build(&suffix_kv).ok();
+    // Invalid keys are filtered out above, so this is not expected to fail.
+    // On failure, cedarwood leaves the trie empty, which makes the filter deny all suffix matches.
+    if let Err(e) = suffix_cedar.build(&suffix_kv) {
+      error!("Failed to build suffix trie for domain filter: {e}");
+    }
 
     Self {
       prefix_cedar,
@@ -164,6 +174,18 @@ mod tests {
     assert!(!domain_filter.in_domain_list(query));
 
     let query = "msn.com";
+    assert!(domain_filter.in_domain_list(query));
+  }
+
+  #[test]
+  fn domain_filter_ignores_invalid_keys() {
+    let allowed_domains = vec!["".to_string(), "bad\0domain".to_string(), "example.com".to_string()];
+    let domain_filter = DomainFilter::new(allowed_domains);
+
+    let query = "example.com";
+    assert!(domain_filter.in_domain_list(query));
+
+    let query = "www.example.com";
     assert!(domain_filter.in_domain_list(query));
   }
 }

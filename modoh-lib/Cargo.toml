@@ -3,7 +3,6 @@ name = "modoh-server-lib"
 description = "Relay and target libraly for (Mutualized) Oblivious DNS over HTTPS with Authorization"
 version.workspace = true
 authors.workspace = true
-homepage.workspace = true
 repository.workspace = true
 license.workspace = true
 readme.workspace = true
@@ -16,12 +15,8 @@ publish.workspace = true
 
 [features]
 default = ["rustls"]
-metrics = ["opentelemetry_sdk/metrics", "opentelemetry/metrics"]
-evil-trace = [
-  "dep:tracing-opentelemetry",
-  "opentelemetry_sdk/trace",
-  "opentelemetry/trace",
-]
+metrics = ["opentelemetry/metrics"]
+evil-trace = ["dep:tracing-opentelemetry", "opentelemetry/trace"]
 native-tls = ["dep:hyper-tls"]
 rustls = ["dep:hyper-rustls"]
 rustls-webpki-roots = ["rustls", "hyper-rustls/webpki-tokio"]
@@ -65,14 +60,14 @@ hyper-rustls = { version = "0.27.10", default-features = false, features = [
 ], optional = true }
 
 # modoh target handling
-odoh-rs = { git = "https://github.com/junkurihara/odoh-rs", rev = "f4d4c5d246d99fac4bd51559ee5826c9d491c114" }
-rand = "0.9.5"
-base64 = "0.22.1"
+odoh-rs = { git = "https://github.com/junkurihara/odoh-rs", rev = "070225fcb1ea86e2ee38f79651b5712ab5a839e6" }
+rand = "0.10.4"
+base64 = "0.23.1"
 byteorder = "1.5.0"
 
 # validation of id token
 serde = { version = "1.0.229", default-features = false }
-auth-validator = { git = "https://github.com/junkurihara/rust-token-server", package = "rust-token-server-validator", branch = "develop", default-features = false, features = [
+auth-validator = { git = "https://github.com/junkurihara/rust-token-server", package = "rust-token-server-validator", rev = "4a755645bad2af5346fb6e3bbf785447e418b57c", default-features = false, features = [
   "blind-signatures",
 ] }
 serde_json = { version = "1.0.154" }
@@ -83,21 +78,18 @@ cedarwood = { version = "0.6.1" }
 regex = { version = "1.13.1" }
 
 # metrics
-opentelemetry = { version = "0.32.0", optional = true }
-opentelemetry_sdk = { version = "0.32.1", features = [
-  "rt-tokio",
-], optional = true }
+opentelemetry = { version = "0.33.1", optional = true }
 
 # tracing requests traveled among relays and targets
 # NOTE: DO NOT USE THIS IN PRODUCTION
-tracing-opentelemetry = { version = "0.33.0", optional = true }
+tracing-opentelemetry = { version = "0.34.0", optional = true }
 
 # httpsig
 httpsig-proto = { path = "../httpsig-wire-proto", default-features = false, package = "httpsig-proto" }
 httpsig-registry = { path = "../httpsig-registry", default-features = false, package = "httpsig-registry" }
 indexmap = { version = "2.14.2" }
-httpsig = { version = "0.0.26" }
-httpsig-hyper = { version = "0.0.26" }
+httpsig = { version = "0.0.27" }
+httpsig-hyper = { version = "0.0.27" }
 
 # logging
 crossbeam-channel = { version = "0.5.17", optional = true }
