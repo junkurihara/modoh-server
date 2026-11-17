@@ -1,11 +1,11 @@
 use crate::{
-  common::{read_lengthed, to_u16, Deserialize, Serialize},
+  common::{Deserialize, Serialize, read_lengthed, to_u16},
   error::HttpSigError,
 };
 use bytes::{Buf, BufMut, Bytes};
 use hpke::{
-  kem::{DhP256HkdfSha256, X25519HkdfSha256},
   Kem, Serializable,
+  kem::{DhP256HkdfSha256, X25519HkdfSha256},
 };
 use httpsig::prelude::{AlgorithmName, PublicKey, SecretKey};
 use rand::CryptoRng;

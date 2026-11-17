@@ -179,7 +179,7 @@ cd /modoh
 echo "modoh-server: Start with user: ${USER} (${USER_ID}:${GROUP_ID})"
 if "${LOGGING}"; then
   echo "modoh-server: Start with writing log file"
-  gosu ${USER} sh -c "/modoh/run.sh 2>&1 | tee ${LOG_FILE}"
+  gosu ${USER} sh -c "/modoh/run.sh 2>&1 | tee -a ${LOG_FILE}"
 else
   echo "modoh-server: Start without writing log file"
   gosu ${USER} sh -c "/modoh/run.sh 2>&1"

@@ -7,9 +7,9 @@ use byteorder::{BigEndian, ByteOrder};
 use bytes::{Buf, BufMut, Bytes};
 use elliptic_curve::ecdh;
 use hpke::{
+  Serializable,
   kdf::{HkdfSha256, Kdf},
   kem::{DhP256HkdfSha256, Kem, SharedSecret, X25519HkdfSha256},
-  Serializable,
 };
 use rand::CryptoRng;
 
